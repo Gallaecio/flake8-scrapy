@@ -1,8 +1,12 @@
 # scrapy-flake8
 
-A Flake8 plugin to catch common issues on Scrapy spiders.
+![](https://github.com/stummjr/flake8-scrapy/workflows/CI/badge.svg)
+![](https://pepy.tech/badge/flake8-scrapy)
 
-## Issue types
+A [Flake8](https://flake8.pycqa.org/en/latest/) plugin to catch common issues
+on Scrapy projects.
+
+## Error codes
 
 | Code  | Meaning |
 | ---   | --- |
@@ -12,4 +16,31 @@ A Flake8 plugin to catch common issues on Scrapy spiders.
 | SCP04 | Usage of `Selector(response)` in callback |
 | SCP05 | Usage of a lambda function as the request callback |
 
-This is a work in progress, so new issues will be added to this list.
+
+## Installation
+
+```
+pip install flake8-scrapy
+```
+
+
+## Usage
+
+Once installed, flake8-scrapy checks are run automatically when running
+[Flake8](https://flake8.pycqa.org/en/latest/):
+
+```
+flake8
+```
+
+When using [pre-commit](https://pre-commit.com/), configure Flake8 and list
+flake8-scrapy in `additional_dependencies`. For example:
+
+```yaml
+- repo: https://github.com/pycqa/flake8
+  rev: "7.2.0"
+  hooks:
+  - id: flake8
+    additional_dependencies:
+    - flake8-scrapy
+```

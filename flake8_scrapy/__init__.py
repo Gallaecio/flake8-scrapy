@@ -1,34 +1,33 @@
 import ast
 
-from finders.domains import (
-    UnreachableDomainIssueFinder, UrlInAllowedDomainsIssueFinder,
+from ._finders.domains import (
+    UnreachableDomainIssueFinder,
+    UrlInAllowedDomainsIssueFinder,
 )
-from finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
-from finders.unsupported import LambdaCallbackIssueFinder
+from ._finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
+from ._finders.unsupported import LambdaCallbackIssueFinder
 
-__version__ = '0.0.1'
+__version__ = "0.0.2"
 
 
 class ScrapyStyleIssueFinder(ast.NodeVisitor):
-
     def __init__(self, *args, **kwargs):
-        super(ScrapyStyleIssueFinder, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.issues = []
         self.finders = {
-            'Assign': [
+            "Assign": [
                 UnreachableDomainIssueFinder(),
                 UrlInAllowedDomainsIssueFinder(),
                 OldSelectorIssueFinder(),
             ],
-            'Call': [
+            "Call": [
                 UrlJoinIssueFinder(),
                 LambdaCallbackIssueFinder(),
-            ]
+            ],
         }
 
     def find_issues_visitor(self, visitor, node):
-        """Find issues for the provided visitor
-        """
+        """Find issues for the provided visitor"""
         for finder in self.finders[visitor]:
             issues = finder.find_issues(node)
             if issues:
@@ -36,15 +35,15 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Assign(self, node):
-        self.find_issues_visitor('Assign', node)
+        self.find_issues_visitor("Assign", node)
 
     def visit_Call(self, node):
-        self.find_issues_visitor('Call', node)
+        self.find_issues_visitor("Call", node)
 
 
-class ScrapyStyleChecker(object):
+class ScrapyStyleChecker:
     options = None
-    name = 'flake8-scrapy'
+    name = "flake8-scrapy"
     version = __version__
 
     def __init__(self, tree, filename):
