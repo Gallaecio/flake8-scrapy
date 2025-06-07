@@ -1,0 +1,664 @@
+from __future__ import annotations
+
+import ast
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from difflib import get_close_matches
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import scrapy
+from packaging.version import Version
+
+from . import IssueFinder
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+SCRAPY_VERSION = Version(scrapy.__version__)
+MIN_VALID_SETTING_NAME_LENGTH = 3
+
+
+@dataclass
+class SettingInfo:
+    added_version: str | None = None
+    removed_version: str | None = None
+    deprecated_version: str | None = None
+    deprecation_message: str | None = None
+
+
+# Use this for settings deprecated in Scrapy 2.0.1 or lower.
+MINIMUM_SUPPORTED_SCRAPY_VERSION_OR_LOWER = "2.0.1"
+
+# Grouped by active, deprecated or removed.
+# Active settings are sorted as in scrapy.settings.default_settings, while
+# deprecated and removed settings are sorted by the version that deprecated or
+# removed them, from higher to lower.
+SETTINGS = {
+    # Active settings
+    "ADDONS": SettingInfo(added_version="2.10.0"),
+    "ASYNCIO_EVENT_LOOP": SettingInfo(added_version="2.4.0"),
+    "AUTOTHROTTLE_DEBUG": SettingInfo(),
+    "AUTOTHROTTLE_ENABLED": SettingInfo(),
+    "AUTOTHROTTLE_MAX_DELAY": SettingInfo(),
+    "AUTOTHROTTLE_START_DELAY": SettingInfo(),
+    "AUTOTHROTTLE_TARGET_CONCURRENCY": SettingInfo(),
+    "BOT_NAME": SettingInfo(),
+    "CLOSESPIDER_ERRORCOUNT": SettingInfo(),
+    "CLOSESPIDER_ITEMCOUNT": SettingInfo(),
+    "CLOSESPIDER_PAGECOUNT": SettingInfo(),
+    "CLOSESPIDER_TIMEOUT": SettingInfo(),
+    "COMMANDS_MODULE": SettingInfo(),
+    "COMPRESSION_ENABLED": SettingInfo(),
+    "CONCURRENT_ITEMS": SettingInfo(),
+    "CONCURRENT_REQUESTS": SettingInfo(),
+    "CONCURRENT_REQUESTS_PER_DOMAIN": SettingInfo(),
+    "CONCURRENT_REQUESTS_PER_IP": SettingInfo(),
+    "COOKIES_DEBUG": SettingInfo(),
+    "COOKIES_ENABLED": SettingInfo(),
+    "DEFAULT_DROPITEM_LOG_LEVEL": SettingInfo(added_version="2.13.0"),
+    "DEFAULT_ITEM_CLASS": SettingInfo(),
+    "DEFAULT_REQUEST_HEADERS": SettingInfo(),
+    "DEPTH_LIMIT": SettingInfo(),
+    "DEPTH_PRIORITY": SettingInfo(),
+    "DEPTH_STATS_VERBOSE": SettingInfo(),
+    "DNSCACHE_ENABLED": SettingInfo(),
+    "DNSCACHE_SIZE": SettingInfo(),
+    "DNS_RESOLVER": SettingInfo(),
+    "DNS_TIMEOUT": SettingInfo(),
+    "DOWNLOAD_DELAY": SettingInfo(),
+    "DOWNLOAD_FAIL_ON_DATALOSS": SettingInfo(),
+    "DOWNLOAD_HANDLERS": SettingInfo(),
+    "DOWNLOAD_HANDLERS_BASE": SettingInfo(),
+    "DOWNLOAD_MAXSIZE": SettingInfo(),
+    "DOWNLOAD_TIMEOUT": SettingInfo(),
+    "DOWNLOAD_WARNSIZE": SettingInfo(),
+    "DOWNLOADER": SettingInfo(),
+    "DOWNLOADER_CLIENTCONTEXTFACTORY": SettingInfo(),
+    "DOWNLOADER_CLIENT_TLS_CIPHERS": SettingInfo(),
+    "DOWNLOADER_CLIENT_TLS_METHOD": SettingInfo(),
+    "DOWNLOADER_CLIENT_TLS_VERBOSE_LOGGING": SettingInfo(),
+    "DOWNLOADER_HTTPCLIENTFACTORY": SettingInfo(),
+    "DOWNLOADER_MIDDLEWARES": SettingInfo(),
+    "DOWNLOADER_MIDDLEWARES_BASE": SettingInfo(),
+    "DOWNLOADER_STATS": SettingInfo(),
+    "DUPEFILTER_CLASS": SettingInfo(),
+    "EDITOR": SettingInfo(),
+    "EXTENSIONS": SettingInfo(),
+    "EXTENSIONS_BASE": SettingInfo(),
+    "FEED_EXPORT_BATCH_ITEM_COUNT": SettingInfo(added_version="2.3.0"),
+    "FEED_EXPORT_ENCODING": SettingInfo(),
+    "FEED_EXPORT_FIELDS": SettingInfo(),
+    "FEED_EXPORT_INDENT": SettingInfo(),
+    "FEED_EXPORTERS": SettingInfo(),
+    "FEED_EXPORTERS_BASE": SettingInfo(),
+    "FEED_STORAGE_FTP_ACTIVE": SettingInfo(),
+    "FEED_STORAGE_GCS_ACL": SettingInfo(added_version="2.3.0"),
+    "FEED_STORAGE_S3_ACL": SettingInfo(),
+    "FEED_STORE_EMPTY": SettingInfo(),
+    "FEED_STORAGES": SettingInfo(),
+    "FEED_STORAGES_BASE": SettingInfo(),
+    "FEED_TEMPDIR": SettingInfo(),
+    "FEED_URI_PARAMS": SettingInfo(),
+    "FEEDS": SettingInfo(added_version="2.1.0"),
+    "FILES_STORE_GCS_ACL": SettingInfo(),
+    "FILES_STORE_S3_ACL": SettingInfo(),
+    "FORCE_CRAWLER_PROCESS": SettingInfo(),
+    "FTP_PASSIVE_MODE": SettingInfo(),
+    "FTP_PASSWORD": SettingInfo(),
+    "FTP_USER": SettingInfo(),
+    "GCS_PROJECT_ID": SettingInfo(added_version="2.3.0"),
+    "HTTPCACHE_ALWAYS_STORE": SettingInfo(),
+    "HTTPCACHE_DBM_MODULE": SettingInfo(),
+    "HTTPCACHE_DIR": SettingInfo(),
+    "HTTPCACHE_ENABLED": SettingInfo(),
+    "HTTPCACHE_EXPIRATION_SECS": SettingInfo(),
+    "HTTPCACHE_GZIP": SettingInfo(),
+    "HTTPCACHE_IGNORE_HTTP_CODES": SettingInfo(),
+    "HTTPCACHE_IGNORE_MISSING": SettingInfo(),
+    "HTTPCACHE_IGNORE_RESPONSE_CACHE_CONTROLS": SettingInfo(),
+    "HTTPCACHE_IGNORE_SCHEMES": SettingInfo(),
+    "HTTPCACHE_POLICY": SettingInfo(),
+    "HTTPCACHE_STORAGE": SettingInfo(),
+    "HTTPPROXY_AUTH_ENCODING": SettingInfo(),
+    "HTTPPROXY_ENABLED": SettingInfo(),
+    "IMAGES_STORE_GCS_ACL": SettingInfo(),
+    "IMAGES_STORE_S3_ACL": SettingInfo(),
+    "ITEM_PIPELINES": SettingInfo(),
+    "ITEM_PIPELINES_BASE": SettingInfo(),
+    "ITEM_PROCESSOR": SettingInfo(),
+    "JOBDIR": SettingInfo(),
+    "LOG_DATEFORMAT": SettingInfo(),
+    "LOG_ENABLED": SettingInfo(),
+    "LOG_ENCODING": SettingInfo(),
+    "LOG_FILE": SettingInfo(),
+    "LOG_FILE_APPEND": SettingInfo(added_version="2.6.0"),
+    "LOG_FORMAT": SettingInfo(),
+    "LOG_FORMATTER": SettingInfo(),
+    "LOG_LEVEL": SettingInfo(),
+    "LOG_SHORT_NAMES": SettingInfo(),
+    "LOG_STDOUT": SettingInfo(),
+    "LOG_VERSIONS": SettingInfo(added_version="2.13.0"),
+    "LOGSTATS_INTERVAL": SettingInfo(),
+    "MAIL_FROM": SettingInfo(),
+    "MAIL_HOST": SettingInfo(),
+    "MAIL_PASS": SettingInfo(),
+    "MAIL_PORT": SettingInfo(),
+    "MAIL_USER": SettingInfo(),
+    "MEMDEBUG_ENABLED": SettingInfo(),
+    "MEMDEBUG_NOTIFY": SettingInfo(),
+    "MEMUSAGE_CHECK_INTERVAL_SECONDS": SettingInfo(),
+    "MEMUSAGE_ENABLED": SettingInfo(),
+    "MEMUSAGE_LIMIT_MB": SettingInfo(),
+    "MEMUSAGE_NOTIFY_MAIL": SettingInfo(),
+    "MEMUSAGE_WARNING_MB": SettingInfo(),
+    "METAREFRESH_ENABLED": SettingInfo(),
+    "METAREFRESH_IGNORE_TAGS": SettingInfo(),
+    "METAREFRESH_MAXDELAY": SettingInfo(),
+    "NEWSPIDER_MODULE": SettingInfo(),
+    "PERIODIC_LOG_DELTA": SettingInfo(added_version="2.11.0"),
+    "PERIODIC_LOG_STATS": SettingInfo(added_version="2.11.0"),
+    "PERIODIC_LOG_TIMING_ENABLED": SettingInfo(added_version="2.11.0"),
+    "RANDOMIZE_DOWNLOAD_DELAY": SettingInfo(),
+    "REACTOR_THREADPOOL_MAXSIZE": SettingInfo(),
+    "REDIRECT_ENABLED": SettingInfo(),
+    "REDIRECT_MAX_TIMES": SettingInfo(),
+    "REDIRECT_PRIORITY_ADJUST": SettingInfo(),
+    "REFERER_ENABLED": SettingInfo(),
+    "REFERRER_POLICY": SettingInfo(),
+    "REQUEST_FINGERPRINTER_CLASS": SettingInfo(added_version="2.7.0"),
+    "RETRY_ENABLED": SettingInfo(),
+    "RETRY_EXCEPTIONS": SettingInfo(added_version="2.10.0"),
+    "RETRY_HTTP_CODES": SettingInfo(),
+    "RETRY_PRIORITY_ADJUST": SettingInfo(),
+    "RETRY_TIMES": SettingInfo(),
+    "ROBOTSTXT_OBEY": SettingInfo(),
+    "ROBOTSTXT_PARSER": SettingInfo(),
+    "ROBOTSTXT_USER_AGENT": SettingInfo(),
+    "SCHEDULER": SettingInfo(),
+    "SCHEDULER_DEBUG": SettingInfo(),
+    "SCHEDULER_DISK_QUEUE": SettingInfo(),
+    "SCHEDULER_MEMORY_QUEUE": SettingInfo(),
+    "SCHEDULER_PRIORITY_QUEUE": SettingInfo(),
+    "SCHEDULER_START_DISK_QUEUE": SettingInfo(added_version="2.13.0"),
+    "SCHEDULER_START_MEMORY_QUEUE": SettingInfo(added_version="2.13.0"),
+    "SCRAPER_SLOT_MAX_ACTIVE_SIZE": SettingInfo(),
+    "SPIDER_CONTRACTS": SettingInfo(),
+    "SPIDER_CONTRACTS_BASE": SettingInfo(),
+    "SPIDER_LOADER_CLASS": SettingInfo(),
+    "SPIDER_LOADER_WARN_ONLY": SettingInfo(),
+    "SPIDER_MIDDLEWARES": SettingInfo(),
+    "SPIDER_MIDDLEWARES_BASE": SettingInfo(),
+    "SPIDER_MODULES": SettingInfo(),
+    "STATS_CLASS": SettingInfo(),
+    "STATS_DUMP": SettingInfo(),
+    "STATSMAILER_RCPTS": SettingInfo(),
+    "TELNETCONSOLE_ENABLED": SettingInfo(),
+    "TELNETCONSOLE_HOST": SettingInfo(),
+    "TELNETCONSOLE_PASSWORD": SettingInfo(),
+    "TELNETCONSOLE_PORT": SettingInfo(),
+    "TELNETCONSOLE_USERNAME": SettingInfo(),
+    "TEMPLATES_DIR": SettingInfo(),
+    "TWISTED_REACTOR": SettingInfo(),
+    "URLLENGTH_LIMIT": SettingInfo(),
+    "USER_AGENT": SettingInfo(),
+    "WARN_ON_GENERATOR_RETURN_VALUE": SettingInfo(added_version="2.13.0"),
+    # Deprecated settings
+    "AJAXCRAWL_ENABLED": SettingInfo(
+        added_version="0.22.0",
+        deprecated_version="2.13.0",
+        deprecation_message=(
+            "The setting is False by default, and setting it to True will stop"
+            " working in a future version of Scrapy."
+        ),
+    ),
+    "REQUEST_FINGERPRINTER_IMPLEMENTATION": SettingInfo(
+        added_version="2.7.0",
+        deprecated_version="2.12.0",
+        deprecation_message=(
+            "See https://flake8-scrapy.readthedocs.io/en/latest/rules/scp08.html"
+            "#request_fingerprinter_implementation"
+        ),
+    ),
+    "FEED_FORMAT": SettingInfo(
+        deprecated_version="2.1.0",
+        deprecation_message="Use FEEDS instead",
+    ),
+    "FEED_URI": SettingInfo(
+        deprecated_version="2.1.0",
+        deprecation_message="Use FEEDS instead",
+    ),
+    # Removed settings
+    "SPIDER_MANAGER_CLASS": SettingInfo(
+        removed_version="2.5.0", deprecated_version="1.0.0"
+    ),
+    "LOG_UNSERIALIZABLE_REQUESTS": SettingInfo(
+        removed_version="2.1.0",
+        deprecated_version=MINIMUM_SUPPORTED_SCRAPY_VERSION_OR_LOWER,
+        deprecation_message="Use SCHEDULER_DEBUG instead.",
+    ),
+    "REDIRECT_MAX_METAREFRESH_DELAY": SettingInfo(
+        removed_version="2.1.0",
+        deprecated_version=MINIMUM_SUPPORTED_SCRAPY_VERSION_OR_LOWER,
+        deprecation_message="Use METAREFRESH_MAXDELAY instead.",
+    ),
+}
+
+HARDCODED_SUGGESTIONS = {
+    "CONCURRENCY": ["CONCURRENT_REQUESTS", "CONCURRENT_REQUESTS_PER_DOMAIN"],
+    "DELAY": ["DOWNLOAD_DELAY"],
+}
+
+MIN_SUGGESTION_SCORE = 0.6
+
+
+def get_setting_suggestions(
+    unknown_setting: str, known_settings: set[str], max_suggestions: int = 3
+) -> list[str]:
+    hardcoded = HARDCODED_SUGGESTIONS.get(unknown_setting.upper())
+    if hardcoded:
+        return hardcoded[:max_suggestions]
+
+    return get_close_matches(
+        unknown_setting.upper(),
+        known_settings,
+        n=max_suggestions,
+        cutoff=MIN_SUGGESTION_SCORE,
+    )
+
+
+class BaseSettingsIssueFinder(IssueFinder, ABC):
+    def __init__(self, filename=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.found_settings = set()
+        self.filename = Path(filename).name if filename else None
+        self.settings_methods = {
+            "get": "name",
+            "set": "name",
+            "getbool": "name",
+            "getint": "name",
+            "getfloat": "name",
+            "getlist": "name",
+            "getdict": "name",
+            "getdictorlist": "name",
+            "getwithbase": "name",
+            "getpriority": "name",
+            "setdefault": "name",
+            "delete": "name",
+            "pop": "name",
+        }
+
+    @abstractmethod
+    def should_report_setting(self, setting_name: str) -> bool:
+        """Return True if this setting should be reported as an issue."""
+
+    @abstractmethod
+    def get_setting_message(self, setting_name: str) -> str:
+        """Generate the message for this setting issue."""
+
+    def find_issues(self, node) -> Generator[tuple[int, int, str], None, None]:
+        if isinstance(node, ast.Assign):
+            yield from self.check_assignment(node)
+        elif isinstance(node, ast.Call):
+            yield from self.check_call(node)
+        elif isinstance(node, ast.Subscript):
+            yield from self.check_subscript(node)
+        elif isinstance(node, ast.Delete):
+            yield from self.check_delete(node)
+        for child in ast.iter_child_nodes(node):
+            yield from self.find_issues(child)
+
+    def check_assignment(
+        self, node: ast.Assign
+    ) -> Generator[tuple[int, int, str], None, None]:
+        if self.filename == "settings.py":
+            for target in node.targets:
+                if not isinstance(target, ast.Name) or not target.id.isupper():
+                    continue
+                setting_name = target.id
+                if self.is_likely_setting(setting_name) and self.should_report_setting(
+                    setting_name
+                ):
+                    yield from self.report_setting_issue(
+                        node.lineno, node.col_offset, setting_name
+                    )
+
+        # Check for custom_settings assignments in any class
+        if isinstance(node.value, ast.Dict):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "custom_settings":
+                    yield from self.check_dict_keys(
+                        node.value, node.lineno, node.col_offset
+                    )
+
+    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:  # noqa: PLR0911
+        if isinstance(node.func, ast.Attribute):
+            if self.is_settings_method_call(node):
+                yield from self.check_settings_method_args(node)
+                return
+            if self.is_settings_dict_method_call(node):
+                yield from self.check_settings_dict_method_args(node)
+                return
+            if node.func.attr != "overridden_settings":
+                return
+            if (
+                isinstance(node.func.value, ast.Attribute)
+                and node.func.value.attr == "settings"
+                and isinstance(node.func.value.value, ast.Name)
+                and node.func.value.value.id == "scrapy"
+            ):
+                yield from self.check_overridden_settings_args(node)
+                return
+            if (
+                isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "settings"
+            ):
+                yield from self.check_overridden_settings_args(node)
+            return
+
+        if not isinstance(node.func, ast.Name):
+            return
+
+        if node.func.id in {"BaseSettings", "Settings"}:
+            yield from self.check_settings_constructor_args(node)
+            return
+        if node.func.id == "overridden_settings":
+            yield from self.check_overridden_settings_args(node)
+
+    def check_subscript(
+        self, node: ast.Subscript
+    ) -> Generator[tuple[int, int, str], None, None]:
+        if not self.is_settings_subscript(node):
+            return
+        if not isinstance(node.slice, ast.Constant) or not isinstance(
+            node.slice.value, str
+        ):
+            return
+        setting_name = node.slice.value
+        if self.should_report_setting(setting_name):
+            yield from self.report_setting_issue(
+                node.slice.lineno, node.slice.col_offset, setting_name
+            )
+
+    def check_dict_keys(
+        self, dict_node: ast.Dict, line: int, col: int
+    ) -> Generator[tuple[int, int, str], None, None]:
+        for key in dict_node.keys:
+            if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
+                continue
+            setting_name = key.value
+            if setting_name.isupper() and self.should_report_setting(setting_name):
+                yield from self.report_setting_issue(
+                    key.lineno, key.col_offset, setting_name
+                )
+
+    def check_dict_constructor_keywords(
+        self, call_node: ast.Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        for keyword in call_node.keywords:
+            if keyword.arg is None:
+                continue
+            setting_name = keyword.arg
+            if setting_name.isupper() and self.should_report_setting(setting_name):
+                keyword_col = keyword.value.col_offset - len(setting_name) - 1
+                yield from self.report_setting_issue(
+                    keyword.value.lineno, keyword_col, setting_name
+                )
+
+    def is_likely_setting(self, name: str) -> bool:
+        return (
+            name.isupper()
+            and len(name) >= MIN_VALID_SETTING_NAME_LENGTH
+            and not name.startswith("_")
+        )
+
+    def is_settings_method_call(self, node: ast.Call) -> bool:
+        assert isinstance(node.func, ast.Attribute)
+        method_name = node.func.attr
+        if method_name not in self.settings_methods:
+            return False
+        return self.is_settings_object(node.func.value)
+
+    def is_settings_dict_method_call(self, node: ast.Call) -> bool:
+        assert isinstance(node.func, ast.Attribute)
+        method_name = node.func.attr
+        dict_methods = {"setdict", "update"}
+        if method_name not in dict_methods:
+            return False
+        return self.is_settings_object(node.func.value)
+
+    def is_settings_subscript(self, node: ast.Subscript) -> bool:
+        return self.is_settings_object(node.value)
+
+    def is_settings_object(self, node: ast.AST) -> bool:
+        if isinstance(node, ast.Name):
+            return node.id == "settings"
+        if not isinstance(node, ast.Attribute):
+            return False
+        return node.attr == "settings"
+
+    def check_settings_method_args(
+        self, node: ast.Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        assert isinstance(node.func, ast.Attribute)
+        method_name = node.func.attr
+        param_name = self.settings_methods[method_name]
+        if node.args:
+            first_arg = node.args[0]
+            if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
+                setting_name = first_arg.value
+                if self.should_report_setting(setting_name):
+                    yield from self.report_setting_issue(
+                        first_arg.lineno, first_arg.col_offset, setting_name
+                    )
+        for keyword in node.keywords:
+            if keyword.arg != param_name:
+                continue
+            if not isinstance(keyword.value, ast.Constant) or not isinstance(
+                keyword.value.value, str
+            ):
+                continue
+            setting_name = keyword.value.value
+            if self.should_report_setting(setting_name):
+                yield from self.report_setting_issue(
+                    keyword.value.lineno, keyword.value.col_offset, setting_name
+                )
+
+    def check_settings_dict_method_args(
+        self, node: ast.Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        if node.args:
+            first_arg = node.args[0]
+            if isinstance(first_arg, ast.Dict):
+                yield from self.check_dict_keys(
+                    first_arg, first_arg.lineno, first_arg.col_offset
+                )
+            elif (
+                isinstance(first_arg, ast.Call)
+                and isinstance(first_arg.func, ast.Name)
+                and first_arg.func.id == "dict"
+            ):
+                yield from self.check_dict_constructor_keywords(first_arg)
+        for keyword in node.keywords:
+            if keyword.arg != "values":
+                continue
+            if isinstance(keyword.value, ast.Dict):
+                yield from self.check_dict_keys(
+                    keyword.value, keyword.value.lineno, keyword.value.col_offset
+                )
+            elif (
+                isinstance(keyword.value, ast.Call)
+                and isinstance(keyword.value.func, ast.Name)
+                and keyword.value.func.id == "dict"
+            ):
+                yield from self.check_dict_constructor_keywords(keyword.value)
+
+    def check_settings_constructor_args(
+        self, node: ast.Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        for arg in node.args:
+            if isinstance(arg, ast.Dict):
+                yield from self.check_dict_keys(arg, arg.lineno, arg.col_offset)
+            elif (
+                isinstance(arg, ast.Call)
+                and isinstance(arg.func, ast.Name)
+                and arg.func.id == "dict"
+            ):
+                yield from self.check_dict_constructor_keywords(arg)
+        for keyword in node.keywords:
+            if keyword.arg != "values":
+                continue
+            if isinstance(keyword.value, ast.Dict):
+                yield from self.check_dict_keys(
+                    keyword.value, keyword.value.lineno, keyword.value.col_offset
+                )
+            elif (
+                isinstance(keyword.value, ast.Call)
+                and isinstance(keyword.value.func, ast.Name)
+                and keyword.value.func.id == "dict"
+            ):
+                yield from self.check_dict_constructor_keywords(keyword.value)
+
+    def check_overridden_settings_args(
+        self, node: ast.Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        if node.args:
+            first_arg = node.args[0]
+            if isinstance(first_arg, ast.Dict):
+                yield from self.check_dict_keys(
+                    first_arg, first_arg.lineno, first_arg.col_offset
+                )
+        for keyword in node.keywords:
+            if keyword.arg != "settings" or not isinstance(keyword.value, ast.Dict):
+                continue
+            yield from self.check_dict_keys(
+                keyword.value, keyword.value.lineno, keyword.value.col_offset
+            )
+
+    def check_delete(
+        self, node: ast.Delete
+    ) -> Generator[tuple[int, int, str], None, None]:
+        for target in node.targets:
+            if not isinstance(target, ast.Subscript):
+                continue
+            if not self.is_settings_object(target.value):
+                continue
+            if not isinstance(target.slice, ast.Constant) or not isinstance(
+                target.slice.value, str
+            ):
+                continue
+            setting_name = target.slice.value
+            if self.should_report_setting(setting_name):
+                yield from self.report_setting_issue(
+                    target.slice.lineno, target.slice.col_offset, setting_name
+                )
+
+    def report_setting_issue(
+        self, line: int, col: int, setting_name: str
+    ) -> Generator[tuple[int, int, str], None, None]:
+        if setting_name in self.found_settings:
+            return
+        self.found_settings.add(setting_name)
+
+        message = self.get_setting_message(setting_name)
+        yield (line, col, message)
+
+
+class UnknownSettingsIssueFinder(BaseSettingsIssueFinder):
+    msg_code = "SCP07"
+    msg_info = "unknown Scrapy setting"
+
+    def __init__(self, filename=None, *args, **kwargs):
+        super().__init__(*args, filename=filename, **kwargs)
+        self.known_settings = set(SETTINGS)
+
+    def should_report_setting(self, setting_name: str) -> bool:
+        return setting_name not in self.known_settings
+
+    def get_setting_message(self, setting_name: str) -> str:
+        suggestions = get_setting_suggestions(setting_name, self.known_settings)
+        message = f"{self.msg_code}: {self.msg_info}: {setting_name}"
+
+        if not suggestions:
+            return message
+
+        if len(suggestions) == 1:
+            message += f". Did you mean {suggestions[0]}?"
+        else:
+            suggestion_list = ", ".join(suggestions)
+            message += f". Did you mean one of: {suggestion_list}?"
+
+        return message
+
+
+class DeprecatedSettingsIssueFinder(BaseSettingsIssueFinder):
+    msg_code = "SCP08"
+    msg_info = "deprecated Scrapy setting"
+
+    def __init__(self, filename=None, *args, **kwargs):
+        super().__init__(filename, *args, **kwargs)
+        self.deprecated_settings = self.get_deprecated_settings()
+
+    def get_deprecated_settings(self) -> set[str]:
+        deprecated = set()
+        for name, info in SETTINGS.items():
+            if info.removed_version and Version(info.removed_version) <= SCRAPY_VERSION:
+                continue
+            if info.added_version and Version(info.added_version) > SCRAPY_VERSION:
+                continue
+            if info.deprecated_version:
+                deprecated.add(name)
+        return deprecated
+
+    def should_report_setting(self, setting_name: str) -> bool:
+        return setting_name in self.deprecated_settings
+
+    def get_setting_message(self, setting_name: str) -> str:
+        version = SETTINGS[setting_name].deprecated_version
+        if version == MINIMUM_SUPPORTED_SCRAPY_VERSION_OR_LOWER:
+            version = f"{MINIMUM_SUPPORTED_SCRAPY_VERSION_OR_LOWER} or earlier"
+        message = f"{self.msg_code}: {self.msg_info}: {setting_name} (deprecated in Scrapy {version})"
+        deprecation_message = SETTINGS[setting_name].deprecation_message
+        if deprecation_message:
+            message += f". {deprecation_message}"
+        return message
+
+
+class FutureSettingsIssueFinder(BaseSettingsIssueFinder):
+    msg_code = "SCP09"
+    msg_info = "future Scrapy setting"
+
+    def __init__(self, filename=None, *args, **kwargs):
+        super().__init__(filename, *args, **kwargs)
+        self.future_settings = {
+            name
+            for name, info in SETTINGS.items()
+            if info.added_version and Version(info.added_version) > SCRAPY_VERSION
+        }
+
+    def should_report_setting(self, setting_name: str) -> bool:
+        return setting_name in self.future_settings
+
+    def get_setting_message(self, setting_name: str) -> str:
+        version = SETTINGS[setting_name].added_version
+        return f"{self.msg_code}: {self.msg_info}: {setting_name} (added in Scrapy {version})"
+
+
+class RemovedSettingsIssueFinder(BaseSettingsIssueFinder):
+    msg_code = "SCP10"
+    msg_info = "removed Scrapy setting"
+
+    def __init__(self, filename=None, *args, **kwargs):
+        super().__init__(filename, *args, **kwargs)
+        self.removed_settings = {
+            name
+            for name, info in SETTINGS.items()
+            if info.removed_version and Version(info.removed_version) <= SCRAPY_VERSION
+        }
+
+    def should_report_setting(self, setting_name: str) -> bool:
+        return setting_name in self.removed_settings
+
+    def get_setting_message(self, setting_name: str) -> str:
+        version = SETTINGS[setting_name].removed_version
+        return f"{self.msg_code}: {self.msg_info}: {setting_name} (removed in Scrapy {version})"

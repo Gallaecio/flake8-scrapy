@@ -5,22 +5,45 @@ from ._finders.domains import (
     UrlInAllowedDomainsIssueFinder,
 )
 from ._finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
+from ._finders.settings import (
+    DeprecatedSettingsIssueFinder,
+    FutureSettingsIssueFinder,
+    RemovedSettingsIssueFinder,
+    UnknownSettingsIssueFinder,
+)
 
 __version__ = "0.0.2"
 
 
 class ScrapyStyleIssueFinder(ast.NodeVisitor):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, filename=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.issues = []
+        setting_finders = (
+            DeprecatedSettingsIssueFinder(filename),
+            FutureSettingsIssueFinder(filename),
+            RemovedSettingsIssueFinder(filename),
+            UnknownSettingsIssueFinder(filename),
+        )
         self.finders = {
             "Assign": [
                 UnreachableDomainIssueFinder(),
                 UrlInAllowedDomainsIssueFinder(),
                 OldSelectorIssueFinder(),
+                *setting_finders,
             ],
             "Call": [
                 UrlJoinIssueFinder(),
+                *setting_finders,
+            ],
+            "Subscript": [
+                *setting_finders,
+            ],
+            "ClassDef": [
+                *setting_finders,
+            ],
+            "Delete": [
+                *setting_finders,
             ],
         }
 
@@ -38,6 +61,15 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
     def visit_Call(self, node):
         self.find_issues_visitor("Call", node)
 
+    def visit_Subscript(self, node):
+        self.find_issues_visitor("Subscript", node)
+
+    def visit_ClassDef(self, node):
+        self.find_issues_visitor("ClassDef", node)
+
+    def visit_Delete(self, node):
+        self.find_issues_visitor("Delete", node)
+
 
 class ScrapyStyleChecker:
     options = None
@@ -49,7 +81,7 @@ class ScrapyStyleChecker:
         self.filename = filename
 
     def run(self):
-        finder = ScrapyStyleIssueFinder()
+        finder = ScrapyStyleIssueFinder(self.filename)
         finder.visit(self.tree)
 
         for line, col, msg in finder.issues:
