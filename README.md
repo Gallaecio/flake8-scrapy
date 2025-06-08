@@ -73,3 +73,16 @@ flake8-scrapy in `additional_dependencies`. For example:
     additional_dependencies:
     - flake8-scrapy
 ```
+
+## Other recommended tools
+
+In addition to flake8-scrapy, you may want to use the following tools:
+
+- [mypy](https://mypy.readthedocs.io/en/stable/) for static type checking. Most
+  Scrapy components are annotated with types, so you can get a lot of value out
+  of it.
+
+- [ruff](https://docs.astral.sh/ruff/) for fast linting and formatting. Besides
+  its default rules, it supports
+  [many additional rules](https://docs.astral.sh/ruff/rules/) that may be worth
+  enabling for a Scrapy project.
