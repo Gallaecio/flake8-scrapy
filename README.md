@@ -33,6 +33,12 @@ Default: `[]`
 A list of Scrapy settings that will not raise SCP07, SCP08, SCP09 or SCP10
 errors.
 
+If you are using the latest version of flake8-scrapy and you find yourself
+adding a setting to this list that is not specific to your project (i.e. made
+up by yourself for some custom Scrapy component), consider
+[opening an issue](https://github.com/stummjr/flake8-scrapy/issues) to request
+support for that setting.
+
 
 ## Installation
 
