@@ -447,3 +447,59 @@ def test_no_obsolete_packages():
         scp16_issues = [issue for issue in issues if "SCP16" in issue[2]]
 
         assert len(scp16_issues) == 0
+
+
+def test_project_finder_without_filename():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    issues = run_checker(code, filename=None, enable_project_checks=True)
+    project_issues = [
+        issue
+        for issue in issues
+        if any(f"SCP{i}" in issue[2] for i in [11, 12, 13, 14, 16])
+    ]
+    assert len(project_issues) == 0
+
+
+def test_unreadable_requirements_txt():
+    import stat
+
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text("scrapy==2.11.0\n")
+
+        # Remove read permissions
+        original_mode = requirements_file.stat().st_mode
+        requirements_file.chmod(stat.S_IWRITE)
+
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+
+        try:
+            issues = run_checker(
+                code, filename=str(test_file), enable_project_checks=True
+            )
+            project_issues = [
+                issue
+                for issue in issues
+                if any(f"SCP{i}" in issue[2] for i in [11, 12, 13, 14, 16])
+            ]
+            assert len(project_issues) == 0
+        finally:
+            # Restore permissions for cleanup
+            requirements_file.chmod(original_mode)
+
+
+def test_invalid_version_format():
+    from flake8_scrapy._finders.project import (
+        AncientScrapyVersionIssueFinder,
+        InsecureScrapyVersionIssueFinder,
+    )
+
+    finder = AncientScrapyVersionIssueFinder()
+    result = finder.is_version_less_than("invalid-version", "2.0.0")
+    assert result is False
+
+    insecure_finder = InsecureScrapyVersionIssueFinder()
+    result = insecure_finder.is_version_less_than("invalid-version", "2.11.2")
+    assert result is False
