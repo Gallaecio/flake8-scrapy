@@ -533,22 +533,25 @@ def test_main(input: Input, expected: Issue | None):
         ),
         (
             Input("", filename="settings.py"),
-            Issue("SCP19: No USER_AGENT in settings.py"),
+            [
+                Issue("SCP19: No USER_AGENT in settings.py"),
+                Issue("SCP20: ROBOTSTXT_OBEY not enabled in settings.py"),
+            ],
             # [
             #     Issue("SCP19: No USER_AGENT in settings.py"),
             #     Issue("SCP20: ROBOTSTXT_OBEY not enabled in settings.py"),
             #     Issue("SCP21: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: CONCURRENT_REQUESTS, CONCURRENT_REQUESTS_PER_DOMAIN, DOWNLOAD_DELAY"),
             # ],
         ),
-        # (
-        #     Input(
-        #         "USER_AGENT = \"Jane Doe (+https://jane.doe.example)\"\n"
-        #         "ROBOTSTXT_OBEY = False\n"
-        #         "AUTOTHROTTLE_ENABLED = True",
-        #         filename="settings.py",
-        #     ),
-        #     Issue("SCP20: ROBOTSTXT_OBEY not enabled in settings.py"),
-        # ),
+        (
+            Input(
+                'USER_AGENT = "Jane Doe (+https://jane.doe.example)"\n'
+                "ROBOTSTXT_OBEY = False\n"
+                "AUTOTHROTTLE_ENABLED = True",
+                filename="settings.py",
+            ),
+            Issue("SCP20: ROBOTSTXT_OBEY not enabled in settings.py"),
+        ),
         # (
         #     Input(
         #         "USER_AGENT = \"Jane Doe (+https://jane.doe.example)\"\n"

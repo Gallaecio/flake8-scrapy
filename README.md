@@ -27,6 +27,7 @@ on Scrapy projects.
 | SCP17 | Wrong setting getter |
 | SCP18 | Invalid setting value |
 | SCP19 | USER_AGENT missing from settings.py |
+| SCP20 | ROBOTSTXT_OBEY not enabled in settings.py |
 
 
 ## Options

@@ -31,6 +31,8 @@ class SettingType(Enum):
     OPT_STR = "opt_str"
     STR = "str"
     CLS = "cls"
+    PATH = "path"
+    OPT_PATH = "opt_path"
 
 
 class AllowedExcludeSettingsMixin:
@@ -123,21 +125,23 @@ SETTINGS = {
     "FEED_EXPORTERS": SettingInfo(),
     "FEED_EXPORTERS_BASE": SettingInfo(),
     "FEED_STORAGE_FTP_ACTIVE": SettingInfo(),
-    "FEED_STORAGE_GCS_ACL": SettingInfo(added_version="2.3.0"),
+    "FEED_STORAGE_GCS_ACL": SettingInfo(
+        added_version="2.3.0", type=SettingType.OPT_STR
+    ),
     "FEED_STORAGE_S3_ACL": SettingInfo(),
     "FEED_STORE_EMPTY": SettingInfo(),
     "FEED_STORAGES": SettingInfo(),
     "FEED_STORAGES_BASE": SettingInfo(),
-    "FEED_TEMPDIR": SettingInfo(),
+    "FEED_TEMPDIR": SettingInfo(type=SettingType.OPT_PATH),
     "FEED_URI_PARAMS": SettingInfo(),
     "FEEDS": SettingInfo(added_version="2.1.0"),
     "FILES_STORE_GCS_ACL": SettingInfo(),
     "FILES_STORE_S3_ACL": SettingInfo(),
     "FORCE_CRAWLER_PROCESS": SettingInfo(),
-    "FTP_PASSIVE_MODE": SettingInfo(),
-    "FTP_PASSWORD": SettingInfo(),
-    "FTP_USER": SettingInfo(),
-    "GCS_PROJECT_ID": SettingInfo(added_version="2.3.0"),
+    "FTP_PASSIVE_MODE": SettingInfo(type=SettingType.BOOL),
+    "FTP_PASSWORD": SettingInfo(type=SettingType.OPT_STR),
+    "FTP_USER": SettingInfo(type=SettingType.OPT_STR),
+    "GCS_PROJECT_ID": SettingInfo(added_version="2.3.0", type=SettingType.OPT_STR),
     "HTTPCACHE_ALWAYS_STORE": SettingInfo(),
     "HTTPCACHE_DBM_MODULE": SettingInfo(),
     "HTTPCACHE_DIR": SettingInfo(),
@@ -154,20 +158,20 @@ SETTINGS = {
     "HTTPPROXY_ENABLED": SettingInfo(type=SettingType.BOOL),
     "IMAGES_STORE_GCS_ACL": SettingInfo(),
     "IMAGES_STORE_S3_ACL": SettingInfo(),
-    "ITEM_PIPELINES": SettingInfo(),
+    "ITEM_PIPELINES": SettingInfo(type=SettingType.BASED_DICT),
     "ITEM_PIPELINES_BASE": SettingInfo(),
     "ITEM_PROCESSOR": SettingInfo(),
-    "JOBDIR": SettingInfo(),
-    "LOG_DATEFORMAT": SettingInfo(),
+    "JOBDIR": SettingInfo(type=SettingType.OPT_PATH),
+    "LOG_DATEFORMAT": SettingInfo(type=SettingType.STR),
     "LOG_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "LOG_ENCODING": SettingInfo(),
-    "LOG_FILE": SettingInfo(),
-    "LOG_FILE_APPEND": SettingInfo(added_version="2.6.0"),
-    "LOG_FORMAT": SettingInfo(),
-    "LOG_FORMATTER": SettingInfo(),
+    "LOG_ENCODING": SettingInfo(type=SettingType.STR),
+    "LOG_FILE": SettingInfo(type=SettingType.OPT_PATH),
+    "LOG_FILE_APPEND": SettingInfo(added_version="2.6.0", type=SettingType.BOOL),
+    "LOG_FORMAT": SettingInfo(type=SettingType.STR),
+    "LOG_FORMATTER": SettingInfo(type=SettingType.CLS),
     "LOG_LEVEL": SettingInfo(),
-    "LOG_SHORT_NAMES": SettingInfo(),
-    "LOG_STDOUT": SettingInfo(),
+    "LOG_SHORT_NAMES": SettingInfo(type=SettingType.BOOL),
+    "LOG_STDOUT": SettingInfo(type=SettingType.BOOL),
     "LOG_VERSIONS": SettingInfo(added_version="2.13.0", type=SettingType.LIST),
     "LOGSTATS_INTERVAL": SettingInfo(type=SettingType.FLOAT),
     "MAIL_FROM": SettingInfo(),
@@ -176,12 +180,12 @@ SETTINGS = {
     "MAIL_PORT": SettingInfo(),
     "MAIL_USER": SettingInfo(),
     "MEMDEBUG_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "MEMDEBUG_NOTIFY": SettingInfo(),
-    "MEMUSAGE_CHECK_INTERVAL_SECONDS": SettingInfo(),
+    "MEMDEBUG_NOTIFY": SettingInfo(type=SettingType.LIST),
+    "MEMUSAGE_CHECK_INTERVAL_SECONDS": SettingInfo(type=SettingType.FLOAT),
     "MEMUSAGE_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "MEMUSAGE_LIMIT_MB": SettingInfo(),
-    "MEMUSAGE_NOTIFY_MAIL": SettingInfo(),
-    "MEMUSAGE_WARNING_MB": SettingInfo(),
+    "MEMUSAGE_LIMIT_MB": SettingInfo(type=SettingType.INT),
+    "MEMUSAGE_NOTIFY_MAIL": SettingInfo(type=SettingType.LIST),
+    "MEMUSAGE_WARNING_MB": SettingInfo(type=SettingType.INT),
     "METAREFRESH_ENABLED": SettingInfo(type=SettingType.BOOL),
     "METAREFRESH_IGNORE_TAGS": SettingInfo(),
     "METAREFRESH_MAXDELAY": SettingInfo(),
@@ -1501,3 +1505,51 @@ class MissingUserAgentIssueFinder(IssueFinder):
 
             if not self.found_user_agent:
                 yield (1, 0, f"{self.msg_code}: No USER_AGENT in settings.py")
+
+
+class RobotsTxtObeyIssueFinder(IssueFinder):
+    msg_code = "SCP20"
+    msg_info = "ROBOTSTXT_OBEY not enabled"
+
+    def __init__(self, filename=None, *args, **kwargs):
+        super().__init__(filename, *args, **kwargs)
+        self.found_robotstxt_obey = False
+        self.robotstxt_obey_enabled = False
+
+    def find_issues(self, node) -> Generator[tuple[int, int, str], None, None]:
+        file_name = Path(self.filename).name if self.filename else None
+        if file_name != "settings.py":
+            return
+
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "ROBOTSTXT_OBEY":
+                    self.found_robotstxt_obey = True
+                    if (
+                        isinstance(node.value, ast.Constant)
+                        and node.value.value is True
+                    ):
+                        self.robotstxt_obey_enabled = True
+
+        if isinstance(node, ast.Module):
+            for child in ast.walk(node):
+                if isinstance(child, ast.Assign):
+                    for target in child.targets:
+                        if (
+                            isinstance(target, ast.Name)
+                            and target.id == "ROBOTSTXT_OBEY"
+                        ):
+                            self.found_robotstxt_obey = True
+                            if (
+                                isinstance(child.value, ast.Constant)
+                                and child.value.value is True
+                            ):
+                                self.robotstxt_obey_enabled = True
+                            break
+
+            if not self.found_robotstxt_obey or not self.robotstxt_obey_enabled:
+                yield (
+                    1,
+                    0,
+                    f"{self.msg_code}: ROBOTSTXT_OBEY not enabled in settings.py",
+                )

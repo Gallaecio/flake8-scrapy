@@ -20,6 +20,7 @@ from ._finders.settings import (
     MissingPackageSettingsIssueFinder,
     MissingUserAgentIssueFinder,
     RemovedSettingsIssueFinder,
+    RobotsTxtObeyIssueFinder,
     TypeMismatchSettingsIssueFinder,
     UnknownSettingsIssueFinder,
 )
@@ -84,6 +85,7 @@ class IssueReporter(ast.NodeVisitor):
         if enable_global_checks:
             global_finders = [
                 MissingUserAgentIssueFinder(filename),
+                RobotsTxtObeyIssueFinder(filename),
             ]
         project_finders = []
         if enable_project_checks:
