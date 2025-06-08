@@ -542,6 +542,7 @@ ISSUE_COLUMN = 9
                 issue,
             )
             for syntax, issue in (
+                # get() getter
                 # Not in scrapy.settings.default_settings
                 ("settings.get('AWS_ACCESS_KEY_ID', 'foo')", NO_ISSUE),
                 # Non-None in scrapy.settings.default_settings
@@ -552,11 +553,28 @@ ISSUE_COLUMN = 9
                         "scrapy.settings.default_settings with a non-None "
                         "value, so the default value passed to get() will "
                         "never be used.",
-                        column=13,
+                        column=25,
                     ),
                 ),
                 # None in scrapy.settings.default_settings
                 ("settings.get('FEED_EXPORT_ENCODING', 'foo')", NO_ISSUE),
+                # Other getters
+                # Not in scrapy.settings.default_settings
+                ("settings.getbool('AWS_USE_SSL', 'foo')", NO_ISSUE),
+                # Non-None in scrapy.settings.default_settings
+                (
+                    "settings.getbool('AUTOTHROTTLE_ENABLED', 'foo')",
+                    Issue(
+                        "SCP26: ignored getbool() default: "
+                        "AUTOTHROTTLE_ENABLED is set in "
+                        "scrapy.settings.default_settings with a non-None "
+                        "value, so the default value passed to getbool() "
+                        "will never be used.",
+                        column=41,
+                    ),
+                ),
+                # None does not apply, since almost any value that can be None
+                # must use get().
             )
         ),
     ],
