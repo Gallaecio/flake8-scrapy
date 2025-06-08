@@ -939,7 +939,7 @@ class InvalidValueSettingsIssueFinder(
                         setting_name,
                     )
 
-    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:
+    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:  # noqa: PLR0912
         if not isinstance(node.func, ast.Attribute):
             return
         if not self.is_settings_object(node.func.value):
@@ -978,6 +978,45 @@ class InvalidValueSettingsIssueFinder(
                         node.args[0].lineno,
                         node.args[0].col_offset,
                         setting_name,
+                    )
+
+        # Check settings.setdefault() calls
+        elif method_name == "setdefault":
+            if (
+                len(node.args) >= min_args_for_set
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                setting_name = node.args[0].value
+                if self.should_report_setting(setting_name) and self._is_invalid_value(
+                    node.args[1], setting_name
+                ):
+                    yield from self.report_setting_issue(
+                        node.args[1].lineno,
+                        node.args[1].col_offset,
+                        setting_name,
+                    )
+
+        # Check settings.setdict() calls
+        elif method_name == "setdict":
+            if node.args and isinstance(node.args[0], ast.Dict):
+                yield from self._check_dict_values(
+                    node.args[0], node.args[0].lineno, node.args[0].col_offset
+                )
+
+        # Check settings.update() calls
+        elif method_name == "update":
+            # Check dictionary argument
+            if node.args and isinstance(node.args[0], ast.Dict):
+                yield from self._check_dict_values(
+                    node.args[0], node.args[0].lineno, node.args[0].col_offset
+                )
+
+            # Check keyword argument with dict value
+            for keyword in node.keywords:
+                if keyword.arg == "values" and isinstance(keyword.value, ast.Dict):
+                    yield from self._check_dict_values(
+                        keyword.value, keyword.value.lineno, keyword.value.col_offset
                     )
 
     def _check_dict_values(
@@ -1366,6 +1405,42 @@ class TypeMismatchSettingsIssueFinder(
                     yield from self.report_setting_issue(
                         keyword.value.lineno, keyword.value.col_offset, setting_name
                     )
+
+    def check_assignment(
+        self, node: ast.Assign
+    ) -> Generator[tuple[int, int, str], None, None]:
+        # SCP17 only cares about reading settings, not assignments
+        # So we override this method to do nothing for assignment operations
+        return
+        yield  # unreachable, but needed to make this a generator
+
+    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:
+        if not isinstance(node.func, ast.Attribute):
+            return
+        if not self.is_settings_object(node.func.value):
+            return
+
+        method_name = node.func.attr
+
+        # Only check getter methods, not setter methods
+        getter_methods = {
+            "get",
+            "getbool",
+            "getint",
+            "getfloat",
+            "getlist",
+            "getdict",
+            "getdictorlist",
+            "getwithbase",
+            "getpriority",
+        }
+
+        if method_name not in getter_methods:
+            return
+
+        # Use the original settings method checking logic
+        if self.is_settings_method_call(node):
+            yield from self.check_settings_method_args(node)
 
     def check_subscript(
         self, node: ast.Subscript

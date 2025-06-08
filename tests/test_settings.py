@@ -375,7 +375,7 @@ ISSUE_COLUMN = 9
         # SCP18: Supported setter syntaxes
         *(
             (
-                Input(syntax),
+                Input(syntax, filename=filename),
                 Issue(
                     "SCP18: invalid setting value: AUTOTHROTTLE_ENABLED only "
                     "supports the following values: True, False, 0, 1, "
@@ -383,7 +383,14 @@ ISSUE_COLUMN = 9
                     column=column,
                 ),
             )
-            for syntax, column in (('settings["AUTOTHROTTLE_ENABLED"] = "foo"', 35),)
+            for syntax, column, filename in (
+                ('settings["AUTOTHROTTLE_ENABLED"] = "foo"', 35, None),
+                ('AUTOTHROTTLE_ENABLED = "foo"', 23, "settings.py"),
+                ('settings.set("AUTOTHROTTLE_ENABLED", "foo")', 37, None),
+                ('settings.setdefault("AUTOTHROTTLE_ENABLED", "foo")', 44, None),
+                ('settings.setdict({"AUTOTHROTTLE_ENABLED": "foo"})', 42, None),
+                ('settings.update({"AUTOTHROTTLE_ENABLED": "foo"})', 41, None),
+            )
         ),
         # SCP18: Supported types (bool excluded, already tested above)
         *(
