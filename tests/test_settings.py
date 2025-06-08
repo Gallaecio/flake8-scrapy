@@ -266,6 +266,21 @@ ISSUE_COLUMN = 9
                         column=ISSUE_COLUMN,
                     ),
                 ),
+                (
+                    "SCRAPY_POET_OVERRIDES",
+                    {},
+                    "scrapy-poet==0.8.0",
+                    NO_ISSUE,
+                ),
+                (
+                    "SCRAPY_POET_OVERRIDES",
+                    {},
+                    "scrapy-poet==0.9.0",
+                    Issue(
+                        "SCP08: deprecated setting: SCRAPY_POET_OVERRIDES (deprecated in scrapy-poet 0.9.0). Use SCRAPY_POET_DISCOVER and/or SCRAPY_POET_RULES instead",
+                        column=ISSUE_COLUMN,
+                    ),
+                ),
             ]
         ),
         # For unknown settings, suggestions may be provided.

@@ -24,6 +24,7 @@ class SettingInfo:
     removed_version: str | None = None
     deprecated_version: str | None = None
     deprecation_message: str | None = None
+    package: str = "scrapy"
 
 
 # Grouped by active, deprecated, removed, and plugin-specific.
@@ -288,129 +289,137 @@ SETTINGS = {
     "INCREMENTAL_PIPELINE_BATCH_SIZE": SettingInfo(),
     # scrapy-feedexporter-onedrive plugin settings, in order of appearance in
     # https://github.com/scrapy-plugins/scrapy-feedexporter-onedrive
-    "ONEDRIVE_ACCESS_TOKEN": SettingInfo(),
+    "ONEDRIVE_ACCESS_TOKEN": SettingInfo(package="scrapy-feedexporter-onedrive"),
     # scrapy-playwright plugin settings, in order of appearance in
     # https://github.com/scrapy-plugins/scrapy-playwright#supported-settings
-    "PLAYWRIGHT_BROWSER_TYPE": SettingInfo(),
-    "PLAYWRIGHT_LAUNCH_OPTIONS": SettingInfo(),
-    "PLAYWRIGHT_CDP_URL": SettingInfo(),
-    "PLAYWRIGHT_CONNECT_URL": SettingInfo(),
-    "PLAYWRIGHT_CONNECT_KWARGS": SettingInfo(),
-    "PLAYWRIGHT_CONTEXTS": SettingInfo(),
-    "PLAYWRIGHT_MAX_CONTEXTS": SettingInfo(),
-    "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": SettingInfo(),
-    "PLAYWRIGHT_PROCESS_REQUEST_HEADERS": SettingInfo(),
-    "PLAYWRIGHT_RESTART_DISCONNECTED_BROWSER": SettingInfo(),
-    "PLAYWRIGHT_MAX_PAGES_PER_CONTEXT": SettingInfo(),
-    "PLAYWRIGHT_ABORT_REQUEST": SettingInfo(),
+    "PLAYWRIGHT_BROWSER_TYPE": SettingInfo(package="scrapy-playwright"),
+    "PLAYWRIGHT_LAUNCH_OPTIONS": SettingInfo(package="scrapy-playwright"),
+    "PLAYWRIGHT_CDP_URL": SettingInfo(package="scrapy-playwright"),
+    "PLAYWRIGHT_CONNECT_URL": SettingInfo(package="scrapy-playwright"),
+    "PLAYWRIGHT_CONNECT_KWARGS": SettingInfo(package="scrapy-playwright"),
+    "PLAYWRIGHT_CONTEXTS": SettingInfo(package="scrapy-playwright"),
+    "PLAYWRIGHT_MAX_CONTEXTS": SettingInfo(package="scrapy-playwright"),
+    "PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT": SettingInfo(package="scrapy-playwright"),
+    "PLAYWRIGHT_PROCESS_REQUEST_HEADERS": SettingInfo(package="scrapy-playwright"),
+    "PLAYWRIGHT_RESTART_DISCONNECTED_BROWSER": SettingInfo(package="scrapy-playwright"),
+    "PLAYWRIGHT_MAX_PAGES_PER_CONTEXT": SettingInfo(package="scrapy-playwright"),
+    "PLAYWRIGHT_ABORT_REQUEST": SettingInfo(package="scrapy-playwright"),
     # scrapy-poet plugin settings, in order of appearance in
     # https://scrapy-poet.readthedocs.io/en/stable/settings.html
-    "SCRAPY_POET_CACHE": SettingInfo(),
-    "SCRAPY_POET_CACHE_ERRORS": SettingInfo(),
-    "SCRAPY_POET_DISCOVER": SettingInfo(),
-    "SCRAPY_POET_OVERRIDES": SettingInfo(),
-    "SCRAPY_POET_PROVIDERS": SettingInfo(),
-    "SCRAPY_POET_REQUEST_FINGERPRINTER_BASE_CLASS": SettingInfo(),
-    "SCRAPY_POET_RULES": SettingInfo(),
-    "SCRAPY_POET_TESTS_ADAPTER": SettingInfo(),
-    "SCRAPY_POET_TESTS_DIR": SettingInfo(),
+    "SCRAPY_POET_CACHE": SettingInfo(package="scrapy-poet"),
+    "SCRAPY_POET_CACHE_ERRORS": SettingInfo(package="scrapy-poet"),
+    "SCRAPY_POET_DISCOVER": SettingInfo(package="scrapy-poet"),
+    "SCRAPY_POET_OVERRIDES": SettingInfo(
+        deprecated_version="0.9.0",
+        deprecation_message="Use SCRAPY_POET_DISCOVER and/or SCRAPY_POET_RULES instead",
+        package="scrapy-poet",
+    ),
+    "SCRAPY_POET_PROVIDERS": SettingInfo(package="scrapy-poet"),
+    "SCRAPY_POET_REQUEST_FINGERPRINTER_BASE_CLASS": SettingInfo(package="scrapy-poet"),
+    "SCRAPY_POET_RULES": SettingInfo(package="scrapy-poet"),
+    "SCRAPY_POET_TESTS_ADAPTER": SettingInfo(package="scrapy-poet"),
+    "SCRAPY_POET_TESTS_DIR": SettingInfo(package="scrapy-poet"),
     # scrapy-redis plugin settings, in order of appearance in
     # https://github.com/rmax/scrapy-redis/wiki/Usage
-    "SCHEDULER_SERIALIZER": SettingInfo(),
-    "SCHEDULER_PERSIST": SettingInfo(),
-    "SCHEDULER_QUEUE_CLASS": SettingInfo(),
-    "SCHEDULER_IDLE_BEFORE_CLOSE": SettingInfo(),
-    "REDIS_ITEMS_KEY": SettingInfo(),
-    "REDIS_ITEMS_SERIALIZER": SettingInfo(),
-    "REDIS_HOST": SettingInfo(),
-    "REDIS_PORT": SettingInfo(),
-    "REDIS_URL": SettingInfo(),
-    "REDIS_PARAMS": SettingInfo(),
-    "REDIS_START_URLS_AS_SET": SettingInfo(),
-    "REDIS_START_URLS_KEY": SettingInfo(),
-    "REDIS_ENCODING": SettingInfo(),
+    "SCHEDULER_SERIALIZER": SettingInfo(package="scrapy-redis"),
+    "SCHEDULER_PERSIST": SettingInfo(package="scrapy-redis"),
+    "SCHEDULER_QUEUE_CLASS": SettingInfo(package="scrapy-redis"),
+    "SCHEDULER_IDLE_BEFORE_CLOSE": SettingInfo(package="scrapy-redis"),
+    "REDIS_ITEMS_KEY": SettingInfo(package="scrapy-redis"),
+    "REDIS_ITEMS_SERIALIZER": SettingInfo(package="scrapy-redis"),
+    "REDIS_HOST": SettingInfo(package="scrapy-redis"),
+    "REDIS_PORT": SettingInfo(package="scrapy-redis"),
+    "REDIS_URL": SettingInfo(package="scrapy-redis"),
+    "REDIS_PARAMS": SettingInfo(package="scrapy-redis"),
+    "REDIS_START_URLS_AS_SET": SettingInfo(package="scrapy-redis"),
+    "REDIS_START_URLS_KEY": SettingInfo(package="scrapy-redis"),
+    "REDIS_ENCODING": SettingInfo(package="scrapy-redis"),
     # scrapyrt plugin settings, in order of appearance in
     # https://scrapyrt.readthedocs.io/en/latest/api.html#available-settings
-    "SERVICE_ROOT": SettingInfo(),
-    "CRAWL_MANAGER": SettingInfo(),
-    "RESOURCES": SettingInfo(),
-    "LOG_DIR": SettingInfo(),
-    "TIMEOUT_LIMIT": SettingInfo(),
-    "DEBUG": SettingInfo(),
-    "PROJECT_SETTINGS": SettingInfo(),
+    "SERVICE_ROOT": SettingInfo(package="scrapyrt"),
+    "CRAWL_MANAGER": SettingInfo(package="scrapyrt"),
+    "RESOURCES": SettingInfo(package="scrapyrt"),
+    "LOG_DIR": SettingInfo(package="scrapyrt"),
+    "TIMEOUT_LIMIT": SettingInfo(package="scrapyrt"),
+    "DEBUG": SettingInfo(package="scrapyrt"),
+    "PROJECT_SETTINGS": SettingInfo(package="scrapyrt"),
     # scrapy-settings-log plugin settings, in order of appearance in
     # https://github.com/scrapy-plugins/scrapy-settings-log
-    "SETTINGS_LOGGING_ENABLED": SettingInfo(),
-    "SETTINGS_LOGGING_REGEX": SettingInfo(),
-    "SETTINGS_LOGGING_INDENT": SettingInfo(),
-    "MASKED_SENSITIVE_SETTINGS_ENABLED": SettingInfo(),
+    "SETTINGS_LOGGING_ENABLED": SettingInfo(package="scrapy-settings-log"),
+    "SETTINGS_LOGGING_REGEX": SettingInfo(package="scrapy-settings-log"),
+    "SETTINGS_LOGGING_INDENT": SettingInfo(package="scrapy-settings-log"),
+    "MASKED_SENSITIVE_SETTINGS_ENABLED": SettingInfo(package="scrapy-settings-log"),
     # scrapy-feedexporter-sftp plugin settings, in order of appearance in
     # https://github.com/scrapy-plugins/scrapy-feedexporter-sftp
-    "FEED_STORAGE_SFTP_PKEY": SettingInfo(),
+    "FEED_STORAGE_SFTP_PKEY": SettingInfo(package="scrapy-feedexporter-sftp"),
     # spidermon plugin settings, in order of appearance in
     # https://spidermon.readthedocs.io/en/latest/settings.html
-    "SPIDERMON_ENABLED": SettingInfo(),
-    "SPIDERMON_EXPRESSIONS_MONITOR_CLASS": SettingInfo(),
-    "SPIDERMON_PERIODIC_MONITORS": SettingInfo(),
-    "SPIDERMON_SPIDER_CLOSE_MONITORS": SettingInfo(),
-    "SPIDERMON_SPIDER_CLOSE_EXPRESSION_MONITORS": SettingInfo(),
-    "SPIDERMON_SPIDER_OPEN_MONITORS": SettingInfo(),
-    "SPIDERMON_SPIDER_OPEN_EXPRESSION_MONITORS": SettingInfo(),
-    "SPIDERMON_ENGINE_STOP_MONITORS": SettingInfo(),
-    "SPIDERMON_ENGINE_STOP_EXPRESSION_MONITORS": SettingInfo(),
-    "SPIDERMON_ADD_FIELD_COVERAGE": SettingInfo(),
-    "SPIDERMON_FIELD_COVERAGE_SKIP_NONE": SettingInfo(),
-    "SPIDERMON_LIST_FIELDS_COVERAGE_LEVELS": SettingInfo(),
-    "SPIDERMON_DICT_FIELDS_COVERAGE_LEVELS": SettingInfo(),
-    "SPIDERMON_MONITOR_SKIPPING_RULES": SettingInfo(),
+    "SPIDERMON_ENABLED": SettingInfo(package="spidermon"),
+    "SPIDERMON_EXPRESSIONS_MONITOR_CLASS": SettingInfo(package="spidermon"),
+    "SPIDERMON_PERIODIC_MONITORS": SettingInfo(package="spidermon"),
+    "SPIDERMON_SPIDER_CLOSE_MONITORS": SettingInfo(package="spidermon"),
+    "SPIDERMON_SPIDER_CLOSE_EXPRESSION_MONITORS": SettingInfo(package="spidermon"),
+    "SPIDERMON_SPIDER_OPEN_MONITORS": SettingInfo(package="spidermon"),
+    "SPIDERMON_SPIDER_OPEN_EXPRESSION_MONITORS": SettingInfo(package="spidermon"),
+    "SPIDERMON_ENGINE_STOP_MONITORS": SettingInfo(package="spidermon"),
+    "SPIDERMON_ENGINE_STOP_EXPRESSION_MONITORS": SettingInfo(package="spidermon"),
+    "SPIDERMON_ADD_FIELD_COVERAGE": SettingInfo(package="spidermon"),
+    "SPIDERMON_FIELD_COVERAGE_SKIP_NONE": SettingInfo(package="spidermon"),
+    "SPIDERMON_LIST_FIELDS_COVERAGE_LEVELS": SettingInfo(package="spidermon"),
+    "SPIDERMON_DICT_FIELDS_COVERAGE_LEVELS": SettingInfo(package="spidermon"),
+    "SPIDERMON_MONITOR_SKIPPING_RULES": SettingInfo(package="spidermon"),
     # scrapy-zyte-api plugin settings, in order of appearance in
     # https://scrapy-zyte-api.readthedocs.io/en/latest/reference/settings.html
-    "ZYTE_API_AUTO_FIELD_STATS": SettingInfo(),
-    "ZYTE_API_AUTOMAP_PARAMS": SettingInfo(),
-    "ZYTE_API_BROWSER_HEADERS": SettingInfo(),
-    "ZYTE_API_COOKIE_MIDDLEWARE": SettingInfo(),
-    "ZYTE_API_DEFAULT_PARAMS": SettingInfo(),
-    "ZYTE_API_ENABLED": SettingInfo(),
-    "ZYTE_API_EXPERIMENTAL_COOKIES_ENABLED": SettingInfo(),
-    "ZYTE_API_FALLBACK_HTTP_HANDLER": SettingInfo(),
-    "ZYTE_API_FALLBACK_HTTPS_HANDLER": SettingInfo(),
-    "ZYTE_API_FALLBACK_REQUEST_FINGERPRINTER_CLASS": SettingInfo(),
-    "ZYTE_API_KEY": SettingInfo(),
-    "ZYTE_API_LOG_REQUESTS": SettingInfo(),
-    "ZYTE_API_LOG_REQUESTS_TRUNCATE": SettingInfo(),
-    "ZYTE_API_MAX_COOKIES": SettingInfo(),
-    "ZYTE_API_MAX_REQUESTS": SettingInfo(),
-    "ZYTE_API_PRESERVE_DELAY": SettingInfo(),
-    "ZYTE_API_PROVIDER_PARAMS": SettingInfo(),
-    "ZYTE_API_REFERRER_POLICY": SettingInfo(),
-    "ZYTE_API_RETRY_POLICY": SettingInfo(),
-    "ZYTE_API_SESSION_CHECKER": SettingInfo(),
-    "ZYTE_API_SESSION_ENABLED": SettingInfo(),
-    "ZYTE_API_SESSION_LOCATION": SettingInfo(),
-    "ZYTE_API_SESSION_MAX_BAD_INITS": SettingInfo(),
-    "ZYTE_API_SESSION_MAX_BAD_INITS_PER_POOL": SettingInfo(),
-    "ZYTE_API_SESSION_MAX_CHECK_FAILURES": SettingInfo(),
-    "ZYTE_API_SESSION_MAX_ERRORS": SettingInfo(),
-    "ZYTE_API_SESSION_PARAMS": SettingInfo(),
-    "ZYTE_API_SESSION_POOL_SIZE": SettingInfo(),
-    "ZYTE_API_SESSION_POOL_SIZES": SettingInfo(),
-    "ZYTE_API_SESSION_QUEUE_MAX_ATTEMPTS": SettingInfo(),
-    "ZYTE_API_SESSION_QUEUE_WAIT_TIME": SettingInfo(),
-    "ZYTE_API_SKIP_HEADERS": SettingInfo(),
-    "ZYTE_API_TRANSPARENT_MODE": SettingInfo(),
-    "ZYTE_API_USE_ENV_PROXY": SettingInfo(),
+    "ZYTE_API_AUTO_FIELD_STATS": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_AUTOMAP_PARAMS": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_BROWSER_HEADERS": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_COOKIE_MIDDLEWARE": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_DEFAULT_PARAMS": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_ENABLED": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_EXPERIMENTAL_COOKIES_ENABLED": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_FALLBACK_HTTP_HANDLER": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_FALLBACK_HTTPS_HANDLER": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_FALLBACK_REQUEST_FINGERPRINTER_CLASS": SettingInfo(
+        package="scrapy-zyte-api"
+    ),
+    "ZYTE_API_KEY": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_LOG_REQUESTS": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_LOG_REQUESTS_TRUNCATE": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_MAX_COOKIES": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_MAX_REQUESTS": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_PRESERVE_DELAY": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_PROVIDER_PARAMS": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_REFERRER_POLICY": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_RETRY_POLICY": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_CHECKER": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_ENABLED": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_LOCATION": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_MAX_BAD_INITS": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_MAX_BAD_INITS_PER_POOL": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_MAX_CHECK_FAILURES": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_MAX_ERRORS": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_PARAMS": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_POOL_SIZE": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_POOL_SIZES": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_QUEUE_MAX_ATTEMPTS": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_QUEUE_WAIT_TIME": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SKIP_HEADERS": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_TRANSPARENT_MODE": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_USE_ENV_PROXY": SettingInfo(package="scrapy-zyte-api"),
     # scrapy-zyte-smartproxy plugin settings, in order of appearance in
     # https://scrapy-zyte-smartproxy.readthedocs.io/en/latest/settings.html
-    "ZYTE_SMARTPROXY_APIKEY": SettingInfo(),
-    "ZYTE_SMARTPROXY_URL": SettingInfo(),
-    "ZYTE_SMARTPROXY_MAXBANS": SettingInfo(),
-    "ZYTE_SMARTPROXY_DOWNLOAD_TIMEOUT": SettingInfo(),
-    "ZYTE_SMARTPROXY_PRESERVE_DELAY": SettingInfo(),
-    "ZYTE_SMARTPROXY_DEFAULT_HEADERS": SettingInfo(),
-    "ZYTE_SMARTPROXY_BACKOFF_STEP": SettingInfo(),
-    "ZYTE_SMARTPROXY_BACKOFF_MAX": SettingInfo(),
-    "ZYTE_SMARTPROXY_FORCE_ENABLE_ON_HTTP_CODES": SettingInfo(),
-    "ZYTE_SMARTPROXY_KEEP_HEADERS": SettingInfo(),
+    "ZYTE_SMARTPROXY_APIKEY": SettingInfo(package="scrapy-zyte-smartproxy"),
+    "ZYTE_SMARTPROXY_URL": SettingInfo(package="scrapy-zyte-smartproxy"),
+    "ZYTE_SMARTPROXY_MAXBANS": SettingInfo(package="scrapy-zyte-smartproxy"),
+    "ZYTE_SMARTPROXY_DOWNLOAD_TIMEOUT": SettingInfo(package="scrapy-zyte-smartproxy"),
+    "ZYTE_SMARTPROXY_PRESERVE_DELAY": SettingInfo(package="scrapy-zyte-smartproxy"),
+    "ZYTE_SMARTPROXY_DEFAULT_HEADERS": SettingInfo(package="scrapy-zyte-smartproxy"),
+    "ZYTE_SMARTPROXY_BACKOFF_STEP": SettingInfo(package="scrapy-zyte-smartproxy"),
+    "ZYTE_SMARTPROXY_BACKOFF_MAX": SettingInfo(package="scrapy-zyte-smartproxy"),
+    "ZYTE_SMARTPROXY_FORCE_ENABLE_ON_HTTP_CODES": SettingInfo(
+        package="scrapy-zyte-smartproxy"
+    ),
+    "ZYTE_SMARTPROXY_KEEP_HEADERS": SettingInfo(package="scrapy-zyte-smartproxy"),
 }
 
 HARDCODED_SUGGESTIONS = {
@@ -804,17 +813,20 @@ class DeprecatedSettingsIssueFinder(BaseSettingsIssueFinder):
 
     def get_deprecated_settings(self) -> set[str]:
         deprecated = set()
-        scrapy_version = self.get_package_version("scrapy")
-        if scrapy_version is None:
-            return deprecated
         for name, info in SETTINGS.items():
-            if info.removed_version and Version(info.removed_version) <= scrapy_version:
+            package_version = self.get_package_version(info.package)
+            if package_version is None:
                 continue
-            if info.added_version and Version(info.added_version) > scrapy_version:
+            if (
+                info.removed_version
+                and Version(info.removed_version) <= package_version
+            ):
+                continue
+            if info.added_version and Version(info.added_version) > package_version:
                 continue
             if (
                 info.deprecated_version
-                and Version(info.deprecated_version) <= scrapy_version
+                and Version(info.deprecated_version) <= package_version
             ):
                 deprecated.add(name)
         return deprecated
@@ -826,11 +838,17 @@ class DeprecatedSettingsIssueFinder(BaseSettingsIssueFinder):
         )
 
     def get_setting_message(self, setting_name: str) -> str:
-        version = SETTINGS[setting_name].deprecated_version
-        if version == MINIMUM_SUPPORTED_SCRAPY_VERSION:
+        setting_info = SETTINGS[setting_name]
+        version = setting_info.deprecated_version
+        package = setting_info.package
+        if package == "scrapy" and version == MINIMUM_SUPPORTED_SCRAPY_VERSION:
             version = f"{MINIMUM_SUPPORTED_SCRAPY_VERSION} or earlier"
-        message = f"{self.msg_code}: {self.msg_info}: {setting_name} (deprecated in Scrapy {version})"
-        deprecation_message = SETTINGS[setting_name].deprecation_message
+        package_name = "Scrapy" if package == "scrapy" else package
+        if package == "scrapy":
+            message = f"{self.msg_code}: {self.msg_info}: {setting_name} (deprecated in {package_name} {version})"
+        else:
+            message = f"{self.msg_code}: deprecated setting: {setting_name} (deprecated in {package_name} {version})"
+        deprecation_message = setting_info.deprecation_message
         if deprecation_message:
             message += f". {deprecation_message}"
         return message
@@ -842,15 +860,16 @@ class FutureSettingsIssueFinder(BaseSettingsIssueFinder):
 
     def __init__(self, filename=None, allowed_settings=None, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
-        scrapy_version = self.get_package_version("scrapy")
-        if scrapy_version is None:
-            self.future_settings = set()
-        else:
-            self.future_settings = {
-                name
-                for name, info in SETTINGS.items()
-                if info.added_version and Version(info.added_version) > scrapy_version
-            }
+        self.future_settings = set()
+        for name, info in SETTINGS.items():
+            if not info.added_version:
+                continue
+            package_version = self.get_package_version(info.package)
+            if (
+                package_version is not None
+                and Version(info.added_version) > package_version
+            ):
+                self.future_settings.add(name)
         self.allowed_settings = set(allowed_settings) if allowed_settings else set()
 
     def should_report_setting(self, setting_name: str) -> bool:
@@ -860,8 +879,11 @@ class FutureSettingsIssueFinder(BaseSettingsIssueFinder):
         )
 
     def get_setting_message(self, setting_name: str) -> str:
-        version = SETTINGS[setting_name].added_version
-        return f"{self.msg_code}: {self.msg_info}: {setting_name} (added in Scrapy {version})"
+        setting_info = SETTINGS[setting_name]
+        version = setting_info.added_version
+        package = setting_info.package
+        package_name = "Scrapy" if package == "scrapy" else package
+        return f"{self.msg_code}: {self.msg_info}: {setting_name} (added in {package_name} {version})"
 
 
 class RemovedSettingsIssueFinder(BaseSettingsIssueFinder):
@@ -870,16 +892,16 @@ class RemovedSettingsIssueFinder(BaseSettingsIssueFinder):
 
     def __init__(self, filename=None, allowed_settings=None, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
-        scrapy_version = self.get_package_version("scrapy")
-        if scrapy_version is None:
-            self.removed_settings = set()
-        else:
-            self.removed_settings = {
-                name
-                for name, info in SETTINGS.items()
-                if info.removed_version
-                and Version(info.removed_version) <= scrapy_version
-            }
+        self.removed_settings = set()
+        for name, info in SETTINGS.items():
+            if not info.removed_version:
+                continue
+            package_version = self.get_package_version(info.package)
+            if (
+                package_version is not None
+                and Version(info.removed_version) <= package_version
+            ):
+                self.removed_settings.add(name)
         self.allowed_settings = set(allowed_settings) if allowed_settings else set()
 
     def should_report_setting(self, setting_name: str) -> bool:
@@ -889,5 +911,8 @@ class RemovedSettingsIssueFinder(BaseSettingsIssueFinder):
         )
 
     def get_setting_message(self, setting_name: str) -> str:
-        version = SETTINGS[setting_name].removed_version
-        return f"{self.msg_code}: {self.msg_info}: {setting_name} (removed in Scrapy {version})"
+        setting_info = SETTINGS[setting_name]
+        version = setting_info.removed_version
+        package = setting_info.package
+        package_name = "Scrapy" if package == "scrapy" else package
+        return f"{self.msg_code}: {self.msg_info}: {setting_name} (removed in {package_name} {version})"
