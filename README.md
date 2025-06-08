@@ -12,8 +12,26 @@ on Scrapy projects.
 | ---   | --- |
 | SCP01 | There are URLs in `start_urls` whose netloc is not in `allowed_domains` |
 | SCP02 | There are URLs in `allowed_domains` |
-| SCP03 | Usage of `urljoin(response.url, '/foo')` instead of `response.urljoin('/foo')` |
-| SCP04 | Usage of `Selector(response)` in callback |
+| SCP03 | Use of `urljoin(response.url, '/foo')` instead of `response.urljoin('/foo')` |
+| SCP04 | Use of `Selector(response)` in callback |
+| SCP07 | Use of unknown settings |
+| SCP08 | Use of settings deprecated in the target Scrapy and Scrapy plugin versions |
+| SCP09 | Use of settings not yet available in the target Scrapy and Scrapy plugin versions |
+| SCP10 | Use of old settings that have been removed from the target Scrapy and Scrapy plugin versions |
+
+
+## Options
+
+You can use the following additional options in your
+[flake8 configuration](https://flake8.pycqa.org/en/latest/user/configuration.html)
+to customize the behavior of flake8-scrapy:
+
+### `allow_scrapy_settings`
+
+Default: `[]`
+
+A list of Scrapy settings that will not raise SCP07, SCP08, SCP09 or SCP10
+errors.
 
 
 ## Installation

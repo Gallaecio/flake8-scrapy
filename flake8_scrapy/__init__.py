@@ -1,4 +1,5 @@
 import ast
+from typing import ClassVar
 
 from ._finders.domains import (
     UnreachableDomainIssueFinder,
@@ -15,15 +16,15 @@ from ._finders.settings import (
 __version__ = "0.0.2"
 
 
-class ScrapyStyleIssueFinder(ast.NodeVisitor):
-    def __init__(self, filename=None, *args, **kwargs):
+class IssueReporter(ast.NodeVisitor):
+    def __init__(self, filename=None, allowed_settings=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.issues = []
         setting_finders = (
-            DeprecatedSettingsIssueFinder(filename),
-            FutureSettingsIssueFinder(filename),
-            RemovedSettingsIssueFinder(filename),
-            UnknownSettingsIssueFinder(filename),
+            DeprecatedSettingsIssueFinder(filename, allowed_settings=allowed_settings),
+            FutureSettingsIssueFinder(filename, allowed_settings=allowed_settings),
+            RemovedSettingsIssueFinder(filename, allowed_settings=allowed_settings),
+            UnknownSettingsIssueFinder(filename, allowed_settings=allowed_settings),
         )
         self.finders = {
             "Assign": [
@@ -75,14 +76,42 @@ class Plugin:
     options = None
     name = "flake8-scrapy"
     version = __version__
+    allowed_settings: ClassVar[list[str]] = []
+
+    @classmethod
+    def add_options(cls, parser):
+        parser.add_option(  # pragma: no cover
+            "--allow-scrapy-settings",
+            default="",
+            help="Comma-separated list of Scrapy settings to always allow (default: empty)",
+            parse_from_config=True,
+        )
+
+    @classmethod
+    def parse_options(cls, options):
+        cls.parse_allowed_settings(options)
+
+    @classmethod
+    def parse_allowed_settings(cls, options):
+        if not options:  # pragma: no cover
+            return
+        if not options.allow_scrapy_settings:
+            return
+        cls.allowed_settings = [
+            setting.strip()
+            for setting in options.allow_scrapy_settings.split(",")
+            if setting.strip()
+        ]
 
     def __init__(self, tree, filename):
         self.tree = tree
         self.filename = filename
 
     def run(self):
-        finder = ScrapyStyleIssueFinder(self.filename)
-        finder.visit(self.tree)
-
-        for line, col, msg in finder.issues:
+        reporter = IssueReporter(
+            self.filename,
+            allowed_settings=self.allowed_settings,
+        )
+        reporter.visit(self.tree)
+        for line, col, msg in reporter.issues:
             yield (line, col, msg, Plugin)

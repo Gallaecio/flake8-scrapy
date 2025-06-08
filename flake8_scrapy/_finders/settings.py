@@ -741,9 +741,11 @@ class UnknownSettingsIssueFinder(BaseSettingsIssueFinder):
     msg_code = "SCP07"
     msg_info = "unknown Scrapy setting"
 
-    def __init__(self, filename=None, *args, **kwargs):
+    def __init__(self, filename=None, allowed_settings=None, *args, **kwargs):
         super().__init__(*args, filename=filename, **kwargs)
         self.known_settings = set(SETTINGS)
+        if allowed_settings:
+            self.known_settings.update(allowed_settings)
 
     def should_report_setting(self, setting_name: str) -> bool:
         return setting_name not in self.known_settings
@@ -768,9 +770,10 @@ class DeprecatedSettingsIssueFinder(BaseSettingsIssueFinder):
     msg_code = "SCP08"
     msg_info = "deprecated Scrapy setting"
 
-    def __init__(self, filename=None, *args, **kwargs):
+    def __init__(self, filename=None, allowed_settings=None, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
         self.deprecated_settings = self.get_deprecated_settings()
+        self.allowed_settings = set(allowed_settings) if allowed_settings else set()
 
     def get_deprecated_settings(self) -> set[str]:
         deprecated = set()
@@ -784,7 +787,10 @@ class DeprecatedSettingsIssueFinder(BaseSettingsIssueFinder):
         return deprecated
 
     def should_report_setting(self, setting_name: str) -> bool:
-        return setting_name in self.deprecated_settings
+        return (
+            setting_name in self.deprecated_settings
+            and setting_name not in self.allowed_settings
+        )
 
     def get_setting_message(self, setting_name: str) -> str:
         version = SETTINGS[setting_name].deprecated_version
@@ -801,16 +807,20 @@ class FutureSettingsIssueFinder(BaseSettingsIssueFinder):
     msg_code = "SCP09"
     msg_info = "future Scrapy setting"
 
-    def __init__(self, filename=None, *args, **kwargs):
+    def __init__(self, filename=None, allowed_settings=None, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
         self.future_settings = {
             name
             for name, info in SETTINGS.items()
             if info.added_version and Version(info.added_version) > SCRAPY_VERSION
         }
+        self.allowed_settings = set(allowed_settings) if allowed_settings else set()
 
     def should_report_setting(self, setting_name: str) -> bool:
-        return setting_name in self.future_settings
+        return (
+            setting_name in self.future_settings
+            and setting_name not in self.allowed_settings
+        )
 
     def get_setting_message(self, setting_name: str) -> str:
         version = SETTINGS[setting_name].added_version
@@ -821,16 +831,20 @@ class RemovedSettingsIssueFinder(BaseSettingsIssueFinder):
     msg_code = "SCP10"
     msg_info = "removed Scrapy setting"
 
-    def __init__(self, filename=None, *args, **kwargs):
+    def __init__(self, filename=None, allowed_settings=None, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
         self.removed_settings = {
             name
             for name, info in SETTINGS.items()
             if info.removed_version and Version(info.removed_version) <= SCRAPY_VERSION
         }
+        self.allowed_settings = set(allowed_settings) if allowed_settings else set()
 
     def should_report_setting(self, setting_name: str) -> bool:
-        return setting_name in self.removed_settings
+        return (
+            setting_name in self.removed_settings
+            and setting_name not in self.allowed_settings
+        )
 
     def get_setting_message(self, setting_name: str) -> str:
         version = SETTINGS[setting_name].removed_version

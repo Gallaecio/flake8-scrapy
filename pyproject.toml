@@ -143,9 +143,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S"]
-# Line and column numbers are expressed with hardcoded ints.
-"tests/test_domains.py" = ["PLR2004"]
+# S: Security issues are not a concern for test files.
+# PLR2004: Line and column numbers are expressed with hardcoded ints.
+"tests/**" = ["S", "PLR2004"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
