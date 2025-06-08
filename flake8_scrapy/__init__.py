@@ -10,6 +10,7 @@ from ._finders.project import (
     AncientScrapyVersionIssueFinder,
     InsecureScrapyVersionIssueFinder,
     NonFrozenDependenciesIssueFinder,
+    ObsoletePackagesIssueFinder,
     RequirementsTxtIssueFinder,
 )
 from ._finders.settings import (
@@ -72,6 +73,7 @@ class IssueReporter(ast.NodeVisitor):
                 NonFrozenDependenciesIssueFinder(filename),
                 AncientScrapyVersionIssueFinder(filename),
                 InsecureScrapyVersionIssueFinder(filename),
+                ObsoletePackagesIssueFinder(filename),
             ]
         self.finders = {
             "Assign": [

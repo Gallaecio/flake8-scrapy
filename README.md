@@ -23,6 +23,7 @@ on Scrapy projects.
 | SCP13 | Ancient Scrapy version in requirements.txt |
 | SCP14 | Insecure Scrapy version in requirements.txt |
 | SCP15 | Use of setting of package not in requirements.txt |
+| SCP16 | Obsolete package in requirements.txt |
 
 
 ## Options

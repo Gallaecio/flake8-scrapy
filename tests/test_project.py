@@ -364,3 +364,86 @@ def test_multiple_scrapy_version_checks():
         assert len(scp14_issues) == 2
         assert "1.8.0" in scp14_issues[0][2]
         assert "2.5.0" in scp14_issues[1][2]
+
+
+def test_obsolete_packages_scrapy_crawlera():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text("scrapy-crawlera==1.7.0\nscrapy==2.11.0\n")
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp16_issues = [issue for issue in issues if "SCP16" in issue[2]]
+
+        assert len(scp16_issues) == 1
+        assert "scrapy-crawlera" in scp16_issues[0][2]
+        assert "scrapy-zyte-smartproxy" in scp16_issues[0][2]
+        assert "use scrapy-zyte-smartproxy instead" in scp16_issues[0][2]
+
+
+def test_obsolete_packages_scrapy_splash():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text("scrapy-splash==0.8.0\nscrapy==2.11.0\n")
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp16_issues = [issue for issue in issues if "SCP16" in issue[2]]
+
+        assert len(scp16_issues) == 1
+        assert "scrapy-splash" in scp16_issues[0][2]
+        assert "scrapy-zyte-api or scrapy-playwright" in scp16_issues[0][2]
+        assert "use scrapy-zyte-api or scrapy-playwright instead" in scp16_issues[0][2]
+
+
+def test_obsolete_packages_multiple():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text(
+            "scrapy-crawlera==1.7.0\nscrapy-splash==0.8.0\nscrapy==2.11.0\n"
+        )
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp16_issues = [issue for issue in issues if "SCP16" in issue[2]]
+
+        assert len(scp16_issues) == 2
+        crawlera_issues = [
+            issue for issue in scp16_issues if "scrapy-crawlera" in issue[2]
+        ]
+        splash_issues = [issue for issue in scp16_issues if "scrapy-splash" in issue[2]]
+
+        assert len(crawlera_issues) == 1
+        assert len(splash_issues) == 1
+
+
+def test_obsolete_packages_non_frozen():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text("scrapy-crawlera\nscrapy==2.11.0\n")
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp16_issues = [issue for issue in issues if "SCP16" in issue[2]]
+
+        assert len(scp16_issues) == 1
+        assert "scrapy-crawlera" in scp16_issues[0][2]
+
+
+def test_no_obsolete_packages():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text(
+            "scrapy==2.11.0\nscrapy-zyte-smartproxy==3.0.0\nscrapy-playwright==0.0.26\n"
+        )
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp16_issues = [issue for issue in issues if "SCP16" in issue[2]]
+
+        assert len(scp16_issues) == 0

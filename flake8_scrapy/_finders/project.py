@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from packaging.version import InvalidVersion, Version
 
@@ -126,3 +126,31 @@ class InsecureScrapyVersionIssueFinder(BaseProjectIssueFinder):
             if self.is_version_less_than(version_part, "2.11.2"):
                 message = f"{self.msg_code} {self.msg_info}: {version_part} (minimum required: 2.11.2)"
                 yield (line_num, 0, message)
+
+
+class ObsoletePackagesIssueFinder(BaseProjectIssueFinder):
+    msg_code = "SCP16"
+    msg_info = "obsolete package in requirements.txt"
+
+    OBSOLETE_PACKAGES: ClassVar[dict[str, list[str]]] = {
+        "scrapy-crawlera": ["scrapy-zyte-smartproxy"],
+        "scrapy-splash": ["scrapy-zyte-api", "scrapy-playwright"],
+    }
+
+    def check_requirement_line(
+        self, line_num: int, line: str
+    ) -> Generator[tuple[int, int, str], None, None]:
+        req = self.parse_requirement_line(line)
+        if req is None:
+            return
+
+        package_name = req.name.lower()
+        if package_name in self.OBSOLETE_PACKAGES:
+            replacements = self.OBSOLETE_PACKAGES[package_name]
+            if len(replacements) == 1:
+                replacement_text = replacements[0]
+            else:
+                replacement_text = " or ".join(replacements)
+
+            message = f"{self.msg_code} {self.msg_info}: {req.name} (use {replacement_text} instead)"
+            yield (line_num, 0, message)
