@@ -241,52 +241,62 @@ SETTINGS = {
     ),
     # scrapy-feedexporter-azure-storage plugin settings, in order of appearance
     # in https://github.com/scrapy-plugins/scrapy-feedexporter-azure-storage
-    "AZURE_CONNECTION_STRING": SettingInfo(),
-    "AZURE_ACCOUNT_URL_WITH_SAS_TOKEN": SettingInfo(),
-    "AZURE_ACCOUNT_URL": SettingInfo(),
-    "AZURE_ACCOUNT_KEY": SettingInfo(),
+    "AZURE_CONNECTION_STRING": SettingInfo(package="scrapy-feedexporter-azure-storage"),
+    "AZURE_ACCOUNT_URL_WITH_SAS_TOKEN": SettingInfo(
+        package="scrapy-feedexporter-azure-storage"
+    ),
+    "AZURE_ACCOUNT_URL": SettingInfo(package="scrapy-feedexporter-azure-storage"),
+    "AZURE_ACCOUNT_KEY": SettingInfo(package="scrapy-feedexporter-azure-storage"),
     # scrapy-deltafetch plugin settings, in order of appearance in
     # https://github.com/scrapy-plugins/scrapy-deltafetch#usage
-    "DELTAFETCH_ENABLED": SettingInfo(),
-    "DELTAFETCH_DIR": SettingInfo(),
-    "DELTAFETCH_RESET": SettingInfo(),
+    "DELTAFETCH_ENABLED": SettingInfo(package="scrapy-deltafetch"),
+    "DELTAFETCH_DIR": SettingInfo(package="scrapy-deltafetch"),
+    "DELTAFETCH_RESET": SettingInfo(package="scrapy-deltafetch"),
     # scrapy-feedexporter-dropbox plugin settings, in order of appearance in
     # https://github.com/scrapy-plugins/scrapy-feedexporter-dropbox
-    "DROPBOX_API_TOKEN": SettingInfo(),
+    "DROPBOX_API_TOKEN": SettingInfo(package="scrapy-feedexporter-dropbox"),
     # scrapy-frontera plugin settings, in order of appearance in
     # https://github.com/scrapinghub/scrapy-frontera#usage-and-features
-    "FRONTERA_SCHEDULER_START_REQUESTS_TO_FRONTIER": SettingInfo(),
-    "FRONTERA_SCHEDULER_REQUEST_CALLBACKS_TO_FRONTIER": SettingInfo(),
-    "FRONTERA_SCHEDULER_STATE_ATTRIBUTES": SettingInfo(),
-    "FRONTERA_SCHEDULER_CALLBACK_SLOT_PREFIX_MAP": SettingInfo(),
-    "BACKEND": SettingInfo(),
+    "FRONTERA_SCHEDULER_START_REQUESTS_TO_FRONTIER": SettingInfo(
+        package="scrapy-frontera"
+    ),
+    "FRONTERA_SCHEDULER_REQUEST_CALLBACKS_TO_FRONTIER": SettingInfo(
+        package="scrapy-frontera"
+    ),
+    "FRONTERA_SCHEDULER_STATE_ATTRIBUTES": SettingInfo(package="scrapy-frontera"),
+    "FRONTERA_SCHEDULER_CALLBACK_SLOT_PREFIX_MAP": SettingInfo(
+        package="scrapy-frontera"
+    ),
+    "BACKEND": SettingInfo(package="scrapy-frontera"),
     # scrapy-feedexporter-google-drive plugin settings, in order of appearance
     # in https://github.com/scrapy-plugins/scrapy-feedexporter-google-drive
-    "GDRIVE_SERVICE_ACCOUNT_CREDENTIALS_JSON": SettingInfo(),
+    "GDRIVE_SERVICE_ACCOUNT_CREDENTIALS_JSON": SettingInfo(
+        package="scrapy-feedexporter-google-drive"
+    ),
     # scrapy-feedexporter-google-sheets plugin settings, in order of appearance
     # in https://github.com/scrapy-plugins/scrapy-feedexporter-google-sheets
-    "GOOGLE_CREDENTIALS": SettingInfo(),
+    "GOOGLE_CREDENTIALS": SettingInfo(package="scrapy-feedexporter-google-sheets"),
     # hcf-backend plugin settings, in order of appearance in
     # https://github.com/scrapinghub/hcf-backend/blob/master/hcf_backend/backend.py
-    "HCF_CONSUMER_MAX_REQUESTS": SettingInfo(),
-    "HCF_CONSUMER_MAX_BATCHES": SettingInfo(),
-    "MAX_NEXT_REQUESTS": SettingInfo(),
-    "HCF_AUTH": SettingInfo(),
-    "HCF_PROJECT_ID": SettingInfo(),
-    "HCF_PRODUCER_FRONTIER": SettingInfo(),
-    "HCF_PRODUCER_SLOT_PREFIX": SettingInfo(),
-    "HCF_PRODUCER_NUMBER_OF_SLOTS": SettingInfo(),
-    "HCF_PRODUCER_BATCH_SIZE": SettingInfo(),
-    "HCF_CONSUMER_FRONTIER": SettingInfo(),
-    "HCF_CONSUMER_SLOT": SettingInfo(),
-    "HCF_CONSUMER_DONT_DELETE_REQUESTS": SettingInfo(),
-    "HCF_CONSUMER_DELETE_BATCHES_ON_STOP": SettingInfo(),
+    "HCF_CONSUMER_MAX_REQUESTS": SettingInfo(package="hcf-backend"),
+    "HCF_CONSUMER_MAX_BATCHES": SettingInfo(package="hcf-backend"),
+    "MAX_NEXT_REQUESTS": SettingInfo(package="hcf-backend"),
+    "HCF_AUTH": SettingInfo(package="hcf-backend"),
+    "HCF_PROJECT_ID": SettingInfo(package="hcf-backend"),
+    "HCF_PRODUCER_FRONTIER": SettingInfo(package="hcf-backend"),
+    "HCF_PRODUCER_SLOT_PREFIX": SettingInfo(package="hcf-backend"),
+    "HCF_PRODUCER_NUMBER_OF_SLOTS": SettingInfo(package="hcf-backend"),
+    "HCF_PRODUCER_BATCH_SIZE": SettingInfo(package="hcf-backend"),
+    "HCF_CONSUMER_FRONTIER": SettingInfo(package="hcf-backend"),
+    "HCF_CONSUMER_SLOT": SettingInfo(package="hcf-backend"),
+    "HCF_CONSUMER_DONT_DELETE_REQUESTS": SettingInfo(package="hcf-backend"),
+    "HCF_CONSUMER_DELETE_BATCHES_ON_STOP": SettingInfo(package="hcf-backend"),
     # scrapy-incremental plugin settings, in order of appearance in
     # https://github.com/scrapy-plugins/scrapy-incremental
-    "SCRAPYCLOUD_API_KEY": SettingInfo(),
-    "SCRAPYCLOUD_PROJECT_ID": SettingInfo(),
-    "INCREMENTAL_PIPELINE_ITEM_UNIQUE_FIELD": SettingInfo(),
-    "INCREMENTAL_PIPELINE_BATCH_SIZE": SettingInfo(),
+    "SCRAPYCLOUD_API_KEY": SettingInfo(package="scrapy-incremental"),
+    "SCRAPYCLOUD_PROJECT_ID": SettingInfo(package="scrapy-incremental"),
+    "INCREMENTAL_PIPELINE_ITEM_UNIQUE_FIELD": SettingInfo(package="scrapy-incremental"),
+    "INCREMENTAL_PIPELINE_BATCH_SIZE": SettingInfo(package="scrapy-incremental"),
     # scrapy-feedexporter-onedrive plugin settings, in order of appearance in
     # https://github.com/scrapy-plugins/scrapy-feedexporter-onedrive
     "ONEDRIVE_ACCESS_TOKEN": SettingInfo(package="scrapy-feedexporter-onedrive"),
