@@ -110,20 +110,13 @@ class IssueReporter(ast.NodeVisitor):
                 self.issues.extend(list(issues))
         self.generic_visit(node)
 
-    def visit_Assign(self, node):
-        self.find_issues_visitor("Assign", node)
-
-    def visit_Call(self, node):
-        self.find_issues_visitor("Call", node)
-
-    def visit_Subscript(self, node):
-        self.find_issues_visitor("Subscript", node)
-
-    def visit_ClassDef(self, node):
-        self.find_issues_visitor("ClassDef", node)
-
-    def visit_Delete(self, node):
-        self.find_issues_visitor("Delete", node)
+    def __getattr__(self, name):
+        if name.startswith("visit_") and name[6:] in self.finders:
+            node_type = name[6:]
+            return lambda node: self.find_issues_visitor(node_type, node)
+        raise AttributeError(
+            f"'{self.__class__.__name__}' object has no attribute '{name}'"
+        )
 
 
 class Plugin:
