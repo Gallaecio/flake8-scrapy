@@ -12,7 +12,9 @@ def load_sample_file(filename):
     return (Path(__file__).parent / "samples" / filename).read_text()
 
 
-def run_checker(code, filename=None, allowed_settings=None):
+def run_checker(
+    code, filename=None, allowed_settings=None, enable_project_checks=False
+):
     tree = ast.parse(code)
     if allowed_settings is not None:
         options = Namespace()
@@ -20,7 +22,7 @@ def run_checker(code, filename=None, allowed_settings=None):
         Plugin.parse_options(options)
     else:
         Plugin.allowed_settings = []
-    checker = Plugin(tree, filename)
+    checker = Plugin(tree, filename, enable_project_checks=enable_project_checks)
     return list(checker.run())
 
 

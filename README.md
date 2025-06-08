@@ -18,6 +18,7 @@ on Scrapy projects.
 | SCP08 | Use of settings deprecated in the target Scrapy and Scrapy plugin versions |
 | SCP09 | Use of settings not yet available in the target Scrapy and Scrapy plugin versions |
 | SCP10 | Use of old settings that have been removed from the target Scrapy and Scrapy plugin versions |
+| SCP11 | No requirements.txt |
 
 
 ## Options

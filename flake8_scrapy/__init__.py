@@ -6,6 +6,7 @@ from ._finders.domains import (
     UrlInAllowedDomainsIssueFinder,
 )
 from ._finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
+from ._finders.project import RequirementsTxtIssueFinder
 from ._finders.settings import (
     DeprecatedSettingsIssueFinder,
     FutureSettingsIssueFinder,
@@ -17,7 +18,14 @@ __version__ = "0.0.2"
 
 
 class IssueReporter(ast.NodeVisitor):
-    def __init__(self, filename=None, allowed_settings=None, *args, **kwargs):
+    def __init__(
+        self,
+        filename=None,
+        allowed_settings=None,
+        enable_project_checks=True,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.issues = []
         setting_finders = (
@@ -26,25 +34,35 @@ class IssueReporter(ast.NodeVisitor):
             RemovedSettingsIssueFinder(filename, allowed_settings=allowed_settings),
             UnknownSettingsIssueFinder(filename, allowed_settings=allowed_settings),
         )
+        project_finders = []
+        if enable_project_checks:
+            project_finders = [
+                RequirementsTxtIssueFinder(filename),
+            ]
         self.finders = {
             "Assign": [
                 UnreachableDomainIssueFinder(),
                 UrlInAllowedDomainsIssueFinder(),
                 OldSelectorIssueFinder(),
                 *setting_finders,
+                *project_finders,
             ],
             "Call": [
                 UrlJoinIssueFinder(),
                 *setting_finders,
+                *project_finders,
             ],
             "Subscript": [
                 *setting_finders,
+                *project_finders,
             ],
             "ClassDef": [
                 *setting_finders,
+                *project_finders,
             ],
             "Delete": [
                 *setting_finders,
+                *project_finders,
             ],
         }
 
@@ -103,14 +121,16 @@ class Plugin:
             if setting.strip()
         ]
 
-    def __init__(self, tree, filename):
+    def __init__(self, tree, filename, enable_project_checks=True):
         self.tree = tree
         self.filename = filename
+        self.enable_project_checks = enable_project_checks
 
     def run(self):
         reporter = IssueReporter(
             self.filename,
             allowed_settings=self.allowed_settings,
+            enable_project_checks=self.enable_project_checks,
         )
         reporter.visit(self.tree)
         for line, col, msg in reporter.issues:
