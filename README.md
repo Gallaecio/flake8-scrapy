@@ -29,6 +29,7 @@ on Scrapy projects.
 | SCP19 | USER_AGENT missing from settings.py |
 | SCP20 | ROBOTSTXT_OBEY not enabled in settings.py |
 | SCP21 | Throttling settings missing in settings.py |
+| SCP22 | Missing contact info in USER_AGENT |
 
 
 ## Options

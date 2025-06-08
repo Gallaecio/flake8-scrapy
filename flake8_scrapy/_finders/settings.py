@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from difflib import get_close_matches
@@ -890,12 +891,19 @@ class InvalidValueSettingsIssueFinder(
 
     def should_report_setting(self, setting_name: str) -> bool:
         return (
-            setting_name in self.typed_settings
+            (setting_name in self.typed_settings or setting_name == "USER_AGENT")
             and setting_name not in self.allowed_settings
             and setting_name not in self.exclude_settings
         )
 
     def get_setting_message(self, setting_name: str) -> str:
+        if setting_name == "USER_AGENT":
+            return (
+                "SCP22: USER_AGENT does not seem to provide contact "
+                "information. Put an URL, email address or phone number in it "
+                "so that web masters of target websites may contact you."
+            )
+
         setting_type = self.typed_settings[setting_name]
 
         type_messages = {
@@ -1051,7 +1059,9 @@ class InvalidValueSettingsIssueFinder(
                 )
 
     def _is_invalid_value(self, value_node: ast.AST, setting_name: str) -> bool:
-        """Check if a value node represents an invalid value for the given setting."""
+        if setting_name == "USER_AGENT":
+            return self._is_invalid_user_agent(value_node)
+
         setting_type = self.typed_settings[setting_name]
 
         # If we can identify the literal value
@@ -1125,6 +1135,40 @@ class InvalidValueSettingsIssueFinder(
         if value is None:
             return True
         return isinstance(value, (str, tuple, dict, list))
+
+    def _is_invalid_user_agent(self, value_node: ast.AST) -> bool:
+        if not isinstance(value_node, ast.Constant):
+            return isinstance(
+                value_node, (ast.Num, ast.List, ast.Dict, ast.Set, ast.Tuple)
+            )
+        value = value_node.value
+        if not isinstance(value, str):
+            return True
+        if not value:
+            return True
+        if "(+http://www.yourdomain.com)" in value or "(+https://scrapy.org)" in value:
+            return True
+        browser_patterns = [
+            r"Mozilla/\d+\.\d+",
+            r"Chrome/\d+\.\d+",
+            r"Safari/\d+\.\d+",
+            r"Firefox/\d+\.\d+",
+            r"AppleWebKit/\d+\.\d+",
+            r"Gecko/\d+",
+        ]
+        for pattern in browser_patterns:
+            if re.search(pattern, value):
+                return True
+        url_pattern = (
+            r"https?://[a-zA-Z0-9.-]+|www\.[a-zA-Z0-9.-]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+        )
+        email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+        phone_pattern = r"\b\d{3}[-.]\d{4}\b|\b\d{10,}\b|\b\(\d{3}\)\s?\d{3}[-.]\d{4}\b"
+        return not (
+            re.search(url_pattern, value)
+            or re.search(email_pattern, value)
+            or re.search(phone_pattern, value)
+        )
 
     def check_subscript(
         self, node: ast.Subscript

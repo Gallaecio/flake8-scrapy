@@ -465,39 +465,41 @@ ISSUE_COLUMN = 9
                 ("SPIDER_CONTRACTS", "{}"),
             )
         ),
-        # # SCP22: flagged values.
-        # *(
-        #     (
-        #         Input(f'settings["USER_AGENT"] = {value!r}'),
-        #         Issue(
-        #             "SCP22: USER_AGENT does not seem to provide contact "
-        #             "information. Put an URL, email address or phone number "
-        #             "in it so that web masters of target websites may contact "
-        #             "you.",
-        #             column=24,
-        #         ),
-        #     ) for value in (
-        #         "foo",
-        #         "Jane Doe",
-        #         "my_project (+http://www.yourdomain.com)",
-        #         "Scrapy/2.11.2 (+https://scrapy.org)",
-        #         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
-        #         "Mozilla/5.0 (X11; Linux x86_64; rv:139.0) Gecko/20100101 Firefox/139.0",
-        #         "",
-        #         None,
-        #     )
-        # ),
-        # # SCP22: valid values.
-        # *(
-        #     (
-        #         Input(f'settings["USER_AGENT"] = {value!r}'),
-        #         NO_ISSUE,
-        #     ) for value in (
-        #         "Jane Doe (+https://jane.doe.example)",
-        #         "jane.doe@example.com",
-        #         "555-9292",
-        #     )
-        # ),
+        # SCP22: flagged values.
+        *(
+            (
+                Input(f'settings["USER_AGENT"] = {value!r}'),
+                Issue(
+                    "SCP22: USER_AGENT does not seem to provide contact "
+                    "information. Put an URL, email address or phone number "
+                    "in it so that web masters of target websites may contact "
+                    "you.",
+                    column=25,
+                ),
+            )
+            for value in (
+                "foo",
+                "Jane Doe",
+                "my_project (+http://www.yourdomain.com)",
+                "Scrapy/2.11.2 (+https://scrapy.org)",
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (X11; Linux x86_64; rv:139.0) Gecko/20100101 Firefox/139.0",
+                "",
+                None,
+            )
+        ),
+        # SCP22: valid values.
+        *(
+            (
+                Input(f'settings["USER_AGENT"] = {value!r}'),
+                NO_ISSUE,
+            )
+            for value in (
+                "Jane Doe (+https://jane.doe.example)",
+                "jane.doe@example.com",
+                "555-9292",
+            )
+        ),
     ],
 )
 def test_main(input: Input, expected: Issue | None):
