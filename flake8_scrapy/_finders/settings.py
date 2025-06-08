@@ -52,6 +52,11 @@ class SettingInfo:
     deprecation_message: str | None = None
     package: str = "scrapy"
     type: SettingType | None = None
+    has_default: bool | None = None
+
+    def __post_init__(self):
+        if self.has_default is None:
+            self.has_default = self.package == "scrapy"
 
 
 # Grouped by active, deprecated, removed, and plugin-specific.
@@ -69,23 +74,29 @@ SETTINGS = {
     "AWS_VERIFY": SettingInfo(type=SettingType.BOOL),
     "AWS_REGION_NAME": SettingInfo(type=SettingType.OPT_STR),
     "ASYNCIO_EVENT_LOOP": SettingInfo(added_version="2.4.0", type=SettingType.CLS),
-    "AUTOTHROTTLE_DEBUG": SettingInfo(),
+    "AUTOTHROTTLE_DEBUG": SettingInfo(type=SettingType.BOOL),
     "AUTOTHROTTLE_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "AUTOTHROTTLE_MAX_DELAY": SettingInfo(),
-    "AUTOTHROTTLE_START_DELAY": SettingInfo(),
-    "AUTOTHROTTLE_TARGET_CONCURRENCY": SettingInfo(),
+    "AUTOTHROTTLE_MAX_DELAY": SettingInfo(type=SettingType.FLOAT),
+    "AUTOTHROTTLE_START_DELAY": SettingInfo(type=SettingType.FLOAT),
+    "AUTOTHROTTLE_TARGET_CONCURRENCY": SettingInfo(type=SettingType.FLOAT),
     "BOT_NAME": SettingInfo(type=SettingType.STR),
-    "CLOSESPIDER_ERRORCOUNT": SettingInfo(),
-    "CLOSESPIDER_ITEMCOUNT": SettingInfo(),
-    "CLOSESPIDER_PAGECOUNT": SettingInfo(),
-    "CLOSESPIDER_TIMEOUT": SettingInfo(),
-    "COMMANDS_MODULE": SettingInfo(),
+    "CLOSESPIDER_ERRORCOUNT": SettingInfo(type=SettingType.INT),
+    "CLOSESPIDER_ITEMCOUNT": SettingInfo(type=SettingType.INT),
+    "CLOSESPIDER_PAGECOUNT": SettingInfo(type=SettingType.INT),
+    "CLOSESPIDER_PAGECOUNT_NO_ITEM": SettingInfo(
+        type=SettingType.INT, added_version="2.12.0"
+    ),
+    "CLOSESPIDER_TIMEOUT": SettingInfo(type=SettingType.FLOAT),
+    "CLOSESPIDER_TIMEOUT_NO_ITEM": SettingInfo(
+        type=SettingType.INT, added_version="2.10.0"
+    ),
+    "COMMANDS_MODULE": SettingInfo(type=SettingType.STR),
     "COMPRESSION_ENABLED": SettingInfo(type=SettingType.BOOL),
     "CONCURRENT_ITEMS": SettingInfo(type=SettingType.INT),
     "CONCURRENT_REQUESTS": SettingInfo(type=SettingType.INT),
     "CONCURRENT_REQUESTS_PER_DOMAIN": SettingInfo(type=SettingType.INT),
     "CONCURRENT_REQUESTS_PER_IP": SettingInfo(type=SettingType.INT),
-    "COOKIES_DEBUG": SettingInfo(),
+    "COOKIES_DEBUG": SettingInfo(type=SettingType.BOOL),
     "COOKIES_ENABLED": SettingInfo(type=SettingType.BOOL),
     "DEFAULT_DROPITEM_LOG_LEVEL": SettingInfo(added_version="2.13.0"),
     "DEFAULT_ITEM_CLASS": SettingInfo(type=SettingType.CLS),
@@ -119,46 +130,61 @@ SETTINGS = {
     "EDITOR": SettingInfo(type=SettingType.STR),
     "EXTENSIONS": SettingInfo(type=SettingType.BASED_DICT),
     "EXTENSIONS_BASE": SettingInfo(),
-    "FEED_EXPORT_BATCH_ITEM_COUNT": SettingInfo(added_version="2.3.0"),
-    "FEED_EXPORT_ENCODING": SettingInfo(),
+    "FEED_EXPORT_BATCH_ITEM_COUNT": SettingInfo(
+        added_version="2.3.0", type=SettingType.INT
+    ),
+    "FEED_EXPORT_ENCODING": SettingInfo(type=SettingType.OPT_STR),
     "FEED_EXPORT_FIELDS": SettingInfo(type=SettingType.DICT_OR_LIST),
     "FEED_EXPORT_INDENT": SettingInfo(),
-    "FEED_EXPORTERS": SettingInfo(),
+    "FEED_EXPORTERS": SettingInfo(type=SettingType.BASED_DICT),
     "FEED_EXPORTERS_BASE": SettingInfo(),
-    "FEED_STORAGE_FTP_ACTIVE": SettingInfo(),
+    "FEED_STORAGE_FTP_ACTIVE": SettingInfo(type=SettingType.BOOL),
     "FEED_STORAGE_GCS_ACL": SettingInfo(
         added_version="2.3.0", type=SettingType.OPT_STR
     ),
-    "FEED_STORAGE_S3_ACL": SettingInfo(),
-    "FEED_STORE_EMPTY": SettingInfo(),
-    "FEED_STORAGES": SettingInfo(),
+    "FEED_STORAGE_S3_ACL": SettingInfo(type=SettingType.OPT_STR),
+    "FEED_STORE_EMPTY": SettingInfo(type=SettingType.BOOL),
+    "FEED_STORAGES": SettingInfo(type=SettingType.BASED_DICT),
     "FEED_STORAGES_BASE": SettingInfo(),
     "FEED_TEMPDIR": SettingInfo(type=SettingType.OPT_PATH),
     "FEED_URI_PARAMS": SettingInfo(),
-    "FEEDS": SettingInfo(added_version="2.1.0"),
-    "FILES_STORE_GCS_ACL": SettingInfo(),
-    "FILES_STORE_S3_ACL": SettingInfo(),
+    "FEEDS": SettingInfo(added_version="2.1.0", type=SettingType.DICT),
+    "FILES_EXPIRES": SettingInfo(type=SettingType.INT),
+    "FILES_RESULT_FIELD": SettingInfo(type=SettingType.OPT_STR),
+    "FILES_STORE": SettingInfo(type=SettingType.OPT_PATH),
+    "FILES_STORE_GCS_ACL": SettingInfo(type=SettingType.OPT_STR),
+    "FILES_STORE_S3_ACL": SettingInfo(type=SettingType.OPT_STR),
+    "FILES_URLS_FIELD": SettingInfo(type=SettingType.OPT_STR),
     "FORCE_CRAWLER_PROCESS": SettingInfo(),
     "FTP_PASSIVE_MODE": SettingInfo(type=SettingType.BOOL),
     "FTP_PASSWORD": SettingInfo(type=SettingType.OPT_STR),
     "FTP_USER": SettingInfo(type=SettingType.OPT_STR),
     "GCS_PROJECT_ID": SettingInfo(added_version="2.3.0", type=SettingType.OPT_STR),
-    "HTTPCACHE_ALWAYS_STORE": SettingInfo(),
-    "HTTPCACHE_DBM_MODULE": SettingInfo(),
-    "HTTPCACHE_DIR": SettingInfo(),
+    "HTTPCACHE_ALWAYS_STORE": SettingInfo(type=SettingType.BOOL),
+    "HTTPCACHE_DBM_MODULE": SettingInfo(type=SettingType.OPT_STR),
+    "HTTPCACHE_DIR": SettingInfo(type=SettingType.OPT_PATH),
     "HTTPCACHE_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "HTTPCACHE_EXPIRATION_SECS": SettingInfo(),
-    "HTTPCACHE_GZIP": SettingInfo(),
-    "HTTPCACHE_IGNORE_HTTP_CODES": SettingInfo(),
-    "HTTPCACHE_IGNORE_MISSING": SettingInfo(),
-    "HTTPCACHE_IGNORE_RESPONSE_CACHE_CONTROLS": SettingInfo(),
-    "HTTPCACHE_IGNORE_SCHEMES": SettingInfo(),
-    "HTTPCACHE_POLICY": SettingInfo(),
-    "HTTPCACHE_STORAGE": SettingInfo(),
-    "HTTPPROXY_AUTH_ENCODING": SettingInfo(),
+    "HTTPCACHE_EXPIRATION_SECS": SettingInfo(type=SettingType.INT),
+    "HTTPCACHE_GZIP": SettingInfo(type=SettingType.BOOL),
+    "HTTPCACHE_IGNORE_HTTP_CODES": SettingInfo(type=SettingType.LIST),
+    "HTTPCACHE_IGNORE_MISSING": SettingInfo(type=SettingType.BOOL),
+    "HTTPCACHE_IGNORE_RESPONSE_CACHE_CONTROLS": SettingInfo(type=SettingType.LIST),
+    "HTTPCACHE_IGNORE_SCHEMES": SettingInfo(type=SettingType.LIST),
+    "HTTPCACHE_POLICY": SettingInfo(type=SettingType.CLS),
+    "HTTPCACHE_STORAGE": SettingInfo(type=SettingType.CLS),
+    "HTTPERROR_ALLOW_ALL": SettingInfo(type=SettingType.BOOL),
+    "HTTPERROR_ALLOWED_CODES": SettingInfo(type=SettingType.LIST),
+    "HTTPPROXY_AUTH_ENCODING": SettingInfo(type=SettingType.OPT_STR),
     "HTTPPROXY_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "IMAGES_STORE_GCS_ACL": SettingInfo(),
-    "IMAGES_STORE_S3_ACL": SettingInfo(),
+    "IMAGES_EXPIRES": SettingInfo(type=SettingType.INT),
+    "IMAGES_MIN_HEIGHT": SettingInfo(type=SettingType.INT),
+    "IMAGES_MIN_WIDTH": SettingInfo(type=SettingType.INT),
+    "IMAGES_RESULT_FIELD": SettingInfo(type=SettingType.OPT_STR),
+    "IMAGES_STORE": SettingInfo(type=SettingType.OPT_PATH),
+    "IMAGES_STORE_GCS_ACL": SettingInfo(type=SettingType.OPT_STR),
+    "IMAGES_STORE_S3_ACL": SettingInfo(type=SettingType.OPT_STR),
+    "IMAGES_THUMBS": SettingInfo(type=SettingType.DICT),
+    "IMAGES_URLS_FIELD": SettingInfo(type=SettingType.OPT_STR),
     "ITEM_PIPELINES": SettingInfo(type=SettingType.BASED_DICT),
     "ITEM_PIPELINES_BASE": SettingInfo(),
     "ITEM_PROCESSOR": SettingInfo(),
@@ -175,11 +201,14 @@ SETTINGS = {
     "LOG_STDOUT": SettingInfo(type=SettingType.BOOL),
     "LOG_VERSIONS": SettingInfo(added_version="2.13.0", type=SettingType.LIST),
     "LOGSTATS_INTERVAL": SettingInfo(type=SettingType.FLOAT),
-    "MAIL_FROM": SettingInfo(),
-    "MAIL_HOST": SettingInfo(),
-    "MAIL_PASS": SettingInfo(),
-    "MAIL_PORT": SettingInfo(),
-    "MAIL_USER": SettingInfo(),
+    "MAIL_FROM": SettingInfo(type=SettingType.OPT_STR),
+    "MAIL_HOST": SettingInfo(type=SettingType.OPT_STR),
+    "MAIL_PASS": SettingInfo(type=SettingType.OPT_STR),
+    "MAIL_PORT": SettingInfo(type=SettingType.OPT_STR),
+    "MAIL_USER": SettingInfo(type=SettingType.OPT_STR),
+    "MAIL_TLS": SettingInfo(type=SettingType.BOOL),
+    "MAIL_SSL": SettingInfo(type=SettingType.BOOL),
+    "MEDIA_ALLOW_REDIRECTS": SettingInfo(type=SettingType.BOOL),
     "MEMDEBUG_ENABLED": SettingInfo(type=SettingType.BOOL),
     "MEMDEBUG_NOTIFY": SettingInfo(type=SettingType.LIST),
     "MEMUSAGE_CHECK_INTERVAL_SECONDS": SettingInfo(type=SettingType.FLOAT),
@@ -188,8 +217,8 @@ SETTINGS = {
     "MEMUSAGE_NOTIFY_MAIL": SettingInfo(type=SettingType.LIST),
     "MEMUSAGE_WARNING_MB": SettingInfo(type=SettingType.INT),
     "METAREFRESH_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "METAREFRESH_IGNORE_TAGS": SettingInfo(),
-    "METAREFRESH_MAXDELAY": SettingInfo(),
+    "METAREFRESH_IGNORE_TAGS": SettingInfo(type=SettingType.LIST),
+    "METAREFRESH_MAXDELAY": SettingInfo(type=SettingType.INT),
     "NEWSPIDER_MODULE": SettingInfo(type=SettingType.STR),
     "PERIODIC_LOG_DELTA": SettingInfo(added_version="2.11.0"),
     "PERIODIC_LOG_STATS": SettingInfo(added_version="2.11.0"),
@@ -199,16 +228,18 @@ SETTINGS = {
     "RANDOMIZE_DOWNLOAD_DELAY": SettingInfo(type=SettingType.BOOL),
     "REACTOR_THREADPOOL_MAXSIZE": SettingInfo(type=SettingType.INT),
     "REDIRECT_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "REDIRECT_MAX_TIMES": SettingInfo(),
+    "REDIRECT_MAX_TIMES": SettingInfo(type=SettingType.INT),
     "REDIRECT_PRIORITY_ADJUST": SettingInfo(type=SettingType.INT),
     "REFERER_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "REFERRER_POLICY": SettingInfo(),
-    "REQUEST_FINGERPRINTER_CLASS": SettingInfo(added_version="2.7.0"),
+    "REFERRER_POLICY": SettingInfo(type=SettingType.CLS),
+    "REQUEST_FINGERPRINTER_CLASS": SettingInfo(
+        added_version="2.7.0", type=SettingType.CLS
+    ),
     "RETRY_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "RETRY_EXCEPTIONS": SettingInfo(added_version="2.10.0"),
-    "RETRY_HTTP_CODES": SettingInfo(),
-    "RETRY_PRIORITY_ADJUST": SettingInfo(),
-    "RETRY_TIMES": SettingInfo(),
+    "RETRY_EXCEPTIONS": SettingInfo(added_version="2.10.0", type=SettingType.LIST),
+    "RETRY_HTTP_CODES": SettingInfo(type=SettingType.LIST),
+    "RETRY_PRIORITY_ADJUST": SettingInfo(type=SettingType.INT),
+    "RETRY_TIMES": SettingInfo(type=SettingType.INT),
     "ROBOTSTXT_OBEY": SettingInfo(type=SettingType.BOOL),
     "ROBOTSTXT_PARSER": SettingInfo(type=SettingType.CLS),
     "ROBOTSTXT_USER_AGENT": SettingInfo(type=SettingType.OPT_STR),
@@ -235,10 +266,10 @@ SETTINGS = {
     "STATS_DUMP": SettingInfo(type=SettingType.BOOL),
     "STATSMAILER_RCPTS": SettingInfo(type=SettingType.LIST),
     "TELNETCONSOLE_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "TELNETCONSOLE_HOST": SettingInfo(),
-    "TELNETCONSOLE_PASSWORD": SettingInfo(),
-    "TELNETCONSOLE_PORT": SettingInfo(),
-    "TELNETCONSOLE_USERNAME": SettingInfo(),
+    "TELNETCONSOLE_HOST": SettingInfo(type=SettingType.STR),
+    "TELNETCONSOLE_PASSWORD": SettingInfo(type=SettingType.OPT_STR),
+    "TELNETCONSOLE_PORT": SettingInfo(type=SettingType.LIST),
+    "TELNETCONSOLE_USERNAME": SettingInfo(type=SettingType.STR),
     "TEMPLATES_DIR": SettingInfo(type=SettingType.OPT_PATH),
     "TWISTED_REACTOR": SettingInfo(type=SettingType.CLS),
     "URLLENGTH_LIMIT": SettingInfo(type=SettingType.INT),
@@ -1436,7 +1467,7 @@ class TypeMismatchSettingsIssueFinder(
 
     def get_setting_message(self, setting_name: str) -> str:
         setting_type = self.typed_settings[setting_name]
-        expected_method = self.TYPE_TO_METHOD[setting_type]
+        expected_method = self.TYPE_TO_METHOD.get(setting_type, "get")
         return f"{self.msg_code}: {self.msg_info}: use {expected_method}() to read {setting_name}"
 
     def check_settings_method_args(
@@ -1449,9 +1480,12 @@ class TypeMismatchSettingsIssueFinder(
             first_arg = node.args[0]
             if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
                 setting_name = first_arg.value
-                if self.should_report_setting(setting_name):
+                if (
+                    self.should_report_setting(setting_name)
+                    and setting_name in self.typed_settings
+                ):
                     setting_type = self.typed_settings[setting_name]
-                    expected_method = self.TYPE_TO_METHOD[setting_type]
+                    expected_method = self.TYPE_TO_METHOD.get(setting_type, "get")
                     if method_name != expected_method:
                         yield from self.report_setting_issue(
                             first_arg.lineno, first_arg.col_offset, setting_name
@@ -1464,9 +1498,12 @@ class TypeMismatchSettingsIssueFinder(
             ):
                 continue
             setting_name = keyword.value.value
-            if self.should_report_setting(setting_name):
+            if (
+                self.should_report_setting(setting_name)
+                and setting_name in self.typed_settings
+            ):
                 setting_type = self.typed_settings[setting_name]
-                expected_method = self.TYPE_TO_METHOD[setting_type]
+                expected_method = self.TYPE_TO_METHOD.get(setting_type, "get")
                 if method_name != expected_method:
                     yield from self.report_setting_issue(
                         keyword.value.lineno, keyword.value.col_offset, setting_name
@@ -1666,6 +1703,412 @@ class ThrottlingConfigIssueFinder:
                     0,
                     f"{self.msg_code}: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: {missing_list}",
                 )
+
+
+DEFAULT_SETTINGS = {
+    "ADDONS",
+    "AJAXCRAWL_ENABLED",
+    "ASYNCIO_EVENT_LOOP",
+    "AUTOTHROTTLE_DEBUG",
+    "AUTOTHROTTLE_ENABLED",
+    "AUTOTHROTTLE_MAX_DELAY",
+    "AUTOTHROTTLE_START_DELAY",
+    "AUTOTHROTTLE_TARGET_CONCURRENCY",
+    "BOT_NAME",
+    "CLOSESPIDER_ERRORCOUNT",
+    "CLOSESPIDER_ITEMCOUNT",
+    "CLOSESPIDER_PAGECOUNT",
+    "CLOSESPIDER_TIMEOUT",
+    "COMMANDS_MODULE",
+    "COMPRESSION_ENABLED",
+    "CONCURRENT_ITEMS",
+    "CONCURRENT_REQUESTS",
+    "CONCURRENT_REQUESTS_PER_DOMAIN",
+    "CONCURRENT_REQUESTS_PER_IP",
+    "COOKIES_DEBUG",
+    "COOKIES_ENABLED",
+    "DEFAULT_DROPITEM_LOG_LEVEL",
+    "DEFAULT_ITEM_CLASS",
+    "DEFAULT_REQUEST_HEADERS",
+    "DEPTH_LIMIT",
+    "DEPTH_PRIORITY",
+    "DEPTH_STATS_VERBOSE",
+    "DNSCACHE_ENABLED",
+    "DNSCACHE_SIZE",
+    "DNS_RESOLVER",
+    "DNS_TIMEOUT",
+    "DOWNLOAD_DELAY",
+    "DOWNLOADER",
+    "DOWNLOADER_CLIENTCONTEXTFACTORY",
+    "DOWNLOADER_CLIENT_TLS_CIPHERS",
+    "DOWNLOADER_CLIENT_TLS_METHOD",
+    "DOWNLOADER_CLIENT_TLS_VERBOSE_LOGGING",
+    "DOWNLOADER_HTTPCLIENTFACTORY",
+    "DOWNLOADER_MIDDLEWARES",
+    "DOWNLOADER_MIDDLEWARES_BASE",
+    "DOWNLOADER_STATS",
+    "DOWNLOAD_FAIL_ON_DATALOSS",
+    "DOWNLOAD_HANDLERS",
+    "DOWNLOAD_HANDLERS_BASE",
+    "DOWNLOAD_MAXSIZE",
+    "DOWNLOAD_TIMEOUT",
+    "DOWNLOAD_WARNSIZE",
+    "DUPEFILTER_CLASS",
+    "EDITOR",
+    "EXTENSIONS",
+    "EXTENSIONS_BASE",
+    "FEED_EXPORT_BATCH_ITEM_COUNT",
+    "FEED_EXPORT_ENCODING",
+    "FEED_EXPORTERS",
+    "FEED_EXPORTERS_BASE",
+    "FEED_EXPORT_FIELDS",
+    "FEED_EXPORT_INDENT",
+    "FEEDS",
+    "FEED_STORAGE_FTP_ACTIVE",
+    "FEED_STORAGE_GCS_ACL",
+    "FEED_STORAGES",
+    "FEED_STORAGES_BASE",
+    "FEED_STORE_EMPTY",
+    "FEED_TEMPDIR",
+    "FEED_URI_PARAMS",
+    "FILES_STORE_GCS_ACL",
+    "FORCE_CRAWLER_PROCESS",
+    "FTP_PASSIVE_MODE",
+    "FTP_PASSWORD",
+    "FTP_USER",
+    "GCS_PROJECT_ID",
+    "HTTPCACHE_ALWAYS_STORE",
+    "HTTPCACHE_DBM_MODULE",
+    "HTTPCACHE_DIR",
+    "HTTPCACHE_ENABLED",
+    "HTTPCACHE_EXPIRATION_SECS",
+    "HTTPCACHE_GZIP",
+    "HTTPCACHE_IGNORE_HTTP_CODES",
+    "HTTPCACHE_IGNORE_MISSING",
+    "HTTPCACHE_IGNORE_RESPONSE_CACHE_CONTROLS",
+    "HTTPCACHE_IGNORE_SCHEMES",
+    "HTTPCACHE_POLICY",
+    "HTTPCACHE_STORAGE",
+    "HTTPPROXY_AUTH_ENCODING",
+    "HTTPPROXY_ENABLED",
+    "IMAGES_STORE_GCS_ACL",
+    "ITEM_PIPELINES",
+    "ITEM_PIPELINES_BASE",
+    "ITEM_PROCESSOR",
+    "JOBDIR",
+    "LOG_DATEFORMAT",
+    "LOG_ENABLED",
+    "LOG_ENCODING",
+    "LOG_FILE",
+    "LOG_FILE_APPEND",
+    "LOG_FORMAT",
+    "LOG_FORMATTER",
+    "LOG_LEVEL",
+    "LOG_SHORT_NAMES",
+    "LOGSTATS_INTERVAL",
+    "LOG_STDOUT",
+    "LOG_VERSIONS",
+    "MAIL_FROM",
+    "MAIL_HOST",
+    "MAIL_PASS",
+    "MAIL_PORT",
+    "MAIL_USER",
+    "MEMDEBUG_ENABLED",
+    "MEMDEBUG_NOTIFY",
+    "MEMUSAGE_CHECK_INTERVAL_SECONDS",
+    "MEMUSAGE_ENABLED",
+    "MEMUSAGE_LIMIT_MB",
+    "MEMUSAGE_NOTIFY_MAIL",
+    "MEMUSAGE_WARNING_MB",
+    "METAREFRESH_ENABLED",
+    "METAREFRESH_IGNORE_TAGS",
+    "METAREFRESH_MAXDELAY",
+    "NEWSPIDER_MODULE",
+    "PERIODIC_LOG_DELTA",
+    "PERIODIC_LOG_STATS",
+    "PERIODIC_LOG_TIMING_ENABLED",
+    "RANDOMIZE_DOWNLOAD_DELAY",
+    "REACTOR_THREADPOOL_MAXSIZE",
+    "REDIRECT_ENABLED",
+    "REDIRECT_MAX_TIMES",
+    "REDIRECT_PRIORITY_ADJUST",
+    "REFERER_ENABLED",
+    "REFERRER_POLICY",
+    "REQUEST_FINGERPRINTER_CLASS",
+    "REQUEST_FINGERPRINTER_IMPLEMENTATION",
+    "RETRY_ENABLED",
+    "RETRY_EXCEPTIONS",
+    "RETRY_HTTP_CODES",
+    "RETRY_PRIORITY_ADJUST",
+    "RETRY_TIMES",
+    "ROBOTSTXT_OBEY",
+    "ROBOTSTXT_PARSER",
+    "ROBOTSTXT_USER_AGENT",
+    "SCHEDULER",
+    "SCHEDULER_DEBUG",
+    "SCHEDULER_DISK_QUEUE",
+    "SCHEDULER_MEMORY_QUEUE",
+    "SCHEDULER_PRIORITY_QUEUE",
+    "SCHEDULER_START_DISK_QUEUE",
+    "SCHEDULER_START_MEMORY_QUEUE",
+    "SCRAPER_SLOT_MAX_ACTIVE_SIZE",
+    "SPIDER_CONTRACTS",
+    "SPIDER_CONTRACTS_BASE",
+    "SPIDER_LOADER_CLASS",
+    "SPIDER_LOADER_WARN_ONLY",
+    "SPIDER_MIDDLEWARES",
+    "SPIDER_MIDDLEWARES_BASE",
+    "SPIDER_MODULES",
+    "STATS_CLASS",
+    "STATS_DUMP",
+    "STATSMAILER_RCPTS",
+    "TELNETCONSOLE_ENABLED",
+    "TELNETCONSOLE_HOST",
+    "TELNETCONSOLE_PASSWORD",
+    "TELNETCONSOLE_PORT",
+    "TELNETCONSOLE_USERNAME",
+    "TEMPLATES_DIR",
+    "TWISTED_REACTOR",
+    "URLLENGTH_LIMIT",
+    "USER_AGENT",
+    "WARN_ON_GENERATOR_RETURN_VALUE",
+}
+
+DEFAULT_SETTINGS_WITH_NONE = {
+    "FEED_EXPORT_ENCODING",
+    "FEED_EXPORT_FIELDS",
+    "FEED_TEMPDIR",
+    "FEED_URI_PARAMS",
+    "JOBDIR",
+    "LOG_FILE",
+    "MAIL_USER",
+    "MAIL_PASS",
+    "PERIODIC_LOG_DELTA",
+    "PERIODIC_LOG_STATS",
+    "ROBOTSTXT_USER_AGENT",
+    "TELNETCONSOLE_PASSWORD",
+}
+
+
+class UnnecessaryGetIssueFinder(BaseSettingsIssueFinder):
+    msg_code = "SCP25"
+    msg_info = "unneeded get()"
+
+    def __init__(self, filename=None, *args, **kwargs):
+        super().__init__(filename, *args, **kwargs)
+
+    def should_report_setting(self, setting_name: str) -> bool:
+        # Only report if it's a known setting and doesn't have a specific typed method (SCP17)
+        if setting_name not in SETTINGS:
+            return False
+        setting_info = SETTINGS[setting_name]
+        # Only exclude if it has a type that requires a specific getter method (not "get")
+        if setting_info.type is not None:
+            # Check if this type has a specific getter method
+            type_to_method = {
+                SettingType.BOOL: "getbool",
+                SettingType.INT: "getint",
+                SettingType.FLOAT: "getfloat",
+                SettingType.LIST: "getlist",
+                SettingType.DICT: "getdict",
+                SettingType.DICT_OR_LIST: "getdictorlist",
+                SettingType.BASED_DICT: "getwithbase",
+            }
+            specific_method = type_to_method.get(setting_info.type, "get")
+            return specific_method == "get"
+        return True
+
+    def get_setting_message(self, setting_name: str) -> str:
+        return f"{self.msg_code}: {self.msg_info}: use [] instead of get() to read {setting_name}"
+
+    def check_assignment(
+        self, node: ast.Assign
+    ) -> Generator[tuple[int, int, str], None, None]:
+        return
+        yield  # pragma: no cover
+
+    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:
+        if not isinstance(node.func, ast.Attribute):
+            return
+
+        if self.is_settings_method_call(node) and node.func.attr == "get":
+            yield from self.check_settings_method_args(node, "get", "")
+
+    def check_subscript(
+        self, node: ast.Subscript
+    ) -> Generator[tuple[int, int, str], None, None]:
+        return
+        yield  # pragma: no cover
+
+    def check_delete(
+        self, node: ast.Delete
+    ) -> Generator[tuple[int, int, str], None, None]:
+        return
+        yield  # pragma: no cover
+
+    def check_settings_method_args(
+        self, node: ast.Call, method_name: str, param_name: str
+    ) -> Generator[tuple[int, int, str], None, None]:
+        if method_name != "get":
+            return
+
+        first_arg = node.args[0] if node.args else None
+        if (
+            first_arg
+            and isinstance(first_arg, ast.Constant)
+            and isinstance(first_arg.value, str)
+        ):
+            MAX_ARGS_WITH_DEFAULT = 2
+            first_arg = node.args[0] if node.args else None
+            if (
+                first_arg
+                and isinstance(first_arg, ast.Constant)
+                and isinstance(first_arg.value, str)
+            ):
+                setting_name = first_arg.value
+                # Check if it's unneeded: no default or default is None
+                if self.should_report_setting(setting_name) and (
+                    len(node.args) == 1
+                    or (
+                        len(node.args) == MAX_ARGS_WITH_DEFAULT
+                        and isinstance(node.args[1], ast.Constant)
+                        and node.args[1].value is None
+                    )
+                ):
+                    yield from self.report_setting_issue(
+                        first_arg.lineno, first_arg.col_offset, setting_name
+                    )
+
+        # Check keyword arguments
+        for keyword in node.keywords:
+            if (
+                keyword.arg == "name"
+                and isinstance(keyword.value, ast.Constant)
+                and isinstance(keyword.value.value, str)
+            ):
+                setting_name = keyword.value.value
+                if self.should_report_setting(setting_name):
+                    # Check if default is None or not provided
+                    has_none_default = False
+                    for kw in node.keywords:
+                        if (
+                            kw.arg == "default"
+                            and isinstance(kw.value, ast.Constant)
+                            and kw.value.value is None
+                        ):
+                            has_none_default = True
+                            break
+
+                    if (
+                        not any(kw.arg == "default" for kw in node.keywords)
+                        or has_none_default
+                    ):
+                        yield from self.report_setting_issue(
+                            keyword.value.lineno, keyword.value.col_offset, setting_name
+                        )
+
+
+class IgnoredGetDefaultIssueFinder(BaseSettingsIssueFinder):
+    msg_code = "SCP26"
+    msg_info = "ignored get() default"
+
+    def __init__(self, filename=None, *args, **kwargs):
+        super().__init__(filename, *args, **kwargs)
+
+    def should_report_setting(self, setting_name: str) -> bool:
+        return setting_name in SETTINGS
+
+    def get_setting_message(self, setting_name: str) -> str:
+        return (
+            f"{self.msg_code}: {self.msg_info}: {setting_name} is set in "
+            "scrapy.settings.default_settings with a non-None value, "
+            "so the default value passed to get() will never be used."
+        )
+
+    def check_assignment(
+        self, node: ast.Assign
+    ) -> Generator[tuple[int, int, str], None, None]:
+        return
+        yield  # pragma: no cover
+
+    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:
+        if not isinstance(node.func, ast.Attribute):
+            return
+
+        if self.is_settings_method_call(node) and node.func.attr == "get":
+            yield from self.check_settings_method_args(node, "get", "")
+
+    def check_subscript(
+        self, node: ast.Subscript
+    ) -> Generator[tuple[int, int, str], None, None]:
+        return
+        yield  # pragma: no cover
+
+    def check_delete(
+        self, node: ast.Delete
+    ) -> Generator[tuple[int, int, str], None, None]:
+        return
+        yield  # pragma: no cover
+
+    def check_settings_method_args(
+        self, node: ast.Call, method_name: str, param_name: str
+    ) -> Generator[tuple[int, int, str], None, None]:
+        if method_name != "get":
+            return
+
+        first_arg = node.args[0] if node.args else None
+        if (
+            first_arg
+            and isinstance(first_arg, ast.Constant)
+            and isinstance(first_arg.value, str)
+        ):
+            MAX_ARGS_WITH_DEFAULT = 2
+            first_arg = node.args[0] if node.args else None
+            if (
+                first_arg
+                and isinstance(first_arg, ast.Constant)
+                and isinstance(first_arg.value, str)
+            ):
+                setting_name = first_arg.value
+                if (
+                    self.should_report_setting(setting_name)
+                    and setting_name in DEFAULT_SETTINGS
+                    and setting_name not in DEFAULT_SETTINGS_WITH_NONE
+                    and len(node.args) == MAX_ARGS_WITH_DEFAULT
+                    and not (
+                        isinstance(node.args[1], ast.Constant)
+                        and node.args[1].value is None
+                    )
+                ):
+                    yield from self.report_setting_issue(
+                        first_arg.lineno, first_arg.col_offset, setting_name
+                    )
+
+        # Check keyword arguments
+        for keyword in node.keywords:
+            if (
+                keyword.arg == "name"
+                and isinstance(keyword.value, ast.Constant)
+                and isinstance(keyword.value.value, str)
+            ):
+                setting_name = keyword.value.value
+                if (
+                    self.should_report_setting(setting_name)
+                    and setting_name in DEFAULT_SETTINGS
+                    and setting_name not in DEFAULT_SETTINGS_WITH_NONE
+                ):
+                    # Check if there's a non-None default in keywords
+                    for kw in node.keywords:
+                        if kw.arg == "default" and not (
+                            isinstance(kw.value, ast.Constant)
+                            and kw.value.value is None
+                        ):
+                            yield from self.report_setting_issue(
+                                keyword.value.lineno,
+                                keyword.value.col_offset,
+                                setting_name,
+                            )
+                            break
 
 
 class DuplicateSettingsIssueFinder:

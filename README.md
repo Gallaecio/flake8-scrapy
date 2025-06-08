@@ -32,6 +32,8 @@ on Scrapy projects.
 | SCP22 | Missing contact info in USER_AGENT |
 | SCP23 | Redefined setting in settings.py |
 | SCP24 | Use of a BASE setting |
+| SCP25 | Unneeded settings.get() |
+| SCP26 | Ignored default |
 
 
 ## Options

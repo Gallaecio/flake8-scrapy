@@ -18,6 +18,7 @@ from ._finders.settings import (
     DeprecatedSettingsIssueFinder,
     DuplicateSettingsIssueFinder,
     FutureSettingsIssueFinder,
+    IgnoredGetDefaultIssueFinder,
     InvalidValueSettingsIssueFinder,
     MissingPackageSettingsIssueFinder,
     MissingUserAgentIssueFinder,
@@ -26,6 +27,7 @@ from ._finders.settings import (
     ThrottlingConfigIssueFinder,
     TypeMismatchSettingsIssueFinder,
     UnknownSettingsIssueFinder,
+    UnnecessaryGetIssueFinder,
 )
 
 __version__ = "0.0.2"
@@ -84,6 +86,8 @@ class IssueReporter(ast.NodeVisitor):
                 exclude_settings=missing_package_settings,
             ),
             BaseSettingNameIssueFinder(filename),
+            UnnecessaryGetIssueFinder(filename),
+            IgnoredGetDefaultIssueFinder(filename),
             DuplicateSettingsIssueFinder(filename),
         )
         global_finders = []

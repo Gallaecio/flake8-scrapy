@@ -516,6 +516,49 @@ ISSUE_COLUMN = 9
                 "SCP24: use of BASE setting: do not use DOWNLOAD_HANDLERS_BASE, use DOWNLOAD_HANDLERS instead"
             ),
         ),
+        # SCP25
+        *(
+            (
+                Input(syntax),
+                Issue(
+                    f"SCP25: unneeded get(): use [] instead of get() to read {setting}",
+                    column=13,
+                ),
+            )
+            for setting in (
+                "AWS_ACCESS_KEY_ID",  # Not in scrapy.settings.default_settings
+                "BOT_NAME",  # Non-None in scrapy.settings.default_settings
+                "FEED_EXPORT_ENCODING",  # None in scrapy.settings.default_settings
+            )
+            for syntax in (
+                f"settings.get({setting!r})",
+                f"settings.get({setting!r}, None)",
+            )
+        ),
+        # SCP26
+        *(
+            (
+                Input(syntax),
+                issue,
+            )
+            for syntax, issue in (
+                # Not in scrapy.settings.default_settings
+                ("settings.get('AWS_ACCESS_KEY_ID', 'foo')", NO_ISSUE),
+                # Non-None in scrapy.settings.default_settings
+                (
+                    "settings.get('BOT_NAME', 'foo')",
+                    Issue(
+                        "SCP26: ignored get() default: BOT_NAME is set in "
+                        "scrapy.settings.default_settings with a non-None "
+                        "value, so the default value passed to get() will "
+                        "never be used.",
+                        column=13,
+                    ),
+                ),
+                # None in scrapy.settings.default_settings
+                ("settings.get('FEED_EXPORT_ENCODING', 'foo')", NO_ISSUE),
+            )
+        ),
     ],
 )
 def test_main(input: Input, expected: Issue | None):
