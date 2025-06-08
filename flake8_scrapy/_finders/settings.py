@@ -18,6 +18,14 @@ if TYPE_CHECKING:
 MIN_VALID_SETTING_NAME_LENGTH = 3
 
 
+class AllowedExcludeSettingsMixin:
+    def _init_allowed_exclude_settings(
+        self, allowed_settings=None, exclude_settings=None
+    ):
+        self.allowed_settings = set(allowed_settings) if allowed_settings else set()
+        self.exclude_settings = set(exclude_settings) if exclude_settings else set()
+
+
 @dataclass
 class SettingInfo:
     added_version: str | None = None
@@ -823,7 +831,9 @@ class UnknownSettingsIssueFinder(BaseSettingsIssueFinder):
         return message
 
 
-class DeprecatedSettingsIssueFinder(BaseSettingsIssueFinder):
+class DeprecatedSettingsIssueFinder(
+    BaseSettingsIssueFinder, AllowedExcludeSettingsMixin
+):
     msg_code = "SCP08"
     msg_info = "deprecated Scrapy setting"
 
@@ -837,8 +847,7 @@ class DeprecatedSettingsIssueFinder(BaseSettingsIssueFinder):
     ):
         super().__init__(filename, *args, **kwargs)
         self.deprecated_settings = self.get_deprecated_settings()
-        self.allowed_settings = set(allowed_settings) if allowed_settings else set()
-        self.exclude_settings = set(exclude_settings) if exclude_settings else set()
+        self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
 
     def get_deprecated_settings(self) -> set[str]:
         deprecated = set()
@@ -884,7 +893,7 @@ class DeprecatedSettingsIssueFinder(BaseSettingsIssueFinder):
         return message
 
 
-class FutureSettingsIssueFinder(BaseSettingsIssueFinder):
+class FutureSettingsIssueFinder(BaseSettingsIssueFinder, AllowedExcludeSettingsMixin):
     msg_code = "SCP09"
     msg_info = "future Scrapy setting"
 
@@ -907,8 +916,7 @@ class FutureSettingsIssueFinder(BaseSettingsIssueFinder):
                 and Version(info.added_version) > package_version
             ):
                 self.future_settings.add(name)
-        self.allowed_settings = set(allowed_settings) if allowed_settings else set()
-        self.exclude_settings = set(exclude_settings) if exclude_settings else set()
+        self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
 
     def should_report_setting(self, setting_name: str) -> bool:
         return (
@@ -925,7 +933,7 @@ class FutureSettingsIssueFinder(BaseSettingsIssueFinder):
         return f"{self.msg_code}: {self.msg_info}: {setting_name} (added in {package_name} {version})"
 
 
-class RemovedSettingsIssueFinder(BaseSettingsIssueFinder):
+class RemovedSettingsIssueFinder(BaseSettingsIssueFinder, AllowedExcludeSettingsMixin):
     msg_code = "SCP10"
     msg_info = "removed Scrapy setting"
 
@@ -948,8 +956,7 @@ class RemovedSettingsIssueFinder(BaseSettingsIssueFinder):
                 and Version(info.removed_version) <= package_version
             ):
                 self.removed_settings.add(name)
-        self.allowed_settings = set(allowed_settings) if allowed_settings else set()
-        self.exclude_settings = set(exclude_settings) if exclude_settings else set()
+        self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
 
     def should_report_setting(self, setting_name: str) -> bool:
         return (
@@ -966,7 +973,9 @@ class RemovedSettingsIssueFinder(BaseSettingsIssueFinder):
         return f"{self.msg_code}: {self.msg_info}: {setting_name} (removed in {package_name} {version})"
 
 
-class MissingPackageSettingsIssueFinder(BaseSettingsIssueFinder):
+class MissingPackageSettingsIssueFinder(
+    BaseSettingsIssueFinder, AllowedExcludeSettingsMixin
+):
     msg_code = "SCP15"
     msg_info = "setting for package not in requirements.txt"
 
@@ -979,7 +988,7 @@ class MissingPackageSettingsIssueFinder(BaseSettingsIssueFinder):
                 and self.get_package_version(info.package) is None
             ):
                 self.missing_package_settings.add(name)
-        self.allowed_settings = set(allowed_settings) if allowed_settings else set()
+        self._init_allowed_exclude_settings(allowed_settings)
 
     def should_report_setting(self, setting_name: str) -> bool:
         return (
