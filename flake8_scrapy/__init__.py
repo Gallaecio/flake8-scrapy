@@ -18,6 +18,7 @@ from ._finders.settings import (
     FutureSettingsIssueFinder,
     InvalidValueSettingsIssueFinder,
     MissingPackageSettingsIssueFinder,
+    MissingUserAgentIssueFinder,
     RemovedSettingsIssueFinder,
     TypeMismatchSettingsIssueFinder,
     UnknownSettingsIssueFinder,
@@ -32,6 +33,7 @@ class IssueReporter(ast.NodeVisitor):
         filename=None,
         allowed_settings=None,
         enable_project_checks=True,
+        enable_global_checks=False,
         *args,
         **kwargs,
     ):
@@ -78,6 +80,11 @@ class IssueReporter(ast.NodeVisitor):
                 exclude_settings=missing_package_settings,
             ),
         )
+        global_finders = []
+        if enable_global_checks:
+            global_finders = [
+                MissingUserAgentIssueFinder(filename),
+            ]
         project_finders = []
         if enable_project_checks:
             project_finders = [
@@ -87,7 +94,7 @@ class IssueReporter(ast.NodeVisitor):
                 InsecureScrapyVersionIssueFinder(filename),
                 ObsoletePackagesIssueFinder(filename),
             ]
-        shared_finders = [*setting_finders, *project_finders]
+        shared_finders = [*setting_finders, *global_finders, *project_finders]
         node_specific_finders = {
             "Assign": [
                 UnreachableDomainIssueFinder(),
@@ -97,7 +104,14 @@ class IssueReporter(ast.NodeVisitor):
             "Call": [UrlJoinIssueFinder()],
         }
         self.finders = {}
-        for node_type in ["Assign", "Call", "Subscript", "ClassDef", "Delete"]:
+        for node_type in [
+            "Assign",
+            "Call",
+            "Subscript",
+            "ClassDef",
+            "Delete",
+            "Module",
+        ]:
             specific_finders = node_specific_finders.get(node_type, [])
             self.finders[node_type] = specific_finders + shared_finders
 
@@ -149,16 +163,20 @@ class Plugin:
             if setting.strip()
         ]
 
-    def __init__(self, tree, filename, enable_project_checks=True):
+    def __init__(
+        self, tree, filename, enable_project_checks=True, enable_global_checks=False
+    ):
         self.tree = tree
         self.filename = filename
         self.enable_project_checks = enable_project_checks
+        self.enable_global_checks = enable_global_checks
 
     def run(self):
         reporter = IssueReporter(
             self.filename,
             allowed_settings=self.allowed_settings,
             enable_project_checks=self.enable_project_checks,
+            enable_global_checks=self.enable_global_checks,
         )
         reporter.visit(self.tree)
         for line, col, msg in reporter.issues:

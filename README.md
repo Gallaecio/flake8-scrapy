@@ -26,6 +26,7 @@ on Scrapy projects.
 | SCP16 | Obsolete package in requirements.txt |
 | SCP17 | Wrong setting getter |
 | SCP18 | Invalid setting value |
+| SCP19 | USER_AGENT missing from settings.py |
 
 
 ## Options
@@ -80,11 +81,16 @@ flake8-scrapy in `additional_dependencies`. For example:
 
 In addition to flake8-scrapy, you may want to use the following tools:
 
-- [mypy](https://mypy.readthedocs.io/en/stable/) for static type checking. Most
-  Scrapy components are annotated with types, so you can get a lot of value out
-  of it.
+- [ruff](https://docs.astral.sh/ruff/) for fast linting and formatting.
 
-- [ruff](https://docs.astral.sh/ruff/) for fast linting and formatting. Besides
-  its default rules, it supports
-  [many additional rules](https://docs.astral.sh/ruff/rules/) that may be worth
-  enabling for a Scrapy project.
+  For example,
+  [multi-value-repeated-key-literal (F601)](https://docs.astral.sh/ruff/rules/multi-value-repeated-key-literal/)
+  can detect accidental setting redefinitions in
+  [`custom_settings`](https://docs.scrapy.org/en/latest/topics/spiders.html#scrapy.Spider.custom_settings).
+
+- [mypy](https://mypy.readthedocs.io/en/stable/) for static type checking.
+
+  For example, if you set
+  [`start_urls`](https://docs.scrapy.org/en/latest/topics/spiders.html#scrapy.Spider.start_urls)
+  to `"https://toscrape.com"`, mypy will report that `start_urls` must be a
+  list of strings.

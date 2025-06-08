@@ -465,10 +465,124 @@ ISSUE_COLUMN = 9
                 ("SPIDER_CONTRACTS", "{}"),
             )
         ),
+        # # SCP22: flagged values.
+        # *(
+        #     (
+        #         Input(f'settings["USER_AGENT"] = {value!r}'),
+        #         Issue(
+        #             "SCP22: USER_AGENT does not seem to provide contact "
+        #             "information. Put an URL, email address or phone number "
+        #             "in it so that web masters of target websites may contact "
+        #             "you.",
+        #             column=24,
+        #         ),
+        #     ) for value in (
+        #         "foo",
+        #         "Jane Doe",
+        #         "my_project (+http://www.yourdomain.com)",
+        #         "Scrapy/2.11.2 (+https://scrapy.org)",
+        #         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+        #         "Mozilla/5.0 (X11; Linux x86_64; rv:139.0) Gecko/20100101 Firefox/139.0",
+        #         "",
+        #         None,
+        #     )
+        # ),
+        # # SCP22: valid values.
+        # *(
+        #     (
+        #         Input(f'settings["USER_AGENT"] = {value!r}'),
+        #         NO_ISSUE,
+        #     ) for value in (
+        #         "Jane Doe (+https://jane.doe.example)",
+        #         "jane.doe@example.com",
+        #         "555-9292",
+        #     )
+        # ),
     ],
 )
 def test_main(input: Input, expected: Issue | None):
     check_input(input, expected)
+
+
+@pytest.mark.parametrize(
+    ("input", "expected"),
+    [
+        (
+            Input(""),
+            NO_ISSUE,
+        ),
+        (
+            Input(
+                'USER_AGENT = "Jane Doe (+https://jane.doe.example)"\n'
+                "ROBOTSTXT_OBEY = True\n"
+                "AUTOTHROTTLE_ENABLED = True",
+                filename="settings.py",
+            ),
+            NO_ISSUE,
+        ),
+        (
+            Input(
+                'USER_AGENT = "Jane Doe (+https://jane.doe.example)"\n'
+                "ROBOTSTXT_OBEY = True\n"
+                "CONCURRENT_REQUESTS = 1\n"
+                "CONCURRENT_REQUESTS_PER_DOMAIN = 1\n"
+                "DOWNLOAD_DELAY = 5",
+                filename="settings.py",
+            ),
+            NO_ISSUE,
+        ),
+        (
+            Input("", filename="settings.py"),
+            Issue("SCP19: No USER_AGENT in settings.py"),
+            # [
+            #     Issue("SCP19: No USER_AGENT in settings.py"),
+            #     Issue("SCP20: ROBOTSTXT_OBEY not enabled in settings.py"),
+            #     Issue("SCP21: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: CONCURRENT_REQUESTS, CONCURRENT_REQUESTS_PER_DOMAIN, DOWNLOAD_DELAY"),
+            # ],
+        ),
+        # (
+        #     Input(
+        #         "USER_AGENT = \"Jane Doe (+https://jane.doe.example)\"\n"
+        #         "ROBOTSTXT_OBEY = False\n"
+        #         "AUTOTHROTTLE_ENABLED = True",
+        #         filename="settings.py",
+        #     ),
+        #     Issue("SCP20: ROBOTSTXT_OBEY not enabled in settings.py"),
+        # ),
+        # (
+        #     Input(
+        #         "USER_AGENT = \"Jane Doe (+https://jane.doe.example)\"\n"
+        #         "ROBOTSTXT_OBEY = True\n"
+        #         "CONCURRENT_REQUESTS_PER_DOMAIN = 1\n"
+        #         "DOWNLOAD_DELAY = 5",
+        #         filename="settings.py",
+        #     ),
+        #     Issue("SCP21: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: CONCURRENT_REQUESTS"),
+        # ),
+        # (
+        #     Input(
+        #         "USER_AGENT = \"Jane Doe (+https://jane.doe.example)\"\n"
+        #         "ROBOTSTXT_OBEY = True\n"
+        #         "CONCURRENT_REQUESTS = 1\n"
+        #         "DOWNLOAD_DELAY = 5",
+        #         filename="settings.py",
+        #     ),
+        #     Issue("SCP21: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: CONCURRENT_REQUESTS_PER_DOMAIN"),
+        # ),
+        # (
+        #     Input(
+        #         "USER_AGENT = \"Jane Doe (+https://jane.doe.example)\"\n"
+        #         "ROBOTSTXT_OBEY = True\n"
+        #         "CONCURRENT_REQUESTS = 1\n"
+        #         "CONCURRENT_REQUESTS_PER_DOMAIN = 1",
+        #         filename="settings.py",
+        #     ),
+        #     Issue("SCP21: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: DOWNLOAD_DELAY"),
+        # ),
+    ],
+)
+def test_global_settings(input: Input, expected: Issue | None):
+    check_input(input, expected, enable_global_checks=True)
 
 
 class TestAllowedSettings:

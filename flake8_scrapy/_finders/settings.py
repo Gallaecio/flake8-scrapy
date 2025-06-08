@@ -28,6 +28,9 @@ class SettingType(Enum):
     DICT = "dict"
     DICT_OR_LIST = "dict_or_list"
     BASED_DICT = "based_dict"
+    OPT_STR = "opt_str"
+    STR = "str"
+    CLS = "cls"
 
 
 class AllowedExcludeSettingsMixin:
@@ -55,13 +58,20 @@ class SettingInfo:
 SETTINGS = {
     # Active settings
     "ADDONS": SettingInfo(added_version="2.10.0", type=SettingType.DICT),
-    "ASYNCIO_EVENT_LOOP": SettingInfo(added_version="2.4.0"),
+    "AWS_ACCESS_KEY_ID": SettingInfo(type=SettingType.OPT_STR),
+    "AWS_SECRET_ACCESS_KEY": SettingInfo(type=SettingType.OPT_STR),
+    "AWS_SESSION_TOKEN": SettingInfo(type=SettingType.OPT_STR),
+    "AWS_ENDPOINT_URL": SettingInfo(type=SettingType.OPT_STR),
+    "AWS_USE_SSL": SettingInfo(type=SettingType.BOOL),
+    "AWS_VERIFY": SettingInfo(type=SettingType.BOOL),
+    "AWS_REGION_NAME": SettingInfo(type=SettingType.OPT_STR),
+    "ASYNCIO_EVENT_LOOP": SettingInfo(added_version="2.4.0", type=SettingType.CLS),
     "AUTOTHROTTLE_DEBUG": SettingInfo(),
     "AUTOTHROTTLE_ENABLED": SettingInfo(type=SettingType.BOOL),
     "AUTOTHROTTLE_MAX_DELAY": SettingInfo(),
     "AUTOTHROTTLE_START_DELAY": SettingInfo(),
     "AUTOTHROTTLE_TARGET_CONCURRENCY": SettingInfo(),
-    "BOT_NAME": SettingInfo(),
+    "BOT_NAME": SettingInfo(type=SettingType.STR),
     "CLOSESPIDER_ERRORCOUNT": SettingInfo(),
     "CLOSESPIDER_ITEMCOUNT": SettingInfo(),
     "CLOSESPIDER_PAGECOUNT": SettingInfo(),
@@ -75,34 +85,36 @@ SETTINGS = {
     "COOKIES_DEBUG": SettingInfo(),
     "COOKIES_ENABLED": SettingInfo(type=SettingType.BOOL),
     "DEFAULT_DROPITEM_LOG_LEVEL": SettingInfo(added_version="2.13.0"),
-    "DEFAULT_ITEM_CLASS": SettingInfo(),
-    "DEFAULT_REQUEST_HEADERS": SettingInfo(),
-    "DEPTH_LIMIT": SettingInfo(),
-    "DEPTH_PRIORITY": SettingInfo(),
-    "DEPTH_STATS_VERBOSE": SettingInfo(),
+    "DEFAULT_ITEM_CLASS": SettingInfo(type=SettingType.CLS),
+    "DEFAULT_REQUEST_HEADERS": SettingInfo(type=SettingType.DICT),
+    "DEPTH_LIMIT": SettingInfo(type=SettingType.INT),
+    "DEPTH_PRIORITY": SettingInfo(type=SettingType.INT),
+    "DEPTH_STATS_VERBOSE": SettingInfo(type=SettingType.BOOL),
     "DNSCACHE_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "DNSCACHE_SIZE": SettingInfo(),
-    "DNS_RESOLVER": SettingInfo(),
-    "DNS_TIMEOUT": SettingInfo(),
-    "DOWNLOAD_DELAY": SettingInfo(),
-    "DOWNLOAD_FAIL_ON_DATALOSS": SettingInfo(),
-    "DOWNLOAD_HANDLERS": SettingInfo(),
+    "DNSCACHE_SIZE": SettingInfo(type=SettingType.INT),
+    "DNS_RESOLVER": SettingInfo(type=SettingType.CLS),
+    "DNS_TIMEOUT": SettingInfo(type=SettingType.FLOAT),
+    "DOWNLOAD_DELAY": SettingInfo(type=SettingType.FLOAT),
+    "DOWNLOAD_FAIL_ON_DATALOSS": SettingInfo(type=SettingType.BOOL),
+    "DOWNLOAD_HANDLERS": SettingInfo(type=SettingType.BASED_DICT),
     "DOWNLOAD_HANDLERS_BASE": SettingInfo(),
-    "DOWNLOAD_MAXSIZE": SettingInfo(),
-    "DOWNLOAD_TIMEOUT": SettingInfo(),
-    "DOWNLOAD_WARNSIZE": SettingInfo(),
-    "DOWNLOADER": SettingInfo(),
-    "DOWNLOADER_CLIENTCONTEXTFACTORY": SettingInfo(),
+    "DOWNLOAD_MAXSIZE": SettingInfo(type=SettingType.INT),
+    "DOWNLOAD_SLOTS": SettingInfo(type=SettingType.DICT, added_version="2.9.0"),
+    "DOWNLOAD_TIMEOUT": SettingInfo(type=SettingType.FLOAT),
+    "DOWNLOAD_WARNSIZE": SettingInfo(type=SettingType.INT),
+    "DOWNLOADER": SettingInfo(type=SettingType.CLS),
     "DOWNLOADER_CLIENT_TLS_CIPHERS": SettingInfo(),
     "DOWNLOADER_CLIENT_TLS_METHOD": SettingInfo(),
-    "DOWNLOADER_CLIENT_TLS_VERBOSE_LOGGING": SettingInfo(),
-    "DOWNLOADER_HTTPCLIENTFACTORY": SettingInfo(),
-    "DOWNLOADER_MIDDLEWARES": SettingInfo(),
+    "DOWNLOADER_CLIENT_TLS_VERBOSE_LOGGING": SettingInfo(type=SettingType.BOOL),
+    "DOWNLOADER_CLIENTCONTEXTFACTORY": SettingInfo(type=SettingType.CLS),
+    "DOWNLOADER_HTTPCLIENTFACTORY": SettingInfo(type=SettingType.CLS),
+    "DOWNLOADER_MIDDLEWARES": SettingInfo(type=SettingType.BASED_DICT),
     "DOWNLOADER_MIDDLEWARES_BASE": SettingInfo(),
-    "DOWNLOADER_STATS": SettingInfo(),
-    "DUPEFILTER_CLASS": SettingInfo(),
-    "EDITOR": SettingInfo(),
-    "EXTENSIONS": SettingInfo(),
+    "DOWNLOADER_STATS": SettingInfo(type=SettingType.BOOL),
+    "DUPEFILTER_CLASS": SettingInfo(type=SettingType.CLS),
+    "DUPEFILTER_DEBUG": SettingInfo(type=SettingType.BOOL),
+    "EDITOR": SettingInfo(type=SettingType.STR),
+    "EXTENSIONS": SettingInfo(type=SettingType.BASED_DICT),
     "EXTENSIONS_BASE": SettingInfo(),
     "FEED_EXPORT_BATCH_ITEM_COUNT": SettingInfo(added_version="2.3.0"),
     "FEED_EXPORT_ENCODING": SettingInfo(),
@@ -179,7 +191,7 @@ SETTINGS = {
     "PERIODIC_LOG_TIMING_ENABLED": SettingInfo(
         added_version="2.11.0", type=SettingType.BOOL
     ),
-    "RANDOMIZE_DOWNLOAD_DELAY": SettingInfo(),
+    "RANDOMIZE_DOWNLOAD_DELAY": SettingInfo(type=SettingType.BOOL),
     "REACTOR_THREADPOOL_MAXSIZE": SettingInfo(),
     "REDIRECT_ENABLED": SettingInfo(type=SettingType.BOOL),
     "REDIRECT_MAX_TIMES": SettingInfo(),
@@ -1458,3 +1470,34 @@ class TypeMismatchSettingsIssueFinder(
             yield from self.report_setting_issue(
                 node.slice.lineno, node.slice.col_offset, setting_name
             )
+
+
+class MissingUserAgentIssueFinder(IssueFinder):
+    msg_code = "SCP19"
+    msg_info = "missing USER_AGENT setting"
+
+    def __init__(self, filename=None, *args, **kwargs):
+        super().__init__(filename, *args, **kwargs)
+        self.found_user_agent = False
+
+    def find_issues(self, node) -> Generator[tuple[int, int, str], None, None]:
+        file_name = Path(self.filename).name if self.filename else None
+        if file_name != "settings.py":
+            return
+
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "USER_AGENT":
+                    self.found_user_agent = True
+
+        if isinstance(node, ast.Module):
+            # Traverse all child nodes first to check for USER_AGENT
+            for child in ast.walk(node):
+                if isinstance(child, ast.Assign):
+                    for target in child.targets:
+                        if isinstance(target, ast.Name) and target.id == "USER_AGENT":
+                            self.found_user_agent = True
+                            break
+
+            if not self.found_user_agent:
+                yield (1, 0, f"{self.msg_code}: No USER_AGENT in settings.py")
