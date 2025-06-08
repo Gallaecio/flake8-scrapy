@@ -71,7 +71,7 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
         self.find_issues_visitor("Delete", node)
 
 
-class ScrapyStyleChecker:
+class Plugin:
     options = None
     name = "flake8-scrapy"
     version = __version__
@@ -85,4 +85,4 @@ class ScrapyStyleChecker:
         finder.visit(self.tree)
 
         for line, col, msg in finder.issues:
-            yield (line, col, msg, ScrapyStyleChecker)
+            yield (line, col, msg, Plugin)

@@ -1,7 +1,7 @@
 import ast
 from pathlib import Path
 
-from flake8_scrapy import ScrapyStyleChecker
+from flake8_scrapy import Plugin
 
 
 def load_sample_file(filename):
@@ -10,5 +10,5 @@ def load_sample_file(filename):
 
 def run_checker(code, filename=None):
     tree = ast.parse(code)
-    checker = ScrapyStyleChecker(tree, filename)
+    checker = Plugin(tree, filename)
     return list(checker.run())
