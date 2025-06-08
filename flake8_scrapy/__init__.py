@@ -75,32 +75,19 @@ class IssueReporter(ast.NodeVisitor):
                 InsecureScrapyVersionIssueFinder(filename),
                 ObsoletePackagesIssueFinder(filename),
             ]
-        self.finders = {
+        shared_finders = [*setting_finders, *project_finders]
+        node_specific_finders = {
             "Assign": [
                 UnreachableDomainIssueFinder(),
                 UrlInAllowedDomainsIssueFinder(),
                 OldSelectorIssueFinder(),
-                *setting_finders,
-                *project_finders,
             ],
-            "Call": [
-                UrlJoinIssueFinder(),
-                *setting_finders,
-                *project_finders,
-            ],
-            "Subscript": [
-                *setting_finders,
-                *project_finders,
-            ],
-            "ClassDef": [
-                *setting_finders,
-                *project_finders,
-            ],
-            "Delete": [
-                *setting_finders,
-                *project_finders,
-            ],
+            "Call": [UrlJoinIssueFinder()],
         }
+        self.finders = {}
+        for node_type in ["Assign", "Call", "Subscript", "ClassDef", "Delete"]:
+            specific_finders = node_specific_finders.get(node_type, [])
+            self.finders[node_type] = specific_finders + shared_finders
 
     def find_issues_visitor(self, visitor, node):
         """Find issues for the provided visitor"""
