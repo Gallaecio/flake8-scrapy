@@ -1553,3 +1553,66 @@ class RobotsTxtObeyIssueFinder(IssueFinder):
                     0,
                     f"{self.msg_code}: ROBOTSTXT_OBEY not enabled in settings.py",
                 )
+
+
+class ThrottlingConfigIssueFinder:
+    msg_code = "SCP21"
+
+    def __init__(self, filename):
+        self.filename = filename
+
+    def find_issues(self, node):  # noqa: PLR0912
+        if not (self.filename and self.filename.endswith("settings.py")):
+            return
+
+        if not isinstance(node, ast.Module):
+            return
+
+        autothrottle_enabled = False
+        found_settings = set()
+        required_settings = {
+            "CONCURRENT_REQUESTS",
+            "CONCURRENT_REQUESTS_PER_DOMAIN",
+            "DOWNLOAD_DELAY",
+        }
+
+        for child in ast.walk(node):
+            if isinstance(child, ast.Assign):
+                for target in child.targets:
+                    if isinstance(target, ast.Name):
+                        if target.id == "AUTOTHROTTLE_ENABLED":
+                            if (
+                                isinstance(child.value, ast.Constant)
+                                and child.value.value is True
+                            ):
+                                autothrottle_enabled = True
+                        elif target.id in required_settings:
+                            found_settings.add(target.id)
+            elif (
+                isinstance(child, ast.Subscript)
+                and isinstance(child.value, ast.Name)
+                and child.value.id == "settings"
+                and isinstance(child.slice, ast.Constant)
+                and isinstance(child.slice.value, str)
+            ):
+                setting_name = child.slice.value
+                if setting_name == "AUTOTHROTTLE_ENABLED":
+                    parent = getattr(child, "parent", None)
+                    if (
+                        isinstance(parent, ast.Assign)
+                        and isinstance(parent.value, ast.Constant)
+                        and parent.value.value is True
+                    ):
+                        autothrottle_enabled = True
+                elif setting_name in required_settings:
+                    found_settings.add(setting_name)
+
+        if not autothrottle_enabled and found_settings != required_settings:
+            missing_settings = required_settings - found_settings
+            if missing_settings:
+                missing_list = ", ".join(sorted(missing_settings))
+                yield (
+                    1,
+                    0,
+                    f"{self.msg_code}: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: {missing_list}",
+                )

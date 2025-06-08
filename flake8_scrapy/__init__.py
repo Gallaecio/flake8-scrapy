@@ -21,6 +21,7 @@ from ._finders.settings import (
     MissingUserAgentIssueFinder,
     RemovedSettingsIssueFinder,
     RobotsTxtObeyIssueFinder,
+    ThrottlingConfigIssueFinder,
     TypeMismatchSettingsIssueFinder,
     UnknownSettingsIssueFinder,
 )
@@ -86,6 +87,7 @@ class IssueReporter(ast.NodeVisitor):
             global_finders = [
                 MissingUserAgentIssueFinder(filename),
                 RobotsTxtObeyIssueFinder(filename),
+                ThrottlingConfigIssueFinder(filename),
             ]
         project_finders = []
         if enable_project_checks:
