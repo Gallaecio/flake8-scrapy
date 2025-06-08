@@ -25,7 +25,7 @@ on Scrapy projects.
 | SCP15 | Use of setting of package not in requirements.txt |
 | SCP16 | Obsolete package in requirements.txt |
 | SCP17 | Wrong setting getter |
-| SCP17 | Invalid setting value |
+| SCP18 | Invalid setting value |
 
 
 ## Options
