@@ -1,7 +1,10 @@
 import tempfile
 from pathlib import Path
 
-from flake8_scrapy._finders.project import RequirementsTxtIssueFinder
+from flake8_scrapy._finders.project import (
+    NonFrozenDependenciesIssueFinder,
+    RequirementsTxtIssueFinder,
+)
 
 from . import run_checker
 
@@ -67,3 +70,82 @@ def test_no_duplicate_reports():
         scp11_issues2 = [issue for issue in issues2 if "SCP11" in issue[2]]
         assert len(scp11_issues1) == 1
         assert len(scp11_issues2) == 1
+
+
+def test_non_frozen_dependencies():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text(
+            "scrapy>=2.0\nrequests\nbeautifulsoup4~=4.9\nlxml==4.6.3\n"
+        )
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp12_issues = [issue for issue in issues if "SCP12" in issue[2]]
+        assert len(scp12_issues) == 3
+
+        # Check first issue (scrapy>=2.0)
+        assert scp12_issues[0][0] == 1  # line
+        assert scp12_issues[0][1] == 0  # col
+        assert NonFrozenDependenciesIssueFinder.msg_code in scp12_issues[0][2]
+        assert "scrapy" in scp12_issues[0][2]
+
+        # Check second issue (requests)
+        assert scp12_issues[1][0] == 2  # line
+        assert "requests" in scp12_issues[1][2]
+
+        # Check third issue (beautifulsoup4~=4.9)
+        assert scp12_issues[2][0] == 3  # line
+        assert "beautifulsoup4" in scp12_issues[2][2]
+
+
+def test_all_frozen_dependencies():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text(
+            "scrapy==2.13.1\nrequests==2.28.0\nbeautifulsoup4==4.11.1\nlxml==4.6.3\n"
+        )
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp12_issues = [issue for issue in issues if "SCP12" in issue[2]]
+        assert len(scp12_issues) == 0
+
+
+def test_requirements_with_comments_and_options():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text(
+            "# This is a comment\n"
+            "scrapy==2.13.1\n"
+            "-r requirements-dev.txt\n"
+            "requests  # Another comment\n"
+            "-e git+https://github.com/user/repo.git#egg=package\n"
+            "https://github.com/user/package/archive/main.zip\n"
+            "\n"
+            "beautifulsoup4>=4.9\n"
+        )
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp12_issues = [issue for issue in issues if "SCP12" in issue[2]]
+
+        # Should find 2 non-frozen dependencies (requests, beautifulsoup4)
+        assert len(scp12_issues) == 2
+        assert scp12_issues[0][0] == 4  # requests line
+        assert "requests" in scp12_issues[0][2]
+        assert scp12_issues[1][0] == 8  # beautifulsoup4 line
+        assert "beautifulsoup4" in scp12_issues[1][2]
+
+
+def test_no_requirements_txt_no_scp12():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp12_issues = [issue for issue in issues if "SCP12" in issue[2]]
+        assert len(scp12_issues) == 0

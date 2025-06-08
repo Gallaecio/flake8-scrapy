@@ -6,7 +6,10 @@ from ._finders.domains import (
     UrlInAllowedDomainsIssueFinder,
 )
 from ._finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
-from ._finders.project import RequirementsTxtIssueFinder
+from ._finders.project import (
+    NonFrozenDependenciesIssueFinder,
+    RequirementsTxtIssueFinder,
+)
 from ._finders.settings import (
     DeprecatedSettingsIssueFinder,
     FutureSettingsIssueFinder,
@@ -38,6 +41,7 @@ class IssueReporter(ast.NodeVisitor):
         if enable_project_checks:
             project_finders = [
                 RequirementsTxtIssueFinder(filename),
+                NonFrozenDependenciesIssueFinder(filename),
             ]
         self.finders = {
             "Assign": [
