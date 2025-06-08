@@ -15,6 +15,7 @@ from ._finders.project import (
 )
 from ._finders.settings import (
     DeprecatedSettingsIssueFinder,
+    DuplicateSettingsIssueFinder,
     FutureSettingsIssueFinder,
     InvalidValueSettingsIssueFinder,
     MissingPackageSettingsIssueFinder,
@@ -81,6 +82,7 @@ class IssueReporter(ast.NodeVisitor):
                 allowed_settings=allowed_settings,
                 exclude_settings=missing_package_settings,
             ),
+            DuplicateSettingsIssueFinder(filename),
         )
         global_finders = []
         if enable_global_checks:

@@ -30,6 +30,7 @@ on Scrapy projects.
 | SCP20 | ROBOTSTXT_OBEY not enabled in settings.py |
 | SCP21 | Throttling settings missing in settings.py |
 | SCP22 | Missing contact info in USER_AGENT |
+| SCP23 | Redefined setting in settings.py |
 
 
 ## Options

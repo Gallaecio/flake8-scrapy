@@ -500,6 +500,15 @@ ISSUE_COLUMN = 9
                 "555-9292",
             )
         ),
+        # SCP23
+        (
+            Input('BOT_NAME = "foo"', filename="settings.py"),
+            NO_ISSUE,
+        ),
+        (
+            Input('BOT_NAME = "foo"\nBOT_NAME = "bar"', filename="settings.py"),
+            Issue("SCP23: BOT_NAME is set multiple times in settings.py", line=2),
+        ),
     ],
 )
 def test_main(input: Input, expected: Issue | None):

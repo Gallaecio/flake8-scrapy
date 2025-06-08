@@ -190,17 +190,17 @@ SETTINGS = {
     "METAREFRESH_ENABLED": SettingInfo(type=SettingType.BOOL),
     "METAREFRESH_IGNORE_TAGS": SettingInfo(),
     "METAREFRESH_MAXDELAY": SettingInfo(),
-    "NEWSPIDER_MODULE": SettingInfo(),
+    "NEWSPIDER_MODULE": SettingInfo(type=SettingType.STR),
     "PERIODIC_LOG_DELTA": SettingInfo(added_version="2.11.0"),
     "PERIODIC_LOG_STATS": SettingInfo(added_version="2.11.0"),
     "PERIODIC_LOG_TIMING_ENABLED": SettingInfo(
         added_version="2.11.0", type=SettingType.BOOL
     ),
     "RANDOMIZE_DOWNLOAD_DELAY": SettingInfo(type=SettingType.BOOL),
-    "REACTOR_THREADPOOL_MAXSIZE": SettingInfo(),
+    "REACTOR_THREADPOOL_MAXSIZE": SettingInfo(type=SettingType.INT),
     "REDIRECT_ENABLED": SettingInfo(type=SettingType.BOOL),
     "REDIRECT_MAX_TIMES": SettingInfo(),
-    "REDIRECT_PRIORITY_ADJUST": SettingInfo(),
+    "REDIRECT_PRIORITY_ADJUST": SettingInfo(type=SettingType.INT),
     "REFERER_ENABLED": SettingInfo(type=SettingType.BOOL),
     "REFERRER_POLICY": SettingInfo(),
     "REQUEST_FINGERPRINTER_CLASS": SettingInfo(added_version="2.7.0"),
@@ -209,37 +209,43 @@ SETTINGS = {
     "RETRY_HTTP_CODES": SettingInfo(),
     "RETRY_PRIORITY_ADJUST": SettingInfo(),
     "RETRY_TIMES": SettingInfo(),
-    "ROBOTSTXT_OBEY": SettingInfo(),
-    "ROBOTSTXT_PARSER": SettingInfo(),
-    "ROBOTSTXT_USER_AGENT": SettingInfo(),
-    "SCHEDULER": SettingInfo(),
-    "SCHEDULER_DEBUG": SettingInfo(),
-    "SCHEDULER_DISK_QUEUE": SettingInfo(),
-    "SCHEDULER_MEMORY_QUEUE": SettingInfo(),
-    "SCHEDULER_PRIORITY_QUEUE": SettingInfo(),
-    "SCHEDULER_START_DISK_QUEUE": SettingInfo(added_version="2.13.0"),
-    "SCHEDULER_START_MEMORY_QUEUE": SettingInfo(added_version="2.13.0"),
-    "SCRAPER_SLOT_MAX_ACTIVE_SIZE": SettingInfo(),
+    "ROBOTSTXT_OBEY": SettingInfo(type=SettingType.BOOL),
+    "ROBOTSTXT_PARSER": SettingInfo(type=SettingType.CLS),
+    "ROBOTSTXT_USER_AGENT": SettingInfo(type=SettingType.OPT_STR),
+    "SCHEDULER": SettingInfo(type=SettingType.CLS),
+    "SCHEDULER_DEBUG": SettingInfo(type=SettingType.BOOL),
+    "SCHEDULER_DISK_QUEUE": SettingInfo(type=SettingType.CLS),
+    "SCHEDULER_MEMORY_QUEUE": SettingInfo(type=SettingType.CLS),
+    "SCHEDULER_PRIORITY_QUEUE": SettingInfo(type=SettingType.CLS),
+    "SCHEDULER_START_DISK_QUEUE": SettingInfo(
+        added_version="2.13.0", type=SettingType.CLS
+    ),
+    "SCHEDULER_START_MEMORY_QUEUE": SettingInfo(
+        added_version="2.13.0", type=SettingType.CLS
+    ),
+    "SCRAPER_SLOT_MAX_ACTIVE_SIZE": SettingInfo(type=SettingType.INT),
     "SPIDER_CONTRACTS": SettingInfo(type=SettingType.BASED_DICT),
     "SPIDER_CONTRACTS_BASE": SettingInfo(),
-    "SPIDER_LOADER_CLASS": SettingInfo(),
-    "SPIDER_LOADER_WARN_ONLY": SettingInfo(),
-    "SPIDER_MIDDLEWARES": SettingInfo(),
+    "SPIDER_LOADER_CLASS": SettingInfo(type=SettingType.CLS),
+    "SPIDER_LOADER_WARN_ONLY": SettingInfo(type=SettingType.BOOL),
+    "SPIDER_MIDDLEWARES": SettingInfo(type=SettingType.BASED_DICT),
     "SPIDER_MIDDLEWARES_BASE": SettingInfo(),
-    "SPIDER_MODULES": SettingInfo(),
-    "STATS_CLASS": SettingInfo(),
-    "STATS_DUMP": SettingInfo(),
-    "STATSMAILER_RCPTS": SettingInfo(),
+    "SPIDER_MODULES": SettingInfo(type=SettingType.LIST),
+    "STATS_CLASS": SettingInfo(type=SettingType.CLS),
+    "STATS_DUMP": SettingInfo(type=SettingType.BOOL),
+    "STATSMAILER_RCPTS": SettingInfo(type=SettingType.LIST),
     "TELNETCONSOLE_ENABLED": SettingInfo(type=SettingType.BOOL),
     "TELNETCONSOLE_HOST": SettingInfo(),
     "TELNETCONSOLE_PASSWORD": SettingInfo(),
     "TELNETCONSOLE_PORT": SettingInfo(),
     "TELNETCONSOLE_USERNAME": SettingInfo(),
-    "TEMPLATES_DIR": SettingInfo(),
-    "TWISTED_REACTOR": SettingInfo(),
-    "URLLENGTH_LIMIT": SettingInfo(),
-    "USER_AGENT": SettingInfo(),
-    "WARN_ON_GENERATOR_RETURN_VALUE": SettingInfo(added_version="2.13.0"),
+    "TEMPLATES_DIR": SettingInfo(type=SettingType.OPT_PATH),
+    "TWISTED_REACTOR": SettingInfo(type=SettingType.CLS),
+    "URLLENGTH_LIMIT": SettingInfo(type=SettingType.INT),
+    "USER_AGENT": SettingInfo(type=SettingType.OPT_STR),
+    "WARN_ON_GENERATOR_RETURN_VALUE": SettingInfo(
+        added_version="2.13.0", type=SettingType.BOOL
+    ),
     # Deprecated settings
     "AJAXCRAWL_ENABLED": SettingInfo(
         added_version="0.22.0",
@@ -1660,3 +1666,33 @@ class ThrottlingConfigIssueFinder:
                     0,
                     f"{self.msg_code}: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: {missing_list}",
                 )
+
+
+class DuplicateSettingsIssueFinder:
+    msg_code = "SCP23"
+
+    def __init__(self, filename):
+        self.filename = filename
+
+    def find_issues(self, node):
+        if not (self.filename and self.filename.endswith("settings.py")):
+            return
+
+        if not isinstance(node, ast.Module):
+            return
+
+        seen_settings = {}
+
+        for child in node.body:
+            if isinstance(child, ast.Assign):
+                for target in child.targets:
+                    if isinstance(target, ast.Name) and target.id.isupper():
+                        setting_name = target.id
+                        if setting_name in seen_settings:
+                            yield (
+                                child.lineno,
+                                child.col_offset,
+                                f"{self.msg_code}: {setting_name} is set multiple times in settings.py",
+                            )
+                        else:
+                            seen_settings[setting_name] = child.lineno
