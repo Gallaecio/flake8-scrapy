@@ -31,6 +31,7 @@ on Scrapy projects.
 | SCP21 | Throttling settings missing in settings.py |
 | SCP22 | Missing contact info in USER_AGENT |
 | SCP23 | Redefined setting in settings.py |
+| SCP24 | Use of a BASE setting |
 
 
 ## Options

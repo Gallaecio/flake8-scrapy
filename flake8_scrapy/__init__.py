@@ -14,6 +14,7 @@ from ._finders.project import (
     RequirementsTxtIssueFinder,
 )
 from ._finders.settings import (
+    BaseSettingNameIssueFinder,
     DeprecatedSettingsIssueFinder,
     DuplicateSettingsIssueFinder,
     FutureSettingsIssueFinder,
@@ -82,6 +83,7 @@ class IssueReporter(ast.NodeVisitor):
                 allowed_settings=allowed_settings,
                 exclude_settings=missing_package_settings,
             ),
+            BaseSettingNameIssueFinder(filename),
             DuplicateSettingsIssueFinder(filename),
         )
         global_finders = []

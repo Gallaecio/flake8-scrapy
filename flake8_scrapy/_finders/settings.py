@@ -1696,3 +1696,17 @@ class DuplicateSettingsIssueFinder:
                             )
                         else:
                             seen_settings[setting_name] = child.lineno
+
+
+class BaseSettingNameIssueFinder(BaseSettingsIssueFinder):
+    msg_code = "SCP24"
+    msg_info = "use of BASE setting"
+
+    def __init__(self, filename=None, *args, **kwargs):
+        super().__init__(filename, *args, **kwargs)
+
+    def should_report_setting(self, setting_name: str) -> bool:
+        return setting_name.endswith("_BASE") and setting_name in SETTINGS
+
+    def get_setting_message(self, setting_name: str) -> str:
+        return f"{self.msg_code}: {self.msg_info}: do not use {setting_name}, use {setting_name[:-5]} instead"

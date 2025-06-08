@@ -509,6 +509,13 @@ ISSUE_COLUMN = 9
             Input('BOT_NAME = "foo"\nBOT_NAME = "bar"', filename="settings.py"),
             Issue("SCP23: BOT_NAME is set multiple times in settings.py", line=2),
         ),
+        # SCP24
+        (
+            Input("DOWNLOAD_HANDLERS_BASE = {}", filename="settings.py"),
+            Issue(
+                "SCP24: use of BASE setting: do not use DOWNLOAD_HANDLERS_BASE, use DOWNLOAD_HANDLERS instead"
+            ),
+        ),
     ],
 )
 def test_main(input: Input, expected: Issue | None):
