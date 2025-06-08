@@ -7,17 +7,14 @@ from difflib import get_close_matches
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from packaging.utils import canonicalize_name
 from packaging.version import Version
 
-from . import IssueFinder
+from . import MINIMUM_SUPPORTED_SCRAPY_VERSION, IssueFinder
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-# Use a reasonable current Scrapy version for settings validation
-# This represents the "current" version for the purposes of determining
-# which settings are available, deprecated, or removed
-SCRAPY_VERSION = Version("2.13.1")
 MIN_VALID_SETTING_NAME_LENGTH = 3
 
 
@@ -28,9 +25,6 @@ class SettingInfo:
     deprecated_version: str | None = None
     deprecation_message: str | None = None
 
-
-# Use this for settings deprecated in Scrapy 2.0.1 or lower.
-MINIMUM_SUPPORTED_SCRAPY_VERSION_OR_LOWER = "2.0.1"
 
 # Grouped by active, deprecated, removed, and plugin-specific.
 # Active settings are sorted as in scrapy.settings.default_settings, while
@@ -236,12 +230,12 @@ SETTINGS = {
     ),
     "LOG_UNSERIALIZABLE_REQUESTS": SettingInfo(
         removed_version="2.1.0",
-        deprecated_version=MINIMUM_SUPPORTED_SCRAPY_VERSION_OR_LOWER,
+        deprecated_version=MINIMUM_SUPPORTED_SCRAPY_VERSION,
         deprecation_message="Use SCHEDULER_DEBUG instead.",
     ),
     "REDIRECT_MAX_METAREFRESH_DELAY": SettingInfo(
         removed_version="2.1.0",
-        deprecated_version=MINIMUM_SUPPORTED_SCRAPY_VERSION_OR_LOWER,
+        deprecated_version=MINIMUM_SUPPORTED_SCRAPY_VERSION,
         deprecation_message="Use METAREFRESH_MAXDELAY instead.",
     ),
     # scrapy-feedexporter-azure-storage plugin settings, in order of appearance
@@ -446,7 +440,7 @@ class BaseSettingsIssueFinder(IssueFinder, ABC):
     def __init__(self, filename=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.found_settings = set()
-        self.filename = Path(filename).name if filename else None
+        self.filename = filename
         self.settings_methods = {
             "get": "name",
             "set": "name",
@@ -486,7 +480,8 @@ class BaseSettingsIssueFinder(IssueFinder, ABC):
     def check_assignment(
         self, node: ast.Assign
     ) -> Generator[tuple[int, int, str], None, None]:
-        if self.filename == "settings.py":
+        file_name = Path(self.filename).name if self.filename else None
+        if file_name == "settings.py":
             for target in node.targets:
                 if not isinstance(target, ast.Name) or not target.id.isupper():
                     continue
@@ -738,6 +733,36 @@ class BaseSettingsIssueFinder(IssueFinder, ABC):
         message = self.get_setting_message(setting_name)
         yield (line, col, message)
 
+    def get_package_version(self, package_name) -> str | None:
+        return self.package_versions.get(canonicalize_name(package_name), None)
+
+    @property
+    def package_versions(self) -> dict[str, str]:
+        if hasattr(self, "_package_versions"):
+            return self._package_versions
+        self._package_versions = {}
+        project_root = self.get_project_root()
+        if not project_root:
+            return self._package_versions
+        requirements_txt = project_root / "requirements.txt"
+        if not requirements_txt.exists():
+            return self._package_versions
+        try:
+            requirements = requirements_txt.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return self._package_versions
+        for line in requirements.splitlines():
+            requirement = self.parse_requirement_line(line)
+            if requirement is None:
+                continue
+            if not self.is_frozen_requirement(requirement):
+                continue
+            version = next(iter(requirement.specifier)).version
+            self._package_versions[canonicalize_name(requirement.name)] = Version(
+                version
+            )
+        return self._package_versions
+
 
 class UnknownSettingsIssueFinder(BaseSettingsIssueFinder):
     msg_code = "SCP07"
@@ -779,12 +804,18 @@ class DeprecatedSettingsIssueFinder(BaseSettingsIssueFinder):
 
     def get_deprecated_settings(self) -> set[str]:
         deprecated = set()
+        scrapy_version = self.get_package_version("scrapy")
+        if scrapy_version is None:
+            return deprecated
         for name, info in SETTINGS.items():
-            if info.removed_version and Version(info.removed_version) <= SCRAPY_VERSION:
+            if info.removed_version and Version(info.removed_version) <= scrapy_version:
                 continue
-            if info.added_version and Version(info.added_version) > SCRAPY_VERSION:
+            if info.added_version and Version(info.added_version) > scrapy_version:
                 continue
-            if info.deprecated_version:
+            if (
+                info.deprecated_version
+                and Version(info.deprecated_version) <= scrapy_version
+            ):
                 deprecated.add(name)
         return deprecated
 
@@ -796,8 +827,8 @@ class DeprecatedSettingsIssueFinder(BaseSettingsIssueFinder):
 
     def get_setting_message(self, setting_name: str) -> str:
         version = SETTINGS[setting_name].deprecated_version
-        if version == MINIMUM_SUPPORTED_SCRAPY_VERSION_OR_LOWER:
-            version = f"{MINIMUM_SUPPORTED_SCRAPY_VERSION_OR_LOWER} or earlier"
+        if version == MINIMUM_SUPPORTED_SCRAPY_VERSION:
+            version = f"{MINIMUM_SUPPORTED_SCRAPY_VERSION} or earlier"
         message = f"{self.msg_code}: {self.msg_info}: {setting_name} (deprecated in Scrapy {version})"
         deprecation_message = SETTINGS[setting_name].deprecation_message
         if deprecation_message:
@@ -811,11 +842,15 @@ class FutureSettingsIssueFinder(BaseSettingsIssueFinder):
 
     def __init__(self, filename=None, allowed_settings=None, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
-        self.future_settings = {
-            name
-            for name, info in SETTINGS.items()
-            if info.added_version and Version(info.added_version) > SCRAPY_VERSION
-        }
+        scrapy_version = self.get_package_version("scrapy")
+        if scrapy_version is None:
+            self.future_settings = set()
+        else:
+            self.future_settings = {
+                name
+                for name, info in SETTINGS.items()
+                if info.added_version and Version(info.added_version) > scrapy_version
+            }
         self.allowed_settings = set(allowed_settings) if allowed_settings else set()
 
     def should_report_setting(self, setting_name: str) -> bool:
@@ -835,11 +870,16 @@ class RemovedSettingsIssueFinder(BaseSettingsIssueFinder):
 
     def __init__(self, filename=None, allowed_settings=None, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
-        self.removed_settings = {
-            name
-            for name, info in SETTINGS.items()
-            if info.removed_version and Version(info.removed_version) <= SCRAPY_VERSION
-        }
+        scrapy_version = self.get_package_version("scrapy")
+        if scrapy_version is None:
+            self.removed_settings = set()
+        else:
+            self.removed_settings = {
+                name
+                for name, info in SETTINGS.items()
+                if info.removed_version
+                and Version(info.removed_version) <= scrapy_version
+            }
         self.allowed_settings = set(allowed_settings) if allowed_settings else set()
 
     def should_report_setting(self, setting_name: str) -> bool:

@@ -1,41 +1,19 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
-from packaging.requirements import InvalidRequirement, Requirement
 from packaging.version import InvalidVersion, Version
 
-from . import IssueFinder
+from . import MINIMUM_SUPPORTED_SCRAPY_VERSION, IssueFinder
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-class ProjectIssueFinder(IssueFinder):
+class BaseProjectIssueFinder(IssueFinder):
     def __init__(self, filename=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.filename = filename
+        super().__init__(*args, filename=filename, **kwargs)
         self._checked_projects = set()
-
-    def get_project_root(self, filepath):
-        if not filepath:
-            return None
-        path = Path(filepath).resolve()
-        for parent in [path, *list(path.parents)]:
-            indicators = [
-                "scrapy.cfg",
-                "pyproject.toml",
-                "setup.py",
-                "setup.cfg",
-                ".git",
-                "scrapinghub.yml",
-                "requirements.txt",
-            ]
-            if any((parent / indicator).exists() for indicator in indicators):
-                return parent
-        # If no indicators are found, use the directory containing the file
-        return path.parent if path.is_file() else path
 
     def should_check_project(self, project_root):
         if not project_root:
@@ -49,9 +27,7 @@ class ProjectIssueFinder(IssueFinder):
     def process_requirements_txt(
         self, node
     ) -> Generator[tuple[int, int, str], None, None]:
-        if not self.filename:
-            return
-        project_root = self.get_project_root(self.filename)
+        project_root = self.get_project_root()
         if not self.should_check_project(project_root):
             return
         assert project_root is not None
@@ -73,23 +49,6 @@ class ProjectIssueFinder(IssueFinder):
             # If we can't read the file, skip the check
             return
 
-    def parse_requirement_line(self, line: str) -> Requirement | None:
-        line = line.strip()
-        if not line or line.startswith("#"):
-            return None
-        if line.startswith("-"):
-            return None
-        if "#" in line:
-            line = line.split("#")[0].strip()
-        try:
-            return Requirement(line)
-        except InvalidRequirement:
-            # This handles URLs, local paths, and other non-standard formats
-            return None
-
-    def is_frozen_requirement(self, req: Requirement) -> bool:
-        return len(req.specifier) == 1 and next(iter(req.specifier)).operator == "=="
-
     def check_requirement_line(
         self, line_num: int, line: str
     ) -> Generator[tuple[int, int, str], None, None]:
@@ -100,7 +59,7 @@ class ProjectIssueFinder(IssueFinder):
         yield from self.process_requirements_txt(node)
 
 
-class RequirementsTxtIssueFinder(ProjectIssueFinder):
+class RequirementsTxtIssueFinder(BaseProjectIssueFinder):
     msg_code = "SCP11"
     msg_info = "missing requirements.txt"
 
@@ -108,7 +67,7 @@ class RequirementsTxtIssueFinder(ProjectIssueFinder):
         yield (1, 0, self.message)
 
 
-class NonFrozenDependenciesIssueFinder(ProjectIssueFinder):
+class NonFrozenDependenciesIssueFinder(BaseProjectIssueFinder):
     msg_code = "SCP12"
     msg_info = "non-frozen dependency in requirements.txt"
 
@@ -121,7 +80,7 @@ class NonFrozenDependenciesIssueFinder(ProjectIssueFinder):
             yield (line_num, 0, message)
 
 
-class AncientScrapyVersionIssueFinder(ProjectIssueFinder):
+class AncientScrapyVersionIssueFinder(BaseProjectIssueFinder):
     msg_code = "SCP13"
     msg_info = "ancient Scrapy version in requirements.txt"
 
@@ -139,12 +98,14 @@ class AncientScrapyVersionIssueFinder(ProjectIssueFinder):
             return
         if req.name.lower() == "scrapy" and self.is_frozen_requirement(req):
             version_part = next(iter(req.specifier)).version
-            if self.is_version_less_than(version_part, "2.0.1"):
-                message = f"{self.msg_code} {self.msg_info}: {version_part} (minimum required: 2.0.1)"
+            if self.is_version_less_than(
+                version_part, MINIMUM_SUPPORTED_SCRAPY_VERSION
+            ):
+                message = f"{self.msg_code} {self.msg_info}: {version_part} (minimum required: {MINIMUM_SUPPORTED_SCRAPY_VERSION})"
                 yield (line_num, 0, message)
 
 
-class InsecureScrapyVersionIssueFinder(ProjectIssueFinder):
+class InsecureScrapyVersionIssueFinder(BaseProjectIssueFinder):
     msg_code = "SCP14"
     msg_info = "insecure Scrapy version in requirements.txt"
 

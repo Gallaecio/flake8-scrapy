@@ -1,43 +1,16 @@
 from __future__ import annotations
 
 import pytest
-from packaging.version import Version
 
-from flake8_scrapy._finders.settings import SCRAPY_VERSION
+from flake8_scrapy._finders import (
+    LATEST_KNOWN_SCRAPY_VERSION,
+    MINIMUM_SUPPORTED_SCRAPY_VERSION,
+)
 
-from . import NO_ISSUE, Input, Issue, check_input, run_checker
+from . import NO_ISSUE, Input, Issue, run_checker
+from .helpers import check_input
 
 ISSUE_COLUMN = 9
-
-LOG_UNSERIALIZABLE_REQUESTS_ISSUE = (
-    Issue(
-        "SCP10: removed Scrapy setting: LOG_UNSERIALIZABLE_REQUESTS (removed "
-        "in Scrapy 2.1.0)",
-        column=ISSUE_COLUMN,
-    )
-    if Version("2.1.0") <= SCRAPY_VERSION
-    else Issue(
-        "SCP08: deprecated Scrapy setting: LOG_UNSERIALIZABLE_REQUESTS (deprecated in Scrapy 2.0.1 or earlier). Use "
-        "SCHEDULER_DEBUG instead.",
-        column=ISSUE_COLUMN,
-    )
-)
-REQUEST_FINGERPRINTER_IMPLEMENTATION_ISSUE = (
-    Issue(
-        "SCP08: deprecated Scrapy setting: "
-        "REQUEST_FINGERPRINTER_IMPLEMENTATION (deprecated in Scrapy 2.12.0). See "
-        "https://flake8-scrapy.readthedocs.io/en/latest/rules/scp08.html#request_fingerprinter_implementation",
-        column=ISSUE_COLUMN,
-    )
-    if Version("2.12.0") <= SCRAPY_VERSION
-    else NO_ISSUE
-    if Version("2.7.0") <= SCRAPY_VERSION
-    else Issue(
-        "SCP09: future Scrapy setting: REQUEST_FINGERPRINTER_IMPLEMENTATION "
-        "(added in Scrapy 2.7.0)",
-        column=ISSUE_COLUMN,
-    )
-)
 
 
 @pytest.mark.parametrize(
@@ -203,18 +176,95 @@ REQUEST_FINGERPRINTER_IMPLEMENTATION_ISSUE = (
         ),
         # Different setting issues trigger different errors
         *(
-            (Input(f'settings["{setting}"] = {value!r}'), issue)
-            for setting, value, issue in [
-                ("BOT_NAME", None, NO_ISSUE),
+            (
+                Input(f'settings["{setting}"] = {value!r}', requirements=requirements),
+                issue,
+            )
+            for setting, value, requirements, issue in [
+                ("BOT_NAME", None, None, NO_ISSUE),
                 (
                     "REQUEST_FINGERPRINTER_IMPLEMENTATION",
                     "2.6",
-                    REQUEST_FINGERPRINTER_IMPLEMENTATION_ISSUE,
+                    f"scrapy=={LATEST_KNOWN_SCRAPY_VERSION}",
+                    Issue(
+                        "SCP08: deprecated Scrapy setting: "
+                        "REQUEST_FINGERPRINTER_IMPLEMENTATION (deprecated in Scrapy 2.12.0). See "
+                        "https://flake8-scrapy.readthedocs.io/en/latest/rules/scp08.html#request_fingerprinter_implementation",
+                        column=ISSUE_COLUMN,
+                    ),
+                ),
+                (
+                    "REQUEST_FINGERPRINTER_IMPLEMENTATION",
+                    "2.6",
+                    "scrapy==2.12.0",
+                    Issue(
+                        "SCP08: deprecated Scrapy setting: "
+                        "REQUEST_FINGERPRINTER_IMPLEMENTATION (deprecated in Scrapy 2.12.0). See "
+                        "https://flake8-scrapy.readthedocs.io/en/latest/rules/scp08.html#request_fingerprinter_implementation",
+                        column=ISSUE_COLUMN,
+                    ),
+                ),
+                (
+                    "REQUEST_FINGERPRINTER_IMPLEMENTATION",
+                    "2.6",
+                    "scrapy==2.11.2",
+                    NO_ISSUE,
+                ),
+                (
+                    "REQUEST_FINGERPRINTER_IMPLEMENTATION",
+                    "2.6",
+                    "scrapy==2.7.0",
+                    NO_ISSUE,
+                ),
+                (
+                    "REQUEST_FINGERPRINTER_IMPLEMENTATION",
+                    "2.6",
+                    "scrapy==2.6.3",
+                    Issue(
+                        "SCP09: future Scrapy setting: REQUEST_FINGERPRINTER_IMPLEMENTATION "
+                        "(added in Scrapy 2.7.0)",
+                        column=ISSUE_COLUMN,
+                    ),
+                ),
+                (
+                    "REQUEST_FINGERPRINTER_IMPLEMENTATION",
+                    "2.6",
+                    f"scrapy=={MINIMUM_SUPPORTED_SCRAPY_VERSION}",
+                    Issue(
+                        "SCP09: future Scrapy setting: REQUEST_FINGERPRINTER_IMPLEMENTATION "
+                        "(added in Scrapy 2.7.0)",
+                        column=ISSUE_COLUMN,
+                    ),
                 ),
                 (
                     "LOG_UNSERIALIZABLE_REQUESTS",
                     True,
-                    LOG_UNSERIALIZABLE_REQUESTS_ISSUE,
+                    f"scrapy=={LATEST_KNOWN_SCRAPY_VERSION}",
+                    Issue(
+                        "SCP10: removed Scrapy setting: LOG_UNSERIALIZABLE_REQUESTS (removed "
+                        "in Scrapy 2.1.0)",
+                        column=ISSUE_COLUMN,
+                    ),
+                ),
+                (
+                    "LOG_UNSERIALIZABLE_REQUESTS",
+                    True,
+                    "scrapy==2.1.0",
+                    Issue(
+                        "SCP10: removed Scrapy setting: LOG_UNSERIALIZABLE_REQUESTS (removed "
+                        "in Scrapy 2.1.0)",
+                        column=ISSUE_COLUMN,
+                    ),
+                ),
+                (
+                    "LOG_UNSERIALIZABLE_REQUESTS",
+                    True,
+                    f"scrapy=={MINIMUM_SUPPORTED_SCRAPY_VERSION}",
+                    Issue(
+                        "SCP08: deprecated Scrapy setting: LOG_UNSERIALIZABLE_REQUESTS (deprecated in Scrapy 2.0.1 or earlier). Use "
+                        "SCHEDULER_DEBUG instead.",
+                        column=ISSUE_COLUMN,
+                    ),
                 ),
             ]
         ),
@@ -300,38 +350,38 @@ class TestAllowedSettings:
         assert len(issues_with) == 0
 
     def test_deprecated_setting_allowed_when_in_allowed_list(self):
-        code = 'settings["LOG_UNSERIALIZABLE_REQUESTS"] = True'
-        issues_without = run_checker(code)
+        code = 'settings["REQUEST_FINGERPRINTER_IMPLEMENTATION"] = True'
+        issues_without = run_checker(code, requirements="scrapy==2.12.0")
         assert len(issues_without) == 1
-        assert "SCP08:" in issues_without[0][2] or "SCP10:" in issues_without[0][2]
+        assert "SCP08:" in issues_without[0][2]
         issues_with = run_checker(
-            code, allowed_settings=["LOG_UNSERIALIZABLE_REQUESTS"]
+            code,
+            requirements="scrapy==2.12.0",
+            allowed_settings=["REQUEST_FINGERPRINTER_IMPLEMENTATION"],
         )
         assert len(issues_with) == 0
 
     def test_future_setting_allowed_when_in_allowed_list(self):
         """Test that future settings don't trigger SCP09 when in allowed list."""
-        if Version("2.7.0") > SCRAPY_VERSION:
-            code = 'settings["REQUEST_FINGERPRINTER_IMPLEMENTATION"] = "2.6"'
-            issues_without = run_checker(code)
-            assert len(issues_without) == 1
-            assert "SCP09:" in issues_without[0][2]
-            issues_with = run_checker(
-                code, allowed_settings=["REQUEST_FINGERPRINTER_IMPLEMENTATION"]
-            )
-            assert len(issues_with) == 0
+        code = 'settings["REQUEST_FINGERPRINTER_IMPLEMENTATION"] = "2.6"'
+        issues_without = run_checker(code, requirements="scrapy==2.6.3")
+        assert len(issues_without) == 1
+        assert "SCP09:" in issues_without[0][2]
+        issues_with = run_checker(
+            code, allowed_settings=["REQUEST_FINGERPRINTER_IMPLEMENTATION"]
+        )
+        assert len(issues_with) == 0
 
     def test_removed_setting_allowed_when_in_allowed_list(self):
         """Test that removed settings don't trigger SCP10 when in allowed list."""
-        if Version("2.1.0") <= SCRAPY_VERSION:
-            code = 'settings["LOG_UNSERIALIZABLE_REQUESTS"] = True'
-            issues_without = run_checker(code)
-            assert len(issues_without) == 1
-            assert "SCP10:" in issues_without[0][2]
-            issues_with = run_checker(
-                code, allowed_settings=["LOG_UNSERIALIZABLE_REQUESTS"]
-            )
-            assert len(issues_with) == 0
+        code = 'settings["LOG_UNSERIALIZABLE_REQUESTS"] = True'
+        issues_without = run_checker(code, requirements="scrapy==2.1.0")
+        assert len(issues_without) == 1
+        assert "SCP10:" in issues_without[0][2]
+        issues_with = run_checker(
+            code, allowed_settings=["LOG_UNSERIALIZABLE_REQUESTS"]
+        )
+        assert len(issues_with) == 0
 
     def test_mixed_settings_with_selective_allowlist(self):
         """Test that only specific settings in allowlist are suppressed."""

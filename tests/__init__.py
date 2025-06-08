@@ -4,8 +4,13 @@ import ast
 from argparse import Namespace
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
+
+import pytest
 
 from flake8_scrapy import Plugin
+
+pytest.register_assert_rewrite("tests.helpers")
 
 
 def load_sample_file(filename):
@@ -13,7 +18,11 @@ def load_sample_file(filename):
 
 
 def run_checker(
-    code, filename=None, allowed_settings=None, enable_project_checks=False
+    code,
+    filename=None,
+    allowed_settings=None,
+    enable_project_checks=False,
+    requirements=None,
 ):
     tree = ast.parse(code)
     if allowed_settings is not None:
@@ -22,14 +31,28 @@ def run_checker(
         Plugin.parse_options(options)
     else:
         Plugin.allowed_settings = []
+    temp_dir = None
+    if requirements is not None:
+        if filename is None:
+            filename = "foo.py"
+        temp_dir = TemporaryDirectory()
+        requirements_file = Path(temp_dir.name) / "requirements.txt"
+        requirements_file.write_text(requirements)
+        file = Path(temp_dir.name) / filename
+        file.write_text(code)
+        filename = str(file)
     checker = Plugin(tree, filename, enable_project_checks=enable_project_checks)
-    return list(checker.run())
+    result = list(checker.run())
+    if temp_dir is not None:
+        temp_dir.cleanup()
+    return result
 
 
 @dataclass
 class Input:
     code: str
     filename: str | None = None
+    requirements: str | None = None
 
 
 @dataclass
@@ -40,15 +63,3 @@ class Issue:
 
 
 NO_ISSUE = None
-
-
-def check_input(input, expected):
-    issues = run_checker(input.code, input.filename)
-    if expected is None:
-        assert len(issues) == 0
-        return
-    assert len(issues) == 1
-    issue = issues[0]
-    assert issue[2] == expected.message
-    assert issue[0] == expected.line
-    assert issue[1] == expected.column
