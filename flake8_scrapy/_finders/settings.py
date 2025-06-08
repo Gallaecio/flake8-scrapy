@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from difflib import get_close_matches
@@ -814,6 +815,269 @@ class BaseSettingsIssueFinder(IssueFinder, ABC):
                 version
             )
         return self._package_versions
+
+
+class InvalidValueSettingsIssueFinder(
+    BaseSettingsIssueFinder, AllowedExcludeSettingsMixin
+):
+    msg_code = "SCP18"
+    msg_info = "invalid setting value"
+
+    # Valid literal values for bool settings
+    VALID_BOOL_LITERALS = (
+        True,
+        False,
+        0,
+        1,
+        "True",
+        "False",
+        "true",
+        "false",
+        "0",
+        "1",
+    )
+
+    # Valid types for bool settings when literal value cannot be determined
+    VALID_BOOL_TYPES: ClassVar[set[type]] = {str, int, bool}
+
+    def __init__(
+        self,
+        filename=None,
+        allowed_settings=None,
+        exclude_settings=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(filename, *args, **kwargs)
+        self.typed_settings = {}
+        for name, info in SETTINGS.items():
+            if info.type in (
+                SettingType.BOOL,
+                SettingType.INT,
+                SettingType.FLOAT,
+                SettingType.LIST,
+                SettingType.DICT,
+                SettingType.DICT_OR_LIST,
+                SettingType.BASED_DICT,
+            ):
+                self.typed_settings[name] = info.type
+        self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
+        self.validators = {
+            SettingType.BOOL: lambda v: v in self.VALID_BOOL_LITERALS,
+            SettingType.INT: self._can_convert_to_int,
+            SettingType.FLOAT: self._can_convert_to_float,
+            SettingType.LIST: self._can_convert_to_list,
+            SettingType.DICT: self._can_convert_to_dict,
+            SettingType.BASED_DICT: self._can_convert_to_dict,
+            SettingType.DICT_OR_LIST: self._is_valid_dict_or_list_value,
+        }
+
+    def should_report_setting(self, setting_name: str) -> bool:
+        return (
+            setting_name in self.typed_settings
+            and setting_name not in self.allowed_settings
+            and setting_name not in self.exclude_settings
+        )
+
+    def get_setting_message(self, setting_name: str) -> str:
+        setting_type = self.typed_settings[setting_name]
+
+        type_messages = {
+            SettingType.BOOL: f"only supports the following values: {', '.join(map(repr, self.VALID_BOOL_LITERALS))}.",
+            SettingType.INT: "only supports values that can be passed to int()",
+            SettingType.FLOAT: "only supports values that can be passed to float()",
+            SettingType.LIST: "only supports values that can be passed to list()",
+            SettingType.DICT: "only supports values that can be passed to dict() or strings defining a JSON object",
+            SettingType.BASED_DICT: "only supports values that can be passed to dict() or strings defining a JSON object",
+            SettingType.DICT_OR_LIST: "only supports None, str, tuple, dict, or list values",
+        }
+
+        message_suffix = type_messages.get(setting_type, "has an invalid value")
+        return f"{self.msg_code}: {self.msg_info}: {setting_name} {message_suffix}"
+
+    def check_assignment(
+        self, node: ast.Assign
+    ) -> Generator[tuple[int, int, str], None, None]:
+        # Check direct assignments in settings.py
+        file_name = Path(self.filename).name if self.filename else None
+        if file_name == "settings.py":
+            for target in node.targets:
+                if not isinstance(target, ast.Name) or not target.id.isupper():
+                    continue
+                setting_name = target.id
+                if self.should_report_setting(setting_name) and self._is_invalid_value(
+                    node.value, setting_name
+                ):
+                    yield from self.report_setting_issue(
+                        node.value.lineno, node.value.col_offset, setting_name
+                    )
+
+        # Check for custom_settings assignments in any class
+        if isinstance(node.value, ast.Dict):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "custom_settings":
+                    yield from self._check_dict_values(
+                        node.value, node.lineno, node.col_offset
+                    )
+
+        # Check settings subscript assignments
+        for target in node.targets:
+            if (
+                isinstance(target, ast.Subscript)
+                and isinstance(target.ctx, ast.Store)
+                and self.is_settings_subscript(target)
+                and isinstance(target.slice, ast.Constant)
+                and isinstance(target.slice.value, str)
+            ):
+                setting_name = target.slice.value
+                if self.should_report_setting(setting_name) and self._is_invalid_value(
+                    node.value, setting_name
+                ):
+                    yield from self.report_setting_issue(
+                        node.value.lineno,
+                        node.value.col_offset,
+                        setting_name,
+                    )
+
+    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:
+        if not isinstance(node.func, ast.Attribute):
+            return
+        if not self.is_settings_object(node.func.value):
+            return
+        method_name = node.func.attr
+
+        # Check settings.set() calls
+        min_args_for_set = 2
+        if method_name == "set":
+            if (
+                len(node.args) >= min_args_for_set
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                setting_name = node.args[0].value
+                if self.should_report_setting(setting_name) and self._is_invalid_value(
+                    node.args[1], setting_name
+                ):
+                    yield from self.report_setting_issue(
+                        node.args[1].lineno,
+                        node.args[1].col_offset,
+                        setting_name,
+                    )
+
+            # Check keyword arguments
+            for keyword in node.keywords:
+                if (
+                    keyword.arg == "name"
+                    and isinstance(keyword.value, ast.Constant)
+                    and self.should_report_setting(keyword.value.value)
+                    and len(node.args) >= 1
+                    and self._is_invalid_value(node.args[0], keyword.value.value)
+                ):
+                    setting_name = keyword.value.value
+                    yield from self.report_setting_issue(
+                        node.args[0].lineno,
+                        node.args[0].col_offset,
+                        setting_name,
+                    )
+
+    def _check_dict_values(
+        self, dict_node: ast.Dict, line: int, col: int
+    ) -> Generator[tuple[int, int, str], None, None]:
+        for key, value in zip(dict_node.keys, dict_node.values):
+            if (
+                isinstance(key, ast.Constant)
+                and isinstance(key.value, str)
+                and self.should_report_setting(key.value)
+                and self._is_invalid_value(value, key.value)
+            ):
+                setting_name = key.value
+                yield from self.report_setting_issue(
+                    value.lineno, value.col_offset, setting_name
+                )
+
+    def _is_invalid_value(self, value_node: ast.AST, setting_name: str) -> bool:
+        """Check if a value node represents an invalid value for the given setting."""
+        setting_type = self.typed_settings[setting_name]
+
+        # If we can identify the literal value
+        if isinstance(value_node, ast.Constant):
+            return self._is_invalid_constant_value(value_node.value, setting_type)
+
+        # If we can identify the type but not the literal value
+        if hasattr(value_node, "__class__"):
+            return self._is_invalid_ast_node_type(value_node, setting_type)
+
+        return False
+
+    def _is_invalid_constant_value(self, value, setting_type: SettingType) -> bool:
+        if setting_type in self.validators:
+            return not self.validators[setting_type](value)
+        return False
+
+    def _is_invalid_ast_node_type(
+        self, value_node: ast.AST, setting_type: SettingType
+    ) -> bool:
+        complex_types = (ast.List, ast.Tuple, ast.Set, ast.Dict)
+        if setting_type == SettingType.LIST:
+            return False
+        if setting_type in (SettingType.DICT, SettingType.BASED_DICT):
+            return isinstance(value_node, (ast.List, ast.Tuple, ast.Set))
+        if setting_type == SettingType.DICT_OR_LIST:
+            return isinstance(value_node, ast.Set)
+        return isinstance(value_node, complex_types)
+
+    def _can_convert_to_int(self, value) -> bool:
+        try:
+            int(value)
+            return True
+        except (ValueError, TypeError):
+            return False
+
+    def _can_convert_to_float(self, value) -> bool:
+        try:
+            float(value)
+            return True
+        except (ValueError, TypeError):
+            return False
+
+    def _can_convert_to_list(self, value) -> bool:
+        try:
+            list(value)
+            return True
+        except (ValueError, TypeError):
+            return False
+
+    def _can_convert_to_dict(self, value) -> bool:
+        """Check if a value can be converted to dict or is a valid JSON object string."""
+        # First try to convert to dict directly
+        try:
+            dict(value)
+            return True
+        except (ValueError, TypeError):
+            pass
+
+        # If it's a string, check if it's a valid JSON object (dict)
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                return isinstance(parsed, dict)
+            except (json.JSONDecodeError, ValueError):
+                return False
+
+        return False
+
+    def _is_valid_dict_or_list_value(self, value) -> bool:
+        if value is None:
+            return True
+        return isinstance(value, (str, tuple, dict, list))
+
+    def check_subscript(
+        self, node: ast.Subscript
+    ) -> Generator[tuple[int, int, str], None, None]:
+        # SCP18 only cares about assignments, not subscript reads
+        # So we override this method to do nothing for subscript operations
+        return
+        yield  # unreachable, but needed to make this a generator
 
 
 class UnknownSettingsIssueFinder(BaseSettingsIssueFinder):

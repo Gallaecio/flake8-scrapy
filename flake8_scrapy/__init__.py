@@ -16,6 +16,7 @@ from ._finders.project import (
 from ._finders.settings import (
     DeprecatedSettingsIssueFinder,
     FutureSettingsIssueFinder,
+    InvalidValueSettingsIssueFinder,
     MissingPackageSettingsIssueFinder,
     RemovedSettingsIssueFinder,
     TypeMismatchSettingsIssueFinder,
@@ -67,6 +68,11 @@ class IssueReporter(ast.NodeVisitor):
                 exclude_settings=missing_package_settings,
             ),
             TypeMismatchSettingsIssueFinder(
+                filename,
+                allowed_settings=allowed_settings,
+                exclude_settings=missing_package_settings,
+            ),
+            InvalidValueSettingsIssueFinder(
                 filename,
                 allowed_settings=allowed_settings,
                 exclude_settings=missing_package_settings,

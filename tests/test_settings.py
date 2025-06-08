@@ -372,13 +372,91 @@ ISSUE_COLUMN = 9
                 ("SPIDER_CONTRACTS", "getwithbase"),
             )
         ),
-        # SCP17: ignored syntaxes
+        # SCP18: Supported setter syntaxes
         *(
             (
                 Input(syntax),
+                Issue(
+                    "SCP18: invalid setting value: AUTOTHROTTLE_ENABLED only "
+                    "supports the following values: True, False, 0, 1, "
+                    "'True', 'False', 'true', 'false', '0', '1'.",
+                    column=column,
+                ),
+            )
+            for syntax, column in (('settings["AUTOTHROTTLE_ENABLED"] = "foo"', 35),)
+        ),
+        # SCP18: Supported types (bool excluded, already tested above)
+        *(
+            (
+                Input(f'settings["{setting}"] = None'),
+                Issue(
+                    f"SCP18: invalid setting value: {setting} only supports "
+                    f"values that can be passed to {cls}()",
+                    column=column,
+                ),
+            )
+            for setting, cls, column in (
+                ("CONCURRENT_REQUESTS", "int", 34),
+                ("LOGSTATS_INTERVAL", "float", 32),
+                ("LOG_VERSIONS", "list", 27),
+            )
+        ),
+        *(
+            (
+                Input(f'settings["{setting}"] = None'),
+                Issue(
+                    f"SCP18: invalid setting value: {setting} only supports "
+                    f"values that can be passed to dict() or strings defining a "
+                    "JSON object",
+                    column=column,
+                ),
+            )
+            for setting, column in (("ADDONS", 21), ("SPIDER_CONTRACTS", 31))
+        ),
+        (
+            Input('settings["FEED_EXPORT_FIELDS"] = 0'),
+            Issue(
+                "SCP18: invalid setting value: FEED_EXPORT_FIELDS only "
+                "supports None, str, tuple, dict, or list values",
+                column=33,
+            ),
+        ),
+        # SCP18: Ignored (valid) values
+        *(
+            (
+                Input(f'settings["{setting}"] = {value!r}'),
                 NO_ISSUE,
             )
-            for syntax in ('settings["AUTOTHROTTLE_ENABLED"] = "foo"',)
+            for setting, value in (
+                ("CONCURRENT_REQUESTS", 1),
+                ("CONCURRENT_REQUESTS", 1.0),
+                ("CONCURRENT_REQUESTS", True),
+                ("CONCURRENT_REQUESTS", "1"),
+                ("CONCURRENT_REQUESTS", b"1"),
+                ("LOGSTATS_INTERVAL", 1.0),
+                ("LOGSTATS_INTERVAL", 1),
+                ("LOGSTATS_INTERVAL", True),
+                ("LOGSTATS_INTERVAL", "1.0"),
+                ("LOGSTATS_INTERVAL", b"1.0"),
+                ("LOG_VERSIONS", []),
+                ("LOG_VERSIONS", ["foo"]),
+                ("LOG_VERSIONS", ["foo", "bar"]),
+                ("LOG_VERSIONS", ()),
+                ("LOG_VERSIONS", set()),
+                ("LOG_VERSIONS", "foo"),
+                ("LOG_VERSIONS", "foo,bar"),
+                ("LOG_VERSIONS", {}),
+                ("LOG_VERSIONS", range(2)),
+                ("ADDONS", {}),
+                ("ADDONS", "{}"),
+                ("FEED_EXPORT_FIELDS", None),
+                ("FEED_EXPORT_FIELDS", "foo"),
+                ("FEED_EXPORT_FIELDS", ()),
+                ("FEED_EXPORT_FIELDS", {}),
+                ("FEED_EXPORT_FIELDS", []),
+                ("SPIDER_CONTRACTS", {}),
+                ("SPIDER_CONTRACTS", "{}"),
+            )
         ),
     ],
 )
