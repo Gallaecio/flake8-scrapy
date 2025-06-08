@@ -58,6 +58,13 @@ class BaseProjectIssueFinder(IssueFinder):
     def find_issues(self, node) -> Generator[tuple[int, int, str], None, None]:
         yield from self.process_requirements_txt(node)
 
+    @staticmethod
+    def is_version_less_than(version: str, min_version: str) -> bool:
+        try:
+            return Version(version) < Version(min_version)
+        except InvalidVersion:
+            return False
+
 
 class RequirementsTxtIssueFinder(BaseProjectIssueFinder):
     msg_code = "SCP11"
@@ -80,52 +87,34 @@ class NonFrozenDependenciesIssueFinder(BaseProjectIssueFinder):
             yield (line_num, 0, message)
 
 
-class AncientScrapyVersionIssueFinder(BaseProjectIssueFinder):
+class BaseScrapyVersionIssueFinder(BaseProjectIssueFinder):
+    """Base class for Scrapy version checkers."""
+
+    minimum_version: str = ""
+
+    def check_requirement_line(
+        self, line_num: int, line: str
+    ) -> Generator[tuple[int, int, str], None, None]:
+        req = self.parse_requirement_line(line)
+        if req is None:
+            return
+        if req.name.lower() == "scrapy" and self.is_frozen_requirement(req):
+            version_part = next(iter(req.specifier)).version
+            if self.is_version_less_than(version_part, self.minimum_version):
+                message = f"{self.msg_code} {self.msg_info}: {version_part} (minimum required: {self.minimum_version})"
+                yield (line_num, 0, message)
+
+
+class AncientScrapyVersionIssueFinder(BaseScrapyVersionIssueFinder):
     msg_code = "SCP13"
     msg_info = "ancient Scrapy version in requirements.txt"
-
-    def is_version_less_than(self, version, min_version):
-        try:
-            return Version(version) < Version(min_version)
-        except InvalidVersion:
-            return False
-
-    def check_requirement_line(
-        self, line_num: int, line: str
-    ) -> Generator[tuple[int, int, str], None, None]:
-        req = self.parse_requirement_line(line)
-        if req is None:
-            return
-        if req.name.lower() == "scrapy" and self.is_frozen_requirement(req):
-            version_part = next(iter(req.specifier)).version
-            if self.is_version_less_than(
-                version_part, MINIMUM_SUPPORTED_SCRAPY_VERSION
-            ):
-                message = f"{self.msg_code} {self.msg_info}: {version_part} (minimum required: {MINIMUM_SUPPORTED_SCRAPY_VERSION})"
-                yield (line_num, 0, message)
+    minimum_version = MINIMUM_SUPPORTED_SCRAPY_VERSION
 
 
-class InsecureScrapyVersionIssueFinder(BaseProjectIssueFinder):
+class InsecureScrapyVersionIssueFinder(BaseScrapyVersionIssueFinder):
     msg_code = "SCP14"
     msg_info = "insecure Scrapy version in requirements.txt"
-
-    def is_version_less_than(self, version, min_version):
-        try:
-            return Version(version) < Version(min_version)
-        except InvalidVersion:
-            return False
-
-    def check_requirement_line(
-        self, line_num: int, line: str
-    ) -> Generator[tuple[int, int, str], None, None]:
-        req = self.parse_requirement_line(line)
-        if req is None:
-            return
-        if req.name.lower() == "scrapy" and self.is_frozen_requirement(req):
-            version_part = next(iter(req.specifier)).version
-            if self.is_version_less_than(version_part, "2.11.2"):
-                message = f"{self.msg_code} {self.msg_info}: {version_part} (minimum required: 2.11.2)"
-                yield (line_num, 0, message)
+    minimum_version = "2.11.2"
 
 
 class ObsoletePackagesIssueFinder(BaseProjectIssueFinder):
@@ -147,10 +136,8 @@ class ObsoletePackagesIssueFinder(BaseProjectIssueFinder):
         package_name = req.name.lower()
         if package_name in self.OBSOLETE_PACKAGES:
             replacements = self.OBSOLETE_PACKAGES[package_name]
-            if len(replacements) == 1:
-                replacement_text = replacements[0]
-            else:
-                replacement_text = " or ".join(replacements)
-
+            replacement_text = (
+                replacements[0] if len(replacements) == 1 else " or ".join(replacements)
+            )
             message = f"{self.msg_code} {self.msg_info}: {req.name} (use {replacement_text} instead)"
             yield (line_num, 0, message)
