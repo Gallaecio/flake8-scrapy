@@ -7,7 +7,6 @@ from difflib import get_close_matches
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import scrapy
 from packaging.version import Version
 
 from . import IssueFinder
@@ -15,7 +14,10 @@ from . import IssueFinder
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-SCRAPY_VERSION = Version(scrapy.__version__)
+# Use a reasonable current Scrapy version for settings validation
+# This represents the "current" version for the purposes of determining
+# which settings are available, deprecated, or removed
+SCRAPY_VERSION = Version("2.13.1")
 MIN_VALID_SETTING_NAME_LENGTH = 3
 
 

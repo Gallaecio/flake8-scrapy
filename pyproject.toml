@@ -8,7 +8,6 @@ version = "0.0.2"
 description = "A Flake8 plugin to catch common issues on Scrapy projects"
 dependencies = [
     "flake8>=0.1",
-    "scrapy>=2.0.1",
     "packaging>=20.0",
 ]
 classifiers = [
