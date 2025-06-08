@@ -142,3 +142,26 @@ class AncientScrapyVersionIssueFinder(ProjectIssueFinder):
             if self.is_version_less_than(version_part, "2.0.1"):
                 message = f"{self.msg_code} {self.msg_info}: {version_part} (minimum required: 2.0.1)"
                 yield (line_num, 0, message)
+
+
+class InsecureScrapyVersionIssueFinder(ProjectIssueFinder):
+    msg_code = "SCP14"
+    msg_info = "insecure Scrapy version in requirements.txt"
+
+    def is_version_less_than(self, version, min_version):
+        try:
+            return Version(version) < Version(min_version)
+        except InvalidVersion:
+            return False
+
+    def check_requirement_line(
+        self, line_num: int, line: str
+    ) -> Generator[tuple[int, int, str], None, None]:
+        req = self.parse_requirement_line(line)
+        if req is None:
+            return
+        if req.name.lower() == "scrapy" and self.is_frozen_requirement(req):
+            version_part = next(iter(req.specifier)).version
+            if self.is_version_less_than(version_part, "2.11.2"):
+                message = f"{self.msg_code} {self.msg_info}: {version_part} (minimum required: 2.11.2)"
+                yield (line_num, 0, message)

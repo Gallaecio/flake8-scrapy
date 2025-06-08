@@ -3,6 +3,7 @@ from pathlib import Path
 
 from flake8_scrapy._finders.project import (
     AncientScrapyVersionIssueFinder,
+    InsecureScrapyVersionIssueFinder,
     NonFrozenDependenciesIssueFinder,
     RequirementsTxtIssueFinder,
 )
@@ -256,3 +257,110 @@ def test_scrapy_prerelease_versions():
         assert "2.0.0a1" in scp13_issues[1][2]
         assert scp13_issues[2][0] == 4  # 1.8.0.post1 line
         assert "1.8.0.post1" in scp13_issues[2][2]
+
+
+def test_insecure_scrapy_version():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text("scrapy==2.10.0\n")
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp14_issues = [issue for issue in issues if "SCP14" in issue[2]]
+        assert len(scp14_issues) == 1
+        assert scp14_issues[0][0] == 1  # line
+        assert scp14_issues[0][1] == 0  # col
+        assert InsecureScrapyVersionIssueFinder.msg_code in scp14_issues[0][2]
+        assert "2.10.0" in scp14_issues[0][2]
+        assert "minimum required: 2.11.2" in scp14_issues[0][2]
+
+
+def test_secure_scrapy_version():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text("scrapy==2.11.2\n")
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp14_issues = [issue for issue in issues if "SCP14" in issue[2]]
+        assert len(scp14_issues) == 0
+
+
+def test_edge_case_scrapy_security_versions():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text("scrapy==2.11.1\nscrapy==2.11.2\nscrapy==2.12.0\n")
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp14_issues = [issue for issue in issues if "SCP14" in issue[2]]
+        assert len(scp14_issues) == 1
+        assert scp14_issues[0][0] == 1  # first line
+        assert "2.11.1" in scp14_issues[0][2]
+
+
+def test_non_frozen_scrapy_no_scp14():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text("scrapy>=2.10.0\nscrapy\nrequests==2.28.0\n")
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp14_issues = [issue for issue in issues if "SCP14" in issue[2]]
+        assert len(scp14_issues) == 0
+
+
+def test_scrapy_with_comments_scp14():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text(
+            "# Core dependencies\nscrapy==2.9.0  # This version has security issues\n"
+        )
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp14_issues = [issue for issue in issues if "SCP14" in issue[2]]
+        assert len(scp14_issues) == 1
+        assert scp14_issues[0][0] == 2  # second line
+        assert "2.9.0" in scp14_issues[0][2]
+
+
+def test_no_scrapy_dependency_no_scp14():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text("requests==2.28.0\nbeautifulsoup4==4.11.1\n")
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp14_issues = [issue for issue in issues if "SCP14" in issue[2]]
+        assert len(scp14_issues) == 0
+
+
+def test_multiple_scrapy_version_checks():
+    code = "import scrapy\n\nclass TestSpider(scrapy.Spider):\n    name = 'test'\n"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements_file = Path(temp_dir) / "requirements.txt"
+        requirements_file.write_text(
+            "scrapy==1.8.0\n"  # Ancient (triggers both SCP13 and SCP14)
+            "scrapy==2.5.0\n"  # Only insecure (triggers only SCP14)
+        )
+        test_file = Path(temp_dir) / "spider.py"
+        test_file.write_text(code)
+        issues = run_checker(code, filename=str(test_file), enable_project_checks=True)
+        scp13_issues = [issue for issue in issues if "SCP13" in issue[2]]
+        scp14_issues = [issue for issue in issues if "SCP14" in issue[2]]
+
+        # Should find 1 ancient version (1.8.0)
+        assert len(scp13_issues) == 1
+        assert "1.8.0" in scp13_issues[0][2]
+
+        # Should find 2 insecure versions (1.8.0 and 2.5.0)
+        assert len(scp14_issues) == 2
+        assert "1.8.0" in scp14_issues[0][2]
+        assert "2.5.0" in scp14_issues[1][2]

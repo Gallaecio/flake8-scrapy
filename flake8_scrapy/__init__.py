@@ -8,6 +8,7 @@ from ._finders.domains import (
 from ._finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
 from ._finders.project import (
     AncientScrapyVersionIssueFinder,
+    InsecureScrapyVersionIssueFinder,
     NonFrozenDependenciesIssueFinder,
     RequirementsTxtIssueFinder,
 )
@@ -44,6 +45,7 @@ class IssueReporter(ast.NodeVisitor):
                 RequirementsTxtIssueFinder(filename),
                 NonFrozenDependenciesIssueFinder(filename),
                 AncientScrapyVersionIssueFinder(filename),
+                InsecureScrapyVersionIssueFinder(filename),
             ]
         self.finders = {
             "Assign": [
