@@ -281,6 +281,35 @@ ISSUE_COLUMN = 9
                         column=ISSUE_COLUMN,
                     ),
                 ),
+                # Test SCP15 - missing package in requirements.txt
+                (
+                    "SCRAPY_POET_CACHE",
+                    True,
+                    "scrapy==2.11.0",  # scrapy-poet not in requirements
+                    Issue(
+                        "SCP15: setting for package not in requirements.txt: SCRAPY_POET_CACHE (package: scrapy-poet)",
+                        column=ISSUE_COLUMN,
+                    ),
+                ),
+                (
+                    "PLAYWRIGHT_BROWSER_TYPE",
+                    "chromium",
+                    "scrapy==2.11.0",  # scrapy-playwright not in requirements
+                    Issue(
+                        "SCP15: setting for package not in requirements.txt: PLAYWRIGHT_BROWSER_TYPE (package: scrapy-playwright)",
+                        column=ISSUE_COLUMN,
+                    ),
+                ),
+                # Test that SCP15 takes priority over SCP07 (unknown setting would normally be reported)
+                (
+                    "REDIS_HOST",
+                    "localhost",
+                    "scrapy==2.11.0",  # scrapy-redis not in requirements
+                    Issue(
+                        "SCP15: setting for package not in requirements.txt: REDIS_HOST (package: scrapy-redis)",
+                        column=ISSUE_COLUMN,
+                    ),
+                ),
             ]
         ),
         # For unknown settings, suggestions may be provided.

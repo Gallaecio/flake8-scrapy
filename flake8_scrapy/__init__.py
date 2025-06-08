@@ -15,6 +15,7 @@ from ._finders.project import (
 from ._finders.settings import (
     DeprecatedSettingsIssueFinder,
     FutureSettingsIssueFinder,
+    MissingPackageSettingsIssueFinder,
     RemovedSettingsIssueFinder,
     UnknownSettingsIssueFinder,
 )
@@ -33,11 +34,36 @@ class IssueReporter(ast.NodeVisitor):
     ):
         super().__init__(*args, **kwargs)
         self.issues = []
+        # MissingPackageSettingsIssueFinder must be first to have priority
+        missing_package_finder = MissingPackageSettingsIssueFinder(
+            filename, allowed_settings=allowed_settings
+        )
+
+        # Get settings that are missing packages to exclude from other checks
+        missing_package_settings = missing_package_finder.missing_package_settings
+
         setting_finders = (
-            DeprecatedSettingsIssueFinder(filename, allowed_settings=allowed_settings),
-            FutureSettingsIssueFinder(filename, allowed_settings=allowed_settings),
-            RemovedSettingsIssueFinder(filename, allowed_settings=allowed_settings),
-            UnknownSettingsIssueFinder(filename, allowed_settings=allowed_settings),
+            missing_package_finder,
+            DeprecatedSettingsIssueFinder(
+                filename,
+                allowed_settings=allowed_settings,
+                exclude_settings=missing_package_settings,
+            ),
+            FutureSettingsIssueFinder(
+                filename,
+                allowed_settings=allowed_settings,
+                exclude_settings=missing_package_settings,
+            ),
+            RemovedSettingsIssueFinder(
+                filename,
+                allowed_settings=allowed_settings,
+                exclude_settings=missing_package_settings,
+            ),
+            UnknownSettingsIssueFinder(
+                filename,
+                allowed_settings=allowed_settings,
+                exclude_settings=missing_package_settings,
+            ),
         )
         project_finders = []
         if enable_project_checks:

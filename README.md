@@ -19,6 +19,10 @@ on Scrapy projects.
 | SCP09 | Use of settings not yet available in the target Scrapy and Scrapy plugin versions |
 | SCP10 | Use of old settings that have been removed from the target Scrapy and Scrapy plugin versions |
 | SCP11 | No requirements.txt |
+| SCP12 | Non-frozen dependency in requirements.txt |
+| SCP13 | Ancient Scrapy version in requirements.txt |
+| SCP14 | Insecure Scrapy version in requirements.txt |
+| SCP15 | Use of setting of package not in requirements.txt |
 
 
 ## Options
@@ -31,8 +35,8 @@ to customize the behavior of flake8-scrapy:
 
 Default: `[]`
 
-A list of Scrapy settings that will not raise SCP07, SCP08, SCP09 or SCP10
-errors.
+A list of Scrapy settings that will not raise SCP07, SCP08, SCP09, SCP10 or
+SCP15 errors.
 
 If you are using the latest version of flake8-scrapy and you find yourself
 adding a setting to this list that is not specific to your project (i.e. made
