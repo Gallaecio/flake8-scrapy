@@ -4,8 +4,9 @@ import ast
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from difflib import get_close_matches
+from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from packaging.utils import canonicalize_name
 from packaging.version import Version
@@ -16,6 +17,16 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 MIN_VALID_SETTING_NAME_LENGTH = 3
+
+
+class SettingType(Enum):
+    BOOL = "bool"
+    INT = "int"
+    FLOAT = "float"
+    LIST = "list"
+    DICT = "dict"
+    DICT_OR_LIST = "dict_or_list"
+    BASED_DICT = "based_dict"
 
 
 class AllowedExcludeSettingsMixin:
@@ -33,6 +44,7 @@ class SettingInfo:
     deprecated_version: str | None = None
     deprecation_message: str | None = None
     package: str = "scrapy"
+    type: SettingType | None = None
 
 
 # Grouped by active, deprecated, removed, and plugin-specific.
@@ -41,10 +53,10 @@ class SettingInfo:
 # removed them, from higher to lower.
 SETTINGS = {
     # Active settings
-    "ADDONS": SettingInfo(added_version="2.10.0"),
+    "ADDONS": SettingInfo(added_version="2.10.0", type=SettingType.DICT),
     "ASYNCIO_EVENT_LOOP": SettingInfo(added_version="2.4.0"),
     "AUTOTHROTTLE_DEBUG": SettingInfo(),
-    "AUTOTHROTTLE_ENABLED": SettingInfo(),
+    "AUTOTHROTTLE_ENABLED": SettingInfo(type=SettingType.BOOL),
     "AUTOTHROTTLE_MAX_DELAY": SettingInfo(),
     "AUTOTHROTTLE_START_DELAY": SettingInfo(),
     "AUTOTHROTTLE_TARGET_CONCURRENCY": SettingInfo(),
@@ -54,20 +66,20 @@ SETTINGS = {
     "CLOSESPIDER_PAGECOUNT": SettingInfo(),
     "CLOSESPIDER_TIMEOUT": SettingInfo(),
     "COMMANDS_MODULE": SettingInfo(),
-    "COMPRESSION_ENABLED": SettingInfo(),
-    "CONCURRENT_ITEMS": SettingInfo(),
-    "CONCURRENT_REQUESTS": SettingInfo(),
-    "CONCURRENT_REQUESTS_PER_DOMAIN": SettingInfo(),
-    "CONCURRENT_REQUESTS_PER_IP": SettingInfo(),
+    "COMPRESSION_ENABLED": SettingInfo(type=SettingType.BOOL),
+    "CONCURRENT_ITEMS": SettingInfo(type=SettingType.INT),
+    "CONCURRENT_REQUESTS": SettingInfo(type=SettingType.INT),
+    "CONCURRENT_REQUESTS_PER_DOMAIN": SettingInfo(type=SettingType.INT),
+    "CONCURRENT_REQUESTS_PER_IP": SettingInfo(type=SettingType.INT),
     "COOKIES_DEBUG": SettingInfo(),
-    "COOKIES_ENABLED": SettingInfo(),
+    "COOKIES_ENABLED": SettingInfo(type=SettingType.BOOL),
     "DEFAULT_DROPITEM_LOG_LEVEL": SettingInfo(added_version="2.13.0"),
     "DEFAULT_ITEM_CLASS": SettingInfo(),
     "DEFAULT_REQUEST_HEADERS": SettingInfo(),
     "DEPTH_LIMIT": SettingInfo(),
     "DEPTH_PRIORITY": SettingInfo(),
     "DEPTH_STATS_VERBOSE": SettingInfo(),
-    "DNSCACHE_ENABLED": SettingInfo(),
+    "DNSCACHE_ENABLED": SettingInfo(type=SettingType.BOOL),
     "DNSCACHE_SIZE": SettingInfo(),
     "DNS_RESOLVER": SettingInfo(),
     "DNS_TIMEOUT": SettingInfo(),
@@ -93,7 +105,7 @@ SETTINGS = {
     "EXTENSIONS_BASE": SettingInfo(),
     "FEED_EXPORT_BATCH_ITEM_COUNT": SettingInfo(added_version="2.3.0"),
     "FEED_EXPORT_ENCODING": SettingInfo(),
-    "FEED_EXPORT_FIELDS": SettingInfo(),
+    "FEED_EXPORT_FIELDS": SettingInfo(type=SettingType.DICT_OR_LIST),
     "FEED_EXPORT_INDENT": SettingInfo(),
     "FEED_EXPORTERS": SettingInfo(),
     "FEED_EXPORTERS_BASE": SettingInfo(),
@@ -116,7 +128,7 @@ SETTINGS = {
     "HTTPCACHE_ALWAYS_STORE": SettingInfo(),
     "HTTPCACHE_DBM_MODULE": SettingInfo(),
     "HTTPCACHE_DIR": SettingInfo(),
-    "HTTPCACHE_ENABLED": SettingInfo(),
+    "HTTPCACHE_ENABLED": SettingInfo(type=SettingType.BOOL),
     "HTTPCACHE_EXPIRATION_SECS": SettingInfo(),
     "HTTPCACHE_GZIP": SettingInfo(),
     "HTTPCACHE_IGNORE_HTTP_CODES": SettingInfo(),
@@ -126,7 +138,7 @@ SETTINGS = {
     "HTTPCACHE_POLICY": SettingInfo(),
     "HTTPCACHE_STORAGE": SettingInfo(),
     "HTTPPROXY_AUTH_ENCODING": SettingInfo(),
-    "HTTPPROXY_ENABLED": SettingInfo(),
+    "HTTPPROXY_ENABLED": SettingInfo(type=SettingType.BOOL),
     "IMAGES_STORE_GCS_ACL": SettingInfo(),
     "IMAGES_STORE_S3_ACL": SettingInfo(),
     "ITEM_PIPELINES": SettingInfo(),
@@ -134,7 +146,7 @@ SETTINGS = {
     "ITEM_PROCESSOR": SettingInfo(),
     "JOBDIR": SettingInfo(),
     "LOG_DATEFORMAT": SettingInfo(),
-    "LOG_ENABLED": SettingInfo(),
+    "LOG_ENABLED": SettingInfo(type=SettingType.BOOL),
     "LOG_ENCODING": SettingInfo(),
     "LOG_FILE": SettingInfo(),
     "LOG_FILE_APPEND": SettingInfo(added_version="2.6.0"),
@@ -143,36 +155,38 @@ SETTINGS = {
     "LOG_LEVEL": SettingInfo(),
     "LOG_SHORT_NAMES": SettingInfo(),
     "LOG_STDOUT": SettingInfo(),
-    "LOG_VERSIONS": SettingInfo(added_version="2.13.0"),
-    "LOGSTATS_INTERVAL": SettingInfo(),
+    "LOG_VERSIONS": SettingInfo(added_version="2.13.0", type=SettingType.LIST),
+    "LOGSTATS_INTERVAL": SettingInfo(type=SettingType.FLOAT),
     "MAIL_FROM": SettingInfo(),
     "MAIL_HOST": SettingInfo(),
     "MAIL_PASS": SettingInfo(),
     "MAIL_PORT": SettingInfo(),
     "MAIL_USER": SettingInfo(),
-    "MEMDEBUG_ENABLED": SettingInfo(),
+    "MEMDEBUG_ENABLED": SettingInfo(type=SettingType.BOOL),
     "MEMDEBUG_NOTIFY": SettingInfo(),
     "MEMUSAGE_CHECK_INTERVAL_SECONDS": SettingInfo(),
-    "MEMUSAGE_ENABLED": SettingInfo(),
+    "MEMUSAGE_ENABLED": SettingInfo(type=SettingType.BOOL),
     "MEMUSAGE_LIMIT_MB": SettingInfo(),
     "MEMUSAGE_NOTIFY_MAIL": SettingInfo(),
     "MEMUSAGE_WARNING_MB": SettingInfo(),
-    "METAREFRESH_ENABLED": SettingInfo(),
+    "METAREFRESH_ENABLED": SettingInfo(type=SettingType.BOOL),
     "METAREFRESH_IGNORE_TAGS": SettingInfo(),
     "METAREFRESH_MAXDELAY": SettingInfo(),
     "NEWSPIDER_MODULE": SettingInfo(),
     "PERIODIC_LOG_DELTA": SettingInfo(added_version="2.11.0"),
     "PERIODIC_LOG_STATS": SettingInfo(added_version="2.11.0"),
-    "PERIODIC_LOG_TIMING_ENABLED": SettingInfo(added_version="2.11.0"),
+    "PERIODIC_LOG_TIMING_ENABLED": SettingInfo(
+        added_version="2.11.0", type=SettingType.BOOL
+    ),
     "RANDOMIZE_DOWNLOAD_DELAY": SettingInfo(),
     "REACTOR_THREADPOOL_MAXSIZE": SettingInfo(),
-    "REDIRECT_ENABLED": SettingInfo(),
+    "REDIRECT_ENABLED": SettingInfo(type=SettingType.BOOL),
     "REDIRECT_MAX_TIMES": SettingInfo(),
     "REDIRECT_PRIORITY_ADJUST": SettingInfo(),
-    "REFERER_ENABLED": SettingInfo(),
+    "REFERER_ENABLED": SettingInfo(type=SettingType.BOOL),
     "REFERRER_POLICY": SettingInfo(),
     "REQUEST_FINGERPRINTER_CLASS": SettingInfo(added_version="2.7.0"),
-    "RETRY_ENABLED": SettingInfo(),
+    "RETRY_ENABLED": SettingInfo(type=SettingType.BOOL),
     "RETRY_EXCEPTIONS": SettingInfo(added_version="2.10.0"),
     "RETRY_HTTP_CODES": SettingInfo(),
     "RETRY_PRIORITY_ADJUST": SettingInfo(),
@@ -188,7 +202,7 @@ SETTINGS = {
     "SCHEDULER_START_DISK_QUEUE": SettingInfo(added_version="2.13.0"),
     "SCHEDULER_START_MEMORY_QUEUE": SettingInfo(added_version="2.13.0"),
     "SCRAPER_SLOT_MAX_ACTIVE_SIZE": SettingInfo(),
-    "SPIDER_CONTRACTS": SettingInfo(),
+    "SPIDER_CONTRACTS": SettingInfo(type=SettingType.BASED_DICT),
     "SPIDER_CONTRACTS_BASE": SettingInfo(),
     "SPIDER_LOADER_CLASS": SettingInfo(),
     "SPIDER_LOADER_WARN_ONLY": SettingInfo(),
@@ -198,7 +212,7 @@ SETTINGS = {
     "STATS_CLASS": SettingInfo(),
     "STATS_DUMP": SettingInfo(),
     "STATSMAILER_RCPTS": SettingInfo(),
-    "TELNETCONSOLE_ENABLED": SettingInfo(),
+    "TELNETCONSOLE_ENABLED": SettingInfo(type=SettingType.BOOL),
     "TELNETCONSOLE_HOST": SettingInfo(),
     "TELNETCONSOLE_PASSWORD": SettingInfo(),
     "TELNETCONSOLE_PORT": SettingInfo(),
@@ -216,6 +230,7 @@ SETTINGS = {
             "The setting is False by default, and setting it to True will stop"
             " working in a future version of Scrapy."
         ),
+        type=SettingType.BOOL,
     ),
     "REQUEST_FINGERPRINTER_IMPLEMENTATION": SettingInfo(
         added_version="2.7.0",
@@ -257,7 +272,9 @@ SETTINGS = {
     "AZURE_ACCOUNT_KEY": SettingInfo(package="scrapy-feedexporter-azure-storage"),
     # scrapy-deltafetch plugin settings, in order of appearance in
     # https://github.com/scrapy-plugins/scrapy-deltafetch#usage
-    "DELTAFETCH_ENABLED": SettingInfo(package="scrapy-deltafetch"),
+    "DELTAFETCH_ENABLED": SettingInfo(
+        package="scrapy-deltafetch", type=SettingType.BOOL
+    ),
     "DELTAFETCH_DIR": SettingInfo(package="scrapy-deltafetch"),
     "DELTAFETCH_RESET": SettingInfo(package="scrapy-deltafetch"),
     # scrapy-feedexporter-dropbox plugin settings, in order of appearance in
@@ -363,16 +380,20 @@ SETTINGS = {
     "PROJECT_SETTINGS": SettingInfo(package="scrapyrt"),
     # scrapy-settings-log plugin settings, in order of appearance in
     # https://github.com/scrapy-plugins/scrapy-settings-log
-    "SETTINGS_LOGGING_ENABLED": SettingInfo(package="scrapy-settings-log"),
+    "SETTINGS_LOGGING_ENABLED": SettingInfo(
+        package="scrapy-settings-log", type=SettingType.BOOL
+    ),
     "SETTINGS_LOGGING_REGEX": SettingInfo(package="scrapy-settings-log"),
     "SETTINGS_LOGGING_INDENT": SettingInfo(package="scrapy-settings-log"),
-    "MASKED_SENSITIVE_SETTINGS_ENABLED": SettingInfo(package="scrapy-settings-log"),
+    "MASKED_SENSITIVE_SETTINGS_ENABLED": SettingInfo(
+        package="scrapy-settings-log", type=SettingType.BOOL
+    ),
     # scrapy-feedexporter-sftp plugin settings, in order of appearance in
     # https://github.com/scrapy-plugins/scrapy-feedexporter-sftp
     "FEED_STORAGE_SFTP_PKEY": SettingInfo(package="scrapy-feedexporter-sftp"),
     # spidermon plugin settings, in order of appearance in
     # https://spidermon.readthedocs.io/en/latest/settings.html
-    "SPIDERMON_ENABLED": SettingInfo(package="spidermon"),
+    "SPIDERMON_ENABLED": SettingInfo(package="spidermon", type=SettingType.BOOL),
     "SPIDERMON_EXPRESSIONS_MONITOR_CLASS": SettingInfo(package="spidermon"),
     "SPIDERMON_PERIODIC_MONITORS": SettingInfo(package="spidermon"),
     "SPIDERMON_SPIDER_CLOSE_MONITORS": SettingInfo(package="spidermon"),
@@ -393,8 +414,10 @@ SETTINGS = {
     "ZYTE_API_BROWSER_HEADERS": SettingInfo(package="scrapy-zyte-api"),
     "ZYTE_API_COOKIE_MIDDLEWARE": SettingInfo(package="scrapy-zyte-api"),
     "ZYTE_API_DEFAULT_PARAMS": SettingInfo(package="scrapy-zyte-api"),
-    "ZYTE_API_ENABLED": SettingInfo(package="scrapy-zyte-api"),
-    "ZYTE_API_EXPERIMENTAL_COOKIES_ENABLED": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_ENABLED": SettingInfo(package="scrapy-zyte-api", type=SettingType.BOOL),
+    "ZYTE_API_EXPERIMENTAL_COOKIES_ENABLED": SettingInfo(
+        package="scrapy-zyte-api", type=SettingType.BOOL
+    ),
     "ZYTE_API_FALLBACK_HTTP_HANDLER": SettingInfo(package="scrapy-zyte-api"),
     "ZYTE_API_FALLBACK_HTTPS_HANDLER": SettingInfo(package="scrapy-zyte-api"),
     "ZYTE_API_FALLBACK_REQUEST_FINGERPRINTER_CLASS": SettingInfo(
@@ -410,7 +433,9 @@ SETTINGS = {
     "ZYTE_API_REFERRER_POLICY": SettingInfo(package="scrapy-zyte-api"),
     "ZYTE_API_RETRY_POLICY": SettingInfo(package="scrapy-zyte-api"),
     "ZYTE_API_SESSION_CHECKER": SettingInfo(package="scrapy-zyte-api"),
-    "ZYTE_API_SESSION_ENABLED": SettingInfo(package="scrapy-zyte-api"),
+    "ZYTE_API_SESSION_ENABLED": SettingInfo(
+        package="scrapy-zyte-api", type=SettingType.BOOL
+    ),
     "ZYTE_API_SESSION_LOCATION": SettingInfo(package="scrapy-zyte-api"),
     "ZYTE_API_SESSION_MAX_BAD_INITS": SettingInfo(package="scrapy-zyte-api"),
     "ZYTE_API_SESSION_MAX_BAD_INITS_PER_POOL": SettingInfo(package="scrapy-zyte-api"),
@@ -1000,3 +1025,97 @@ class MissingPackageSettingsIssueFinder(
         setting_info = SETTINGS[setting_name]
         package = setting_info.package
         return f"{self.msg_code}: {self.msg_info}: {setting_name} (package: {package})"
+
+
+class TypeMismatchSettingsIssueFinder(
+    BaseSettingsIssueFinder, AllowedExcludeSettingsMixin
+):
+    msg_code = "SCP17"
+    msg_info = "wrong setting getter"
+
+    TYPE_TO_METHOD: ClassVar[dict[SettingType, str]] = {
+        SettingType.BOOL: "getbool",
+        SettingType.INT: "getint",
+        SettingType.FLOAT: "getfloat",
+        SettingType.LIST: "getlist",
+        SettingType.DICT: "getdict",
+        SettingType.DICT_OR_LIST: "getdictorlist",
+        SettingType.BASED_DICT: "getwithbase",
+    }
+
+    def __init__(
+        self,
+        filename=None,
+        allowed_settings=None,
+        exclude_settings=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(filename, *args, **kwargs)
+        self.typed_settings = {}
+        for name, info in SETTINGS.items():
+            if info.type is not None:
+                self.typed_settings[name] = info.type
+        self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
+
+    def should_report_setting(self, setting_name: str) -> bool:
+        return (
+            setting_name in self.typed_settings
+            and setting_name not in self.allowed_settings
+            and setting_name not in self.exclude_settings
+        )
+
+    def get_setting_message(self, setting_name: str) -> str:
+        setting_type = self.typed_settings[setting_name]
+        expected_method = self.TYPE_TO_METHOD[setting_type]
+        return f"{self.msg_code}: {self.msg_info}: use {expected_method}() to read {setting_name}"
+
+    def check_settings_method_args(
+        self, node: ast.Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        assert isinstance(node.func, ast.Attribute)
+        method_name = node.func.attr
+        param_name = self.settings_methods[method_name]
+        if node.args:
+            first_arg = node.args[0]
+            if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
+                setting_name = first_arg.value
+                if self.should_report_setting(setting_name):
+                    setting_type = self.typed_settings[setting_name]
+                    expected_method = self.TYPE_TO_METHOD[setting_type]
+                    if method_name != expected_method:
+                        yield from self.report_setting_issue(
+                            first_arg.lineno, first_arg.col_offset, setting_name
+                        )
+        for keyword in node.keywords:
+            if keyword.arg != param_name:
+                continue
+            if not isinstance(keyword.value, ast.Constant) or not isinstance(
+                keyword.value.value, str
+            ):
+                continue
+            setting_name = keyword.value.value
+            if self.should_report_setting(setting_name):
+                setting_type = self.typed_settings[setting_name]
+                expected_method = self.TYPE_TO_METHOD[setting_type]
+                if method_name != expected_method:
+                    yield from self.report_setting_issue(
+                        keyword.value.lineno, keyword.value.col_offset, setting_name
+                    )
+
+    def check_subscript(
+        self, node: ast.Subscript
+    ) -> Generator[tuple[int, int, str], None, None]:
+        if not isinstance(node.ctx, ast.Load):
+            return
+        if not self.is_settings_subscript(node):
+            return
+        if not isinstance(node.slice, ast.Constant) or not isinstance(
+            node.slice.value, str
+        ):
+            return
+        setting_name = node.slice.value
+        if self.should_report_setting(setting_name):
+            yield from self.report_setting_issue(
+                node.slice.lineno, node.slice.col_offset, setting_name
+            )

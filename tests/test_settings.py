@@ -338,6 +338,48 @@ ISSUE_COLUMN = 9
                 "CONCURRENT_REQUESTS_PER_DOMAIN, CONCURRENT_REQUESTS?"
             ),
         ),
+        # SCP17: Supported getter syntaxes
+        *(
+            (
+                Input(syntax),
+                Issue(
+                    "SCP17: wrong setting getter: use getbool() to read "
+                    "AUTOTHROTTLE_ENABLED",
+                    column=column,
+                ),
+            )
+            for syntax, column in (
+                ('settings.get("AUTOTHROTTLE_ENABLED")', 13),
+                ('settings.get(name="AUTOTHROTTLE_ENABLED")', 18),
+                ('settings["AUTOTHROTTLE_ENABLED"]', 9),
+            )
+        ),
+        # SCP17: Supported types (bool excluded, already tested above)
+        *(
+            (
+                Input(f'settings["{setting}"]'),
+                Issue(
+                    f"SCP17: wrong setting getter: use {method}() to read {setting}",
+                    column=ISSUE_COLUMN,
+                ),
+            )
+            for setting, method in (
+                ("CONCURRENT_REQUESTS", "getint"),
+                ("LOGSTATS_INTERVAL", "getfloat"),
+                ("LOG_VERSIONS", "getlist"),
+                ("ADDONS", "getdict"),
+                ("FEED_EXPORT_FIELDS", "getdictorlist"),
+                ("SPIDER_CONTRACTS", "getwithbase"),
+            )
+        ),
+        # SCP17: ignored syntaxes
+        *(
+            (
+                Input(syntax),
+                NO_ISSUE,
+            )
+            for syntax in ('settings["AUTOTHROTTLE_ENABLED"] = "foo"',)
+        ),
     ],
 )
 def test_main(input: Input, expected: Issue | None):

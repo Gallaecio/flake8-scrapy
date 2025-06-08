@@ -24,6 +24,7 @@ on Scrapy projects.
 | SCP14 | Insecure Scrapy version in requirements.txt |
 | SCP15 | Use of setting of package not in requirements.txt |
 | SCP16 | Obsolete package in requirements.txt |
+| SCP17 | Wrong setting getter |
 
 
 ## Options

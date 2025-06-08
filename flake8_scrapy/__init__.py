@@ -18,6 +18,7 @@ from ._finders.settings import (
     FutureSettingsIssueFinder,
     MissingPackageSettingsIssueFinder,
     RemovedSettingsIssueFinder,
+    TypeMismatchSettingsIssueFinder,
     UnknownSettingsIssueFinder,
 )
 
@@ -61,6 +62,11 @@ class IssueReporter(ast.NodeVisitor):
                 exclude_settings=missing_package_settings,
             ),
             UnknownSettingsIssueFinder(
+                filename,
+                allowed_settings=allowed_settings,
+                exclude_settings=missing_package_settings,
+            ),
+            TypeMismatchSettingsIssueFinder(
                 filename,
                 allowed_settings=allowed_settings,
                 exclude_settings=missing_package_settings,
