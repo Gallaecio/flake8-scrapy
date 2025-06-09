@@ -840,7 +840,9 @@ ISSUE_COLUMN = 9
                 ("FEED_EXPORT_INDENT", "2"),
                 ("FEED_EXPORT_INDENT", True),
                 ("FEEDS", {}),
+                ("FEEDS", "{}"),
                 ("FEEDS", {"output.json": {"format": "json"}}),
+                ("FEEDS", '{"output.json": {"format": "json"}}'),
                 (
                     "FEEDS",
                     {
@@ -884,10 +886,12 @@ ISSUE_COLUMN = 9
                     },
                 ),
                 ("DOWNLOAD_SLOTS", {}),
+                ("DOWNLOAD_SLOTS", "{}"),
                 ("DOWNLOAD_SLOTS", {"toscrape.com": {}}),
                 ("DOWNLOAD_SLOTS", {"toscrape.com": {"concurrency": 1}}),
                 ("DOWNLOAD_SLOTS", {"toscrape.com": {"delay": 0.0}}),
                 ("DOWNLOAD_SLOTS", {"toscrape.com": {"randomize_delay": True}}),
+                ("DOWNLOAD_SLOTS", '{"toscrape.com": {"concurrency": 1}}'),
             )
         ),
         *(

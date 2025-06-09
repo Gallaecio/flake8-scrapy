@@ -1499,14 +1499,23 @@ class InvalidValueSettingsIssueFinder(
             or re.search(phone_pattern, value)
         )
 
-    def _get_feeds_validation_error(self, value_node: ast.AST) -> str:
+    def _get_feeds_validation_error(self, value_node: ast.AST) -> str:  # noqa: PLR0911
         """Get specific validation error for FEEDS setting, or empty string if valid."""
         # FEEDS must be a dict
         if isinstance(value_node, ast.Constant):
             value = value_node.value
-            if not isinstance(value, dict):
+            if isinstance(value, dict):
+                return self._get_feeds_dict_validation_error(value)
+            if isinstance(value, str):
+                try:
+                    parsed_value = json.loads(value)
+                    if not isinstance(parsed_value, dict):
+                        return "must be a dict"
+                    return self._get_feeds_dict_validation_error(parsed_value)
+                except (json.JSONDecodeError, TypeError):
+                    return "must be a dict"
+            else:
                 return "must be a dict"
-            return self._get_feeds_dict_validation_error(value)
 
         if isinstance(value_node, ast.Dict):
             return self._get_feeds_dict_ast_validation_error(value_node)
@@ -1750,12 +1759,21 @@ class InvalidValueSettingsIssueFinder(
 
         return ""
 
-    def _get_download_slots_validation_error(self, value_node: ast.AST) -> str:
+    def _get_download_slots_validation_error(self, value_node: ast.AST) -> str:  # noqa: PLR0911
         if isinstance(value_node, ast.Constant):
             value = value_node.value
-            if not isinstance(value, dict):
+            if isinstance(value, dict):
+                return self._get_download_slots_dict_validation_error(value)
+            if isinstance(value, str):
+                try:
+                    parsed_value = json.loads(value)
+                    if not isinstance(parsed_value, dict):
+                        return "must be a dict"
+                    return self._get_download_slots_dict_validation_error(parsed_value)
+                except (json.JSONDecodeError, TypeError):
+                    return "must be a dict"
+            else:
                 return "must be a dict"
-            return self._get_download_slots_dict_validation_error(value)
 
         if isinstance(value_node, ast.Dict):
             return self._get_download_slots_dict_ast_validation_error(value_node)
