@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from flake8_scrapy._finders import (
@@ -11,6 +13,10 @@ from . import NO_ISSUE, Input, Issue, run_checker
 from .helpers import check_input
 
 ISSUE_COLUMN = 9
+
+
+class TestScheduler:
+    pass
 
 
 @pytest.mark.parametrize(
@@ -181,7 +187,7 @@ ISSUE_COLUMN = 9
                 issue,
             )
             for setting, value, requirements, issue in [
-                ("BOT_NAME", None, None, NO_ISSUE),
+                ("BOT_NAME", "foo", None, NO_ISSUE),
                 (
                     "REQUEST_FINGERPRINTER_IMPLEMENTATION",
                     "2.6",
@@ -395,38 +401,59 @@ ISSUE_COLUMN = 9
         # SCP18: Supported types (bool excluded, already tested above)
         *(
             (
-                Input(f'settings["{setting}"] = None'),
+                Input(f'settings["{setting}"] = {value!r}'),
                 Issue(
-                    f"SCP18: invalid setting value: {setting} only supports "
-                    f"values that can be passed to {cls}()",
+                    f"SCP18: invalid setting value: {setting} {message}",
                     column=column,
                 ),
             )
-            for setting, cls, column in (
-                ("CONCURRENT_REQUESTS", "int", 34),
-                ("LOGSTATS_INTERVAL", "float", 32),
-                ("LOG_VERSIONS", "list", 27),
-            )
-        ),
-        *(
-            (
-                Input(f'settings["{setting}"] = None'),
-                Issue(
-                    f"SCP18: invalid setting value: {setting} only supports "
-                    f"values that can be passed to dict() or strings defining a "
-                    "JSON object",
-                    column=column,
+            for setting, value, message, column in (
+                (
+                    "CONCURRENT_REQUESTS",
+                    None,
+                    "only supports values that can be passed to int()",
+                    34,
+                ),
+                (
+                    "LOGSTATS_INTERVAL",
+                    None,
+                    "only supports values that can be passed to float()",
+                    32,
+                ),
+                (
+                    "LOG_VERSIONS",
+                    None,
+                    "only supports values that can be passed to list()",
+                    27,
+                ),
+                ("BOT_NAME", None, "only supports string values", 23),
+                ("AWS_ACCESS_KEY_ID", [], "only supports None or string values", 32),
+                (
+                    "SCHEDULER",
+                    123,
+                    "only supports class objects or strings containing class import paths",
+                    24,
+                ),
+                ("JOBDIR", [], "only supports None, Path objects, or strings", 21),
+                (
+                    "ADDONS",
+                    None,
+                    "only supports values that can be passed to dict() or strings defining a JSON object",
+                    21,
+                ),
+                (
+                    "SPIDER_CONTRACTS",
+                    None,
+                    "only supports values that can be passed to dict() or strings defining a JSON object",
+                    31,
+                ),
+                (
+                    "FEED_EXPORT_FIELDS",
+                    0,
+                    "only supports None, str, tuple, dict, or list values",
+                    33,
                 ),
             )
-            for setting, column in (("ADDONS", 21), ("SPIDER_CONTRACTS", 31))
-        ),
-        (
-            Input('settings["FEED_EXPORT_FIELDS"] = 0'),
-            Issue(
-                "SCP18: invalid setting value: FEED_EXPORT_FIELDS only "
-                "supports None, str, tuple, dict, or list values",
-                column=33,
-            ),
         ),
         # SCP18: Ignored (valid) values
         *(
@@ -463,7 +490,21 @@ ISSUE_COLUMN = 9
                 ("FEED_EXPORT_FIELDS", []),
                 ("SPIDER_CONTRACTS", {}),
                 ("SPIDER_CONTRACTS", "{}"),
+                ("BOT_NAME", "mybot"),
+                ("AWS_ACCESS_KEY_ID", None),
+                ("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE"),
+                ("SCHEDULER", "myproject.schedulers.CustomScheduler"),
+                ("JOBDIR", None),
+                ("JOBDIR", "/tmp/foo"),
+                ("JOBDIR", Path("/tmp/foo")),
             )
+        ),
+        *(
+            (
+                Input(f'settings["{setting}"] = {value}'),
+                NO_ISSUE,
+            )
+            for setting, value in (("SCHEDULER", "CustomScheduler"),)
         ),
         # SCP22: flagged values.
         *(

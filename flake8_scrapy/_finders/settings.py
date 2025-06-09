@@ -913,6 +913,11 @@ class InvalidValueSettingsIssueFinder(
                 SettingType.DICT,
                 SettingType.DICT_OR_LIST,
                 SettingType.BASED_DICT,
+                SettingType.OPT_STR,
+                SettingType.STR,
+                SettingType.CLS,
+                SettingType.PATH,
+                SettingType.OPT_PATH,
             ):
                 self.typed_settings[name] = info.type
         self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
@@ -924,6 +929,11 @@ class InvalidValueSettingsIssueFinder(
             SettingType.DICT: self._can_convert_to_dict,
             SettingType.BASED_DICT: self._can_convert_to_dict,
             SettingType.DICT_OR_LIST: self._is_valid_dict_or_list_value,
+            SettingType.OPT_STR: self._is_valid_optional_string,
+            SettingType.STR: self._is_valid_string,
+            SettingType.CLS: self._is_valid_class,
+            SettingType.PATH: self._is_valid_path,
+            SettingType.OPT_PATH: self._is_valid_optional_path,
         }
 
     def should_report_setting(self, setting_name: str) -> bool:
@@ -951,6 +961,11 @@ class InvalidValueSettingsIssueFinder(
             SettingType.DICT: "only supports values that can be passed to dict() or strings defining a JSON object",
             SettingType.BASED_DICT: "only supports values that can be passed to dict() or strings defining a JSON object",
             SettingType.DICT_OR_LIST: "only supports None, str, tuple, dict, or list values",
+            SettingType.OPT_STR: "only supports None or string values",
+            SettingType.STR: "only supports string values",
+            SettingType.CLS: "only supports class objects or strings containing class import paths",
+            SettingType.PATH: "only supports Path objects or strings",
+            SettingType.OPT_PATH: "only supports None, Path objects, or strings",
         }
 
         message_suffix = type_messages.get(setting_type, "has an invalid value")
@@ -1126,6 +1141,14 @@ class InvalidValueSettingsIssueFinder(
             return isinstance(value_node, (ast.List, ast.Tuple, ast.Set))
         if setting_type == SettingType.DICT_OR_LIST:
             return isinstance(value_node, ast.Set)
+        if setting_type in (
+            SettingType.STR,
+            SettingType.OPT_STR,
+            SettingType.CLS,
+            SettingType.PATH,
+            SettingType.OPT_PATH,
+        ):
+            return isinstance(value_node, complex_types)
         return isinstance(value_node, complex_types)
 
     def _can_convert_to_int(self, value) -> bool:
@@ -1172,6 +1195,41 @@ class InvalidValueSettingsIssueFinder(
         if value is None:
             return True
         return isinstance(value, (str, tuple, dict, list))
+
+    def _is_valid_optional_string(self, value) -> bool:
+        return value is None or isinstance(value, str)
+
+    def _is_valid_string(self, value) -> bool:
+        return isinstance(value, str)
+
+    def _is_valid_class(self, value) -> bool:
+        if isinstance(value, type):
+            return True
+        if isinstance(value, str):
+            return self._looks_like_class_import_path(value)
+        return False
+
+    def _looks_like_class_import_path(self, value: str) -> bool:
+        if not value:
+            return False
+        parts = value.split(".")
+        MINIMUM_IMPORT_PARTS = 2
+        if len(parts) < MINIMUM_IMPORT_PARTS:
+            return False
+        for part in parts:
+            if not part.isidentifier():
+                return False
+        return parts[-1][0].isupper()
+
+    def _is_valid_path(self, value) -> bool:
+        if isinstance(value, Path):
+            return True
+        return isinstance(value, str)
+
+    def _is_valid_optional_path(self, value) -> bool:
+        if value is None:
+            return True
+        return self._is_valid_path(value)
 
     def _is_invalid_user_agent(self, value_node: ast.AST) -> bool:
         if not isinstance(value_node, ast.Constant):

@@ -33,7 +33,7 @@ on Scrapy projects.
 | SCP23 | Redefined setting in settings.py |
 | SCP24 | Use of a BASE setting |
 | SCP25 | Unneeded settings.get() |
-| SCP26 | Ignored default |
+| SCP26 | Ignored getter default |
 
 
 ## Options
