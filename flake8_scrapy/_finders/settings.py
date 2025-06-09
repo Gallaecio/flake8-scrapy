@@ -12,6 +12,7 @@ from packaging.utils import canonicalize_name
 from packaging.version import Version
 
 from . import MINIMUM_SUPPORTED_SCRAPY_VERSION, IssueFinder
+from .mixins import AllowedExcludeSettingsMixin
 from .settings_data import (
     HARDCODED_SUGGESTIONS,
     MIN_SUGGESTION_SCORE,
@@ -29,14 +30,6 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 MIN_VALID_SETTING_NAME_LENGTH = 3
-
-
-class AllowedExcludeSettingsMixin:
-    def _init_allowed_exclude_settings(
-        self, allowed_settings=None, exclude_settings=None
-    ):
-        self.allowed_settings = set(allowed_settings) if allowed_settings else set()
-        self.exclude_settings = set(exclude_settings) if exclude_settings else set()
 
 
 def get_setting_suggestions(

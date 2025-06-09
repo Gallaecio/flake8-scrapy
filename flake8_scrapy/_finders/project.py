@@ -3,60 +3,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar
 
 from . import MINIMUM_SUPPORTED_SCRAPY_VERSION, IssueFinder
+from .mixins import RequirementsParsingMixin, VersionValidationMixin
 from .utilities import (
     is_frozen_requirement,
-    is_version_less_than,
-    parse_requirement_line,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-class BaseProjectIssueFinder(IssueFinder):
+class BaseProjectIssueFinder(IssueFinder, RequirementsParsingMixin):
     def __init__(self, filename=None, *args, **kwargs):
         super().__init__(*args, filename=filename, **kwargs)
         self._checked_projects = set()
-
-    def should_check_project(self, project_root):
-        if not project_root:
-            return False
-        project_key = str(project_root)
-        if project_key in self._checked_projects:
-            return False
-        self._checked_projects.add(project_key)
-        return True
-
-    def process_requirements_txt(
-        self, node
-    ) -> Generator[tuple[int, int, str], None, None]:
-        project_root = self.get_project_root()
-        if not self.should_check_project(project_root):
-            return
-        assert project_root is not None
-        requirements_txt = project_root / "requirements.txt"
-        if (
-            hasattr(self, "check_missing_requirements")
-            and not requirements_txt.exists()
-        ):
-            yield from self.check_missing_requirements()
-            return
-        if not requirements_txt.exists():
-            return
-        try:
-            content = requirements_txt.read_text(encoding="utf-8")
-            lines = content.splitlines()
-            for line_num, line in enumerate(lines, 1):
-                yield from self.check_requirement_line(line_num, line)
-        except (OSError, UnicodeDecodeError):
-            # If we can't read the file, skip the check
-            return
-
-    def check_requirement_line(
-        self, line_num: int, line: str
-    ) -> Generator[tuple[int, int, str], None, None]:
-        return
-        yield
 
     def find_issues(self, node) -> Generator[tuple[int, int, str], None, None]:
         yield from self.process_requirements_txt(node)
@@ -77,13 +36,13 @@ class NonFrozenDependenciesIssueFinder(BaseProjectIssueFinder):
     def check_requirement_line(
         self, line_num: int, line: str
     ) -> Generator[tuple[int, int, str], None, None]:
-        req = parse_requirement_line(line)
+        req = self.parse_requirement_from_line(line)
         if req is not None and not is_frozen_requirement(req):
             message = f"{self.msg_code} {self.msg_info}: {req.name}"
             yield (line_num, 0, message)
 
 
-class BaseScrapyVersionIssueFinder(BaseProjectIssueFinder):
+class BaseScrapyVersionIssueFinder(BaseProjectIssueFinder, VersionValidationMixin):
     """Base class for Scrapy version checkers."""
 
     minimum_version: str = ""
@@ -91,14 +50,10 @@ class BaseScrapyVersionIssueFinder(BaseProjectIssueFinder):
     def check_requirement_line(
         self, line_num: int, line: str
     ) -> Generator[tuple[int, int, str], None, None]:
-        req = parse_requirement_line(line)
+        req = self.parse_requirement_from_line(line)
         if req is None:
             return
-        if req.name.lower() == "scrapy" and is_frozen_requirement(req):
-            version_part = next(iter(req.specifier)).version
-            if is_version_less_than(version_part, self.minimum_version):
-                message = f"{self.msg_code} {self.msg_info}: {version_part} (minimum required: {self.minimum_version})"
-                yield (line_num, 0, message)
+        yield from self.validate_scrapy_version(req, line_num)
 
 
 class AncientScrapyVersionIssueFinder(BaseScrapyVersionIssueFinder):
@@ -125,7 +80,7 @@ class ObsoletePackagesIssueFinder(BaseProjectIssueFinder):
     def check_requirement_line(
         self, line_num: int, line: str
     ) -> Generator[tuple[int, int, str], None, None]:
-        req = parse_requirement_line(line)
+        req = self.parse_requirement_from_line(line)
         if req is None:
             return
 
