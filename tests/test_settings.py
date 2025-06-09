@@ -896,7 +896,6 @@ ISSUE_COLUMN = 9
                 ("BOT_NAME", "mybot"),
                 ("AWS_ACCESS_KEY_ID", None),
                 ("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE"),
-                ("SCHEDULER", "myproject.schedulers.CustomScheduler"),
                 ("JOBDIR", None),
                 ("JOBDIR", "/tmp/foo"),
                 ("JOBDIR", Path("/tmp/foo")),
@@ -1110,6 +1109,30 @@ ISSUE_COLUMN = 9
                 # None does not apply, since almost any value that can be None
                 # must use get().
             )
+        ),
+        # SCP27: unnecessary import path strings
+        *(
+            (
+                Input(f"{setting} = {value}", filename="settings.py"),
+                Issue(
+                    f"SCP27: import path string in setting: {setting} should import the class directly instead of using import path string",
+                    column=len(setting) + 3,
+                ),
+            )
+            for setting, value in [
+                ("DOWNLOADER", repr("custom.Downloader")),
+            ]
+        ),
+        # SCP27: potentially necessary import path strings
+        (
+            # Based dicts may need import path strings to disable or change the
+            # priority of built-in keys from the base setting.
+            Input(
+                "SPIDER_MIDDLEWARES = "
+                '{"scrapy.spidermiddlewares.httperror.HttpErrorMiddleware": None}',
+                filename="settings.py",
+            ),
+            NO_ISSUE,
         ),
     ],
 )

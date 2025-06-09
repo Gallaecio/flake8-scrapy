@@ -2885,3 +2885,207 @@ class BaseSettingNameIssueFinder(BaseSettingsIssueFinder):
 
     def get_setting_message(self, setting_name: str) -> str:
         return f"{self.msg_code}: {self.msg_info}: do not use {setting_name}, use {setting_name[:-5]} instead"
+
+
+class ImportPathStringIssueFinder(BaseSettingsIssueFinder):
+    msg_code = "SCP27"
+    msg_info = "import path string in setting"
+    _instance_count = 0
+
+    def __init__(self, filename=None, *args, **kwargs):
+        super().__init__(filename, *args, **kwargs)
+        ImportPathStringIssueFinder._instance_count += 1
+        print(
+            f"SCP27 instance #{ImportPathStringIssueFinder._instance_count} created for filename: {filename}"
+        )
+
+    def should_report_setting(self, setting_name: str) -> bool:
+        # Always return False here to prevent base class from reporting
+        # We handle the logic in our specific check methods
+        return False
+
+    def get_setting_message(self, setting_name: str) -> str:
+        return f"{self.msg_code}: {self.msg_info}: {setting_name} should import the class directly instead of using import path string"
+
+    def _should_report_cls_setting(self, setting_name: str) -> bool:
+        return (
+            setting_name in SETTINGS and SETTINGS[setting_name].type == SettingType.CLS
+        )
+
+    def check_assignment(
+        self, node: ast.Assign
+    ) -> Generator[tuple[int, int, str], None, None]:
+        # Completely override base class to prevent duplicate reporting
+        import traceback
+
+        print(
+            f"SCP27 check_assignment called for {[t.id if isinstance(t, ast.Name) else str(t) for t in node.targets]}"
+        )
+        print(f"Call stack: {traceback.format_stack()[-3]}")
+
+        # Add a guard to prevent duplicate processing
+        if hasattr(node, "_scp27_processed"):
+            print("SCP27: Node already processed, skipping")
+            return
+        node._scp27_processed = True
+
+        file_name = Path(self.filename).name if self.filename else None
+        # Check both settings.py files and any file (for subscript assignments)
+        for target in node.targets:
+            setting_name = None
+
+            # Handle direct assignment: SETTING = "value"
+            if isinstance(target, ast.Name) and self.is_likely_setting(target.id):
+                if (
+                    file_name == "settings.py"
+                ):  # Only check direct assignments in settings.py
+                    setting_name = target.id
+
+            # Handle subscript assignment: settings["SETTING"] = "value"
+            elif (
+                isinstance(target, ast.Subscript)
+                and self.is_settings_subscript(target)
+                and isinstance(target.slice, ast.Constant)
+                and isinstance(target.slice.value, str)
+            ):
+                setting_name = target.slice.value
+
+            if setting_name:
+                print(f"SCP27 checking setting: {setting_name}")
+                if self._should_report_cls_setting(setting_name):
+                    print(f"SCP27 {setting_name} is CLS setting")
+                    if self._is_import_path_string_value(node.value):
+                        print(f"SCP27 {setting_name} has import path string value")
+                        yield (
+                            node.value.lineno,
+                            node.value.col_offset,
+                            self.get_setting_message(setting_name),
+                        )
+
+        # Handle custom_settings assignments like the base class does
+        if isinstance(node.value, ast.Dict):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "custom_settings":
+                    yield from self._check_dict_values(node.value)
+
+    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:
+        if isinstance(node.func, ast.Attribute) and self.is_settings_method_call(node):
+            yield from self.check_settings_method_args(node)
+        elif isinstance(node.func, ast.Attribute) and self.is_settings_dict_method_call(
+            node
+        ):
+            yield from self.check_settings_dict_method_args(node)
+        elif self.is_settings_constructor_call(node):
+            yield from self.check_settings_constructor_args(node)
+        elif self.is_overridden_settings_call(node):
+            yield from self.check_overridden_settings_args(node)
+
+    def is_settings_constructor_call(self, node: ast.Call) -> bool:
+        if isinstance(node.func, ast.Name):
+            return node.func.id in ("Settings", "BaseSettings")
+        return False
+
+    def is_overridden_settings_call(self, node: ast.Call) -> bool:
+        if isinstance(node.func, ast.Name):
+            return node.func.id == "overridden_settings"
+        if isinstance(node.func, ast.Attribute):
+            return node.func.attr == "overridden_settings"
+        return False
+
+    def check_subscript(
+        self, node: ast.Subscript
+    ) -> Generator[tuple[int, int, str], None, None]:
+        # SCP27 doesn't need to check subscript reads, only assignments
+        # Subscript assignments are handled by the framework differently
+        return
+        yield  # unreachable, but needed to make this a generator
+
+    def check_settings_method_args(
+        self, node: ast.Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        if not node.args:
+            return
+
+        first_arg = node.args[0]
+        if not (
+            isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str)
+        ):
+            return
+
+        setting_name = first_arg.value
+        if not self._should_report_cls_setting(setting_name):
+            return
+
+        if len(node.args) >= 2:  # noqa: PLR2004
+            value = node.args[1]
+            if self._is_import_path_string_value(value):
+                yield (
+                    value.lineno,
+                    value.col_offset,
+                    self.get_setting_message(setting_name),
+                )
+
+    def check_settings_dict_method_args(
+        self, node: ast.Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        method_name = node.func.attr
+        if method_name == "update":
+            for arg in node.args:
+                if isinstance(arg, ast.Dict):
+                    yield from self._check_dict_values(arg)
+
+        for keyword in node.keywords:
+            if keyword.arg == "values" and isinstance(keyword.value, ast.Dict):
+                yield from self._check_dict_values(keyword.value)
+
+    def check_settings_constructor_args(
+        self, node: ast.Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        for arg in node.args:
+            if isinstance(arg, ast.Dict):
+                yield from self._check_dict_values(arg)
+
+        for keyword in node.keywords:
+            if keyword.arg == "values" and isinstance(keyword.value, ast.Dict):
+                yield from self._check_dict_values(keyword.value)
+
+    def check_overridden_settings_args(
+        self, node: ast.Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        for arg in node.args:
+            if isinstance(arg, ast.Dict):
+                yield from self._check_dict_values(arg)
+
+    def _check_dict_values(
+        self, node: ast.Dict
+    ) -> Generator[tuple[int, int, str], None, None]:
+        for key, value in zip(node.keys, node.values):
+            if (
+                isinstance(key, ast.Constant)
+                and isinstance(key.value, str)
+                and self._should_report_cls_setting(key.value)
+            ):
+                setting_name = key.value
+                if self._is_import_path_string_value(value):
+                    yield (
+                        value.lineno,
+                        value.col_offset,
+                        self.get_setting_message(setting_name),
+                    )
+
+    def _is_import_path_string_value(self, value: ast.AST) -> bool:
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            return self._looks_like_class_import_path(value.value)
+        return False
+
+    def _looks_like_class_import_path(self, value: str) -> bool:
+        if not value:
+            return False
+        parts = value.split(".")
+        MINIMUM_IMPORT_PARTS = 2
+        if len(parts) < MINIMUM_IMPORT_PARTS:
+            return False
+        for part in parts:
+            if not part.isidentifier():
+                return False
+        return parts[-1][0].isupper()
