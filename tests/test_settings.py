@@ -554,6 +554,24 @@ ISSUE_COLUMN = 9
                     "must be a dict",
                     20,
                 ),
+                (
+                    "DOWNLOAD_SLOTS",
+                    "not_a_dict",
+                    "must be a dict",
+                    29,
+                ),
+                (
+                    "DOWNLOAD_SLOTS",
+                    [],
+                    "must be a dict",
+                    29,
+                ),
+                (
+                    "DOWNLOAD_SLOTS",
+                    None,
+                    "must be a dict",
+                    29,
+                ),
             )
         ),
         # SCP18: FEEDS specific validation test cases
@@ -719,6 +737,44 @@ ISSUE_COLUMN = 9
                 column=20,
             ),
         ),
+        # DOWNLOAD_SLOTS: unsupported key
+        (
+            Input('settings["DOWNLOAD_SLOTS"] = {"toscrape.com": {"foo": "bar"}}'),
+            Issue(
+                "SCP18: invalid setting value: DOWNLOAD_SLOTS unknown slot config key 'foo' in 'toscrape.com', must be one of: concurrency, delay, randomize_delay",
+                column=29,
+            ),
+        ),
+        (
+            Input('settings["DOWNLOAD_SLOTS"] = {"toscrape.com": {"concurrency": -1}}'),
+            Issue(
+                "SCP18: invalid setting value: DOWNLOAD_SLOTS 'concurrency' in 'toscrape.com' must be a positive integer (1+)",
+                column=29,
+            ),
+        ),
+        (
+            Input('settings["DOWNLOAD_SLOTS"] = {"toscrape.com": {"concurrency": 0}}'),
+            Issue(
+                "SCP18: invalid setting value: DOWNLOAD_SLOTS 'concurrency' in 'toscrape.com' must be a positive integer (1+)",
+                column=29,
+            ),
+        ),
+        (
+            Input('settings["DOWNLOAD_SLOTS"] = {"toscrape.com": {"delay": -1}}'),
+            Issue(
+                "SCP18: invalid setting value: DOWNLOAD_SLOTS 'delay' in 'toscrape.com' must be a positive float (0.0+)",
+                column=29,
+            ),
+        ),
+        (
+            Input(
+                'settings["DOWNLOAD_SLOTS"] = {"toscrape.com": {"randomize_delay": 1}}'
+            ),
+            Issue(
+                "SCP18: invalid setting value: DOWNLOAD_SLOTS 'randomize_delay' in 'toscrape.com' must be a boolean",
+                column=29,
+            ),
+        ),
         # SCP18: Ignored (valid) values
         *(
             (
@@ -827,6 +883,11 @@ ISSUE_COLUMN = 9
                         }
                     },
                 ),
+                ("DOWNLOAD_SLOTS", {}),
+                ("DOWNLOAD_SLOTS", {"toscrape.com": {}}),
+                ("DOWNLOAD_SLOTS", {"toscrape.com": {"concurrency": 1}}),
+                ("DOWNLOAD_SLOTS", {"toscrape.com": {"delay": 0.0}}),
+                ("DOWNLOAD_SLOTS", {"toscrape.com": {"randomize_delay": True}}),
             )
         ),
         *(

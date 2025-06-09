@@ -997,7 +997,7 @@ class InvalidValueSettingsIssueFinder(
         return (
             (
                 setting_name in self.typed_settings
-                or setting_name in ("USER_AGENT", "FEEDS")
+                or setting_name in ("USER_AGENT", "FEEDS", "DOWNLOAD_SLOTS")
             )
             and setting_name not in self.allowed_settings
             and setting_name not in self.exclude_settings
@@ -1016,6 +1016,9 @@ class InvalidValueSettingsIssueFinder(
             return (
                 f"{self.msg_code}: {self.msg_info}: FEEDS {self._feeds_error_message}"
             )
+
+        if setting_name == "DOWNLOAD_SLOTS":
+            return f"{self.msg_code}: {self.msg_info}: DOWNLOAD_SLOTS {self._feeds_error_message}"
 
         setting_type = self.typed_settings[setting_name]
 
@@ -1189,6 +1192,13 @@ class InvalidValueSettingsIssueFinder(
             feeds_error = self._get_feeds_validation_error(value_node)
             if feeds_error:
                 self._feeds_error_message = feeds_error
+                return True
+            return False
+
+        if setting_name == "DOWNLOAD_SLOTS":
+            download_slots_error = self._get_download_slots_validation_error(value_node)
+            if download_slots_error:
+                self._feeds_error_message = download_slots_error
                 return True
             return False
 
@@ -1737,6 +1747,112 @@ class InvalidValueSettingsIssueFinder(
             ):
                 return f"'uri_params' in {feed_key} contains invalid callable import path {value_node.value!r}"
             # Allow any other AST node type for callable references (Name, Attribute, etc.)
+
+        return ""
+
+    def _get_download_slots_validation_error(self, value_node: ast.AST) -> str:
+        if isinstance(value_node, ast.Constant):
+            value = value_node.value
+            if not isinstance(value, dict):
+                return "must be a dict"
+            return self._get_download_slots_dict_validation_error(value)
+
+        if isinstance(value_node, ast.Dict):
+            return self._get_download_slots_dict_ast_validation_error(value_node)
+
+        return "must be a dict"
+
+    def _get_download_slots_dict_validation_error(self, slots_dict: dict) -> str:
+        for key, slot_config in slots_dict.items():
+            if not isinstance(key, str):
+                return f"key {key!r} must be a string"
+
+            if not isinstance(slot_config, dict):
+                return f"slot config for {key!r} must be a dict"
+
+            error = self._get_slot_config_validation_error(key, slot_config)
+            if error:
+                return error
+
+        return ""
+
+    def _get_download_slots_dict_ast_validation_error(self, dict_node: ast.Dict) -> str:
+        for key_node, value_node in zip(dict_node.keys, dict_node.values):
+            key_repr = "<?>"
+            if isinstance(key_node, ast.Constant):
+                key_repr = repr(key_node.value)
+                if not isinstance(key_node.value, str):
+                    return f"key {key_repr} must be a string"
+            else:
+                return f"key {key_repr} must be a string"
+
+            if not isinstance(value_node, ast.Dict):
+                return f"slot config for {key_repr} must be a dict"
+
+            error = self._get_slot_config_ast_validation_error(key_repr, value_node)
+            if error:
+                return error
+
+        return ""
+
+    def _get_slot_config_validation_error(
+        self, slot_key: str, slot_config: dict
+    ) -> str:
+        allowed_keys = {"concurrency", "delay", "randomize_delay"}
+        for key, value in slot_config.items():
+            if not isinstance(key, str):
+                return f"slot config key {key!r} in {slot_key!r} must be a string"
+
+            if key not in allowed_keys:
+                return f"unknown slot config key '{key}' in {slot_key!r}, must be one of: {', '.join(sorted(allowed_keys))}"
+
+            if key == "concurrency" and not (isinstance(value, int) and value >= 1):
+                return f"'concurrency' in {slot_key!r} must be a positive integer (1+)"
+            if key == "delay" and not (
+                isinstance(value, (int, float)) and value >= 0.0
+            ):
+                return f"'delay' in {slot_key!r} must be a positive float (0.0+)"
+            if key == "randomize_delay" and not isinstance(value, bool):
+                return f"'randomize_delay' in {slot_key!r} must be a boolean"
+
+        return ""
+
+    def _get_slot_config_ast_validation_error(
+        self, slot_key: str, dict_node: ast.Dict
+    ) -> str:
+        allowed_keys = {"concurrency", "delay", "randomize_delay"}
+        for key_node, value_node in zip(dict_node.keys, dict_node.values):
+            if not isinstance(key_node, ast.Constant) or not isinstance(
+                key_node.value, str
+            ):
+                return f"slot config key in {slot_key} must be a string"
+
+            key = key_node.value
+
+            if key not in allowed_keys:
+                return f"unknown slot config key '{key}' in {slot_key}, must be one of: {', '.join(sorted(allowed_keys))}"
+
+            if key == "concurrency":
+                if not (
+                    isinstance(value_node, ast.Constant)
+                    and isinstance(value_node.value, int)
+                    and value_node.value >= 1
+                ):
+                    return (
+                        f"'concurrency' in {slot_key} must be a positive integer (1+)"
+                    )
+            elif key == "delay":
+                if not (
+                    isinstance(value_node, ast.Constant)
+                    and isinstance(value_node.value, (int, float))
+                    and value_node.value >= 0.0
+                ):
+                    return f"'delay' in {slot_key} must be a positive float (0.0+)"
+            elif key == "randomize_delay" and not (
+                isinstance(value_node, ast.Constant)
+                and isinstance(value_node.value, bool)
+            ):
+                return f"'randomize_delay' in {slot_key} must be a boolean"
 
         return ""
 
