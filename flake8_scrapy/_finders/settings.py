@@ -1931,8 +1931,19 @@ class UnnecessaryGetIssueFinder(BaseSettingsIssueFinder):
         if not isinstance(node.func, ast.Attribute):
             return
 
-        if self.is_settings_method_call(node) and node.func.attr == "get":
-            yield from self.check_settings_method_args(node, "get", "")
+        getter_methods = {
+            "get",
+            "getbool",
+            "getint",
+            "getfloat",
+            "getlist",
+            "getdict",
+            "getdictorlist",
+            "getwithbase",
+        }
+
+        if self.is_settings_method_call(node) and node.func.attr in getter_methods:
+            yield from self.check_settings_method_args(node)
 
     def check_subscript(
         self, node: ast.Subscript
@@ -1947,9 +1958,22 @@ class UnnecessaryGetIssueFinder(BaseSettingsIssueFinder):
         yield  # pragma: no cover
 
     def check_settings_method_args(
-        self, node: ast.Call, method_name: str, param_name: str
+        self, node: ast.Call
     ) -> Generator[tuple[int, int, str], None, None]:
-        if method_name != "get":
+        assert isinstance(node.func, ast.Attribute)
+        method_name = node.func.attr
+        getter_methods = {
+            "get",
+            "getbool",
+            "getint",
+            "getfloat",
+            "getlist",
+            "getdict",
+            "getdictorlist",
+            "getwithbase",
+        }
+
+        if method_name not in getter_methods:
             return
 
         first_arg = node.args[0] if node.args else None
@@ -2010,7 +2034,7 @@ class UnnecessaryGetIssueFinder(BaseSettingsIssueFinder):
 
 class IgnoredGetDefaultIssueFinder(BaseSettingsIssueFinder):
     msg_code = "SCP26"
-    msg_info = "ignored get() default"
+    msg_info = "ignored getter default"
 
     def __init__(self, filename=None, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
@@ -2018,11 +2042,11 @@ class IgnoredGetDefaultIssueFinder(BaseSettingsIssueFinder):
     def should_report_setting(self, setting_name: str) -> bool:
         return setting_name in SETTINGS
 
-    def get_setting_message(self, setting_name: str) -> str:
+    def get_setting_message(self, setting_name: str, method_name: str = "get") -> str:
         return (
             f"{self.msg_code}: {self.msg_info}: {setting_name} is set in "
             "scrapy.settings.default_settings with a non-None value, "
-            "so the default value passed to get() will never be used."
+            f"so the default value passed to {method_name}() will never be used."
         )
 
     def check_assignment(
@@ -2035,8 +2059,19 @@ class IgnoredGetDefaultIssueFinder(BaseSettingsIssueFinder):
         if not isinstance(node.func, ast.Attribute):
             return
 
-        if self.is_settings_method_call(node) and node.func.attr == "get":
-            yield from self.check_settings_method_args(node, "get", "")
+        getter_methods = {
+            "get",
+            "getbool",
+            "getint",
+            "getfloat",
+            "getlist",
+            "getdict",
+            "getdictorlist",
+            "getwithbase",
+        }
+
+        if self.is_settings_method_call(node) and node.func.attr in getter_methods:
+            yield from self.check_settings_method_args(node)
 
     def check_subscript(
         self, node: ast.Subscript
@@ -2051,9 +2086,22 @@ class IgnoredGetDefaultIssueFinder(BaseSettingsIssueFinder):
         yield  # pragma: no cover
 
     def check_settings_method_args(
-        self, node: ast.Call, method_name: str, param_name: str
+        self, node: ast.Call
     ) -> Generator[tuple[int, int, str], None, None]:
-        if method_name != "get":
+        assert isinstance(node.func, ast.Attribute)
+        method_name = node.func.attr
+        getter_methods = {
+            "get",
+            "getbool",
+            "getint",
+            "getfloat",
+            "getlist",
+            "getdict",
+            "getdictorlist",
+            "getwithbase",
+        }
+
+        if method_name not in getter_methods:
             return
 
         first_arg = node.args[0] if node.args else None
@@ -2080,9 +2128,13 @@ class IgnoredGetDefaultIssueFinder(BaseSettingsIssueFinder):
                         and node.args[1].value is None
                     )
                 ):
-                    yield from self.report_setting_issue(
-                        first_arg.lineno, first_arg.col_offset, setting_name
-                    )
+                    # Point to the default value (second argument) instead of setting name
+                    default_arg = node.args[1]
+                    if setting_name in self.found_settings:
+                        return
+                    self.found_settings.add(setting_name)
+                    message = self.get_setting_message(setting_name, method_name)
+                    yield (default_arg.lineno, default_arg.col_offset, message)
 
         # Check keyword arguments
         for keyword in node.keywords:
@@ -2103,11 +2155,13 @@ class IgnoredGetDefaultIssueFinder(BaseSettingsIssueFinder):
                             isinstance(kw.value, ast.Constant)
                             and kw.value.value is None
                         ):
-                            yield from self.report_setting_issue(
-                                keyword.value.lineno,
-                                keyword.value.col_offset,
-                                setting_name,
+                            if setting_name in self.found_settings:
+                                return
+                            self.found_settings.add(setting_name)
+                            message = self.get_setting_message(
+                                setting_name, method_name
                             )
+                            yield (kw.value.lineno, kw.value.col_offset, message)
                             break
 
 

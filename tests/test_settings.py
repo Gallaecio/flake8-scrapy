@@ -549,10 +549,10 @@ ISSUE_COLUMN = 9
                 (
                     "settings.get('BOT_NAME', 'foo')",
                     Issue(
-                        "SCP26: ignored get() default: BOT_NAME is set in "
+                        "SCP26: ignored getter default: BOT_NAME is set in "
                         "scrapy.settings.default_settings with a non-None "
-                        "value, so the default value passed to get() will "
-                        "never be used.",
+                        "value, so the default value passed to get() "
+                        "will never be used.",
                         column=25,
                     ),
                 ),
@@ -565,7 +565,7 @@ ISSUE_COLUMN = 9
                 (
                     "settings.getbool('AUTOTHROTTLE_ENABLED', 'foo')",
                     Issue(
-                        "SCP26: ignored getbool() default: "
+                        "SCP26: ignored getter default: "
                         "AUTOTHROTTLE_ENABLED is set in "
                         "scrapy.settings.default_settings with a non-None "
                         "value, so the default value passed to getbool() "
