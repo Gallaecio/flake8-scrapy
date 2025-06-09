@@ -518,16 +518,21 @@ ISSUE_COLUMN = 9
                     "only supports None, True, or a dict with 'include' and/or 'exclude' keys containing lists of strings",
                     33,
                 ),
-                # FEEDS setting validation
                 (
-                    "FEEDS",
-                    "not_a_dict",
-                    "must be a dict",
-                    20,
+                    "FEED_URI_PARAMS",
+                    123,
+                    "only supports None, callable objects, or strings containing callable import paths",
+                    30,
+                ),
+                (
+                    "FEED_URI_PARAMS",
+                    "invalid",
+                    "only supports None, callable objects, or strings containing callable import paths",
+                    30,
                 ),
                 (
                     "FEEDS",
-                    123,
+                    "not_a_dict",
                     "must be a dict",
                     20,
                 ),
@@ -765,7 +770,8 @@ ISSUE_COLUMN = 9
                 ("PERIODIC_LOG_DELTA", {"include": []}),
                 ("PERIODIC_LOG_DELTA", {"exclude": []}),
                 ("PERIODIC_LOG_DELTA", {}),
-                # FEEDS setting validation - valid values
+                ("FEED_URI_PARAMS", None),
+                ("FEED_URI_PARAMS", "myproject.utils.get_uri_params"),
                 ("FEEDS", {}),
                 ("FEEDS", {"output.json": {"format": "json"}}),
                 (
@@ -817,7 +823,10 @@ ISSUE_COLUMN = 9
                 Input(f'settings["{setting}"] = {value}'),
                 NO_ISSUE,
             )
-            for setting, value in (("SCHEDULER", "CustomScheduler"),)
+            for setting, value in (
+                ("SCHEDULER", "CustomScheduler"),
+                ("FEED_URI_PARAMS", "uri_params"),
+            )
         ),
         (
             Input(

@@ -37,6 +37,7 @@ class SettingType(Enum):
     LOG_LEVEL = "log_level"
     ENUM_STR = "enum_str"
     PERIODIC_LOG_CONFIG = "periodic_log_config"
+    OPT_CALLABLE = "opt_callable"
 
 
 class AllowedExcludeSettingsMixin:
@@ -156,7 +157,7 @@ SETTINGS = {
     "FEED_STORAGES": SettingInfo(type=SettingType.BASED_DICT),
     "FEED_STORAGES_BASE": SettingInfo(),
     "FEED_TEMPDIR": SettingInfo(type=SettingType.OPT_PATH),
-    "FEED_URI_PARAMS": SettingInfo(),
+    "FEED_URI_PARAMS": SettingInfo(type=SettingType.OPT_CALLABLE),
     "FEEDS": SettingInfo(added_version="2.1.0", type=SettingType.DICT),
     "FILES_EXPIRES": SettingInfo(type=SettingType.INT),
     "FILES_RESULT_FIELD": SettingInfo(type=SettingType.OPT_STR),
@@ -964,6 +965,7 @@ class InvalidValueSettingsIssueFinder(
                 SettingType.LOG_LEVEL,
                 SettingType.ENUM_STR,
                 SettingType.PERIODIC_LOG_CONFIG,
+                SettingType.OPT_CALLABLE,
             ):
                 self.typed_settings[name] = info.type
                 if info.type == SettingType.ENUM_STR and info.allowed_values:
@@ -985,6 +987,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.LOG_LEVEL: self._is_valid_log_level,
             SettingType.ENUM_STR: self._is_valid_enum_string,
             SettingType.PERIODIC_LOG_CONFIG: self._is_valid_periodic_log_config,
+            SettingType.OPT_CALLABLE: self._is_valid_optional_callable,
         }
 
     def should_report_setting(self, setting_name: str) -> bool:
@@ -1029,6 +1032,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.LOG_LEVEL: f"only supports valid logging levels: {', '.join(map(repr, self.VALID_LOG_LEVEL_LITERALS))} or any integer",
             SettingType.ENUM_STR: self._get_enum_message(setting_name),
             SettingType.PERIODIC_LOG_CONFIG: "only supports None, True, or a dict with 'include' and/or 'exclude' keys containing lists of strings",
+            SettingType.OPT_CALLABLE: "only supports None, callable objects, or strings containing callable import paths",
         }
 
         message_suffix = type_messages.get(setting_type, "has an invalid value")
@@ -1239,6 +1243,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.PATH,
             SettingType.OPT_PATH,
             SettingType.ENUM_STR,
+            SettingType.OPT_CALLABLE,
         ):
             return isinstance(value_node, complex_types)
         return isinstance(value_node, complex_types)
@@ -1384,6 +1389,16 @@ class InvalidValueSettingsIssueFinder(
 
             return True
 
+        return False
+
+    def _is_valid_optional_callable(self, value) -> bool:
+        """Check if a value is valid for OPT_CALLABLE type settings."""
+        if value is None:
+            return True
+        if callable(value):
+            return True
+        if isinstance(value, str):
+            return self._looks_like_callable_import_path(value)
         return False
 
     def _is_invalid_periodic_log_config_ast(self, value_node: ast.AST) -> bool:  # noqa: PLR0911
@@ -1710,7 +1725,7 @@ class InvalidValueSettingsIssueFinder(
                 )
             ):
                 return f"'uri_params' in {feed_key} contains invalid callable import path {value_node.value!r}"
-                # Allow any other AST node type for callable references (Name, Attribute, etc.)
+            # Allow any other AST node type for callable references (Name, Attribute, etc.)
 
         return ""
 
