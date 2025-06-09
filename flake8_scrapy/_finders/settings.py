@@ -462,7 +462,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.CLS: self._is_valid_class,
             SettingType.PATH: self._is_valid_path,
             SettingType.OPT_PATH: self._is_valid_optional_path,
-            SettingType.LOG_LEVEL: self._is_valid_log_level,
+            SettingType.LOG_LEVEL: is_valid_log_level,
             SettingType.ENUM_STR: self._is_valid_enum_string,
             SettingType.PERIODIC_LOG_CONFIG: self._is_valid_periodic_log_config,
             SettingType.OPT_CALLABLE: self._is_valid_optional_callable,
@@ -803,15 +803,8 @@ class InvalidValueSettingsIssueFinder(
         if isinstance(value, type):
             return True
         if isinstance(value, str):
-            return self._looks_like_class_import_path(value)
+            return looks_like_class_import_path(value)
         return False
-
-    def _looks_like_class_import_path(self, value: str) -> bool:
-        return looks_like_class_import_path(value)
-
-    def _looks_like_callable_import_path(self, value: str) -> bool:
-        """Check if a string looks like a valid import path for any callable (function, class, etc.)."""
-        return looks_like_callable_import_path(value)
 
     def _is_valid_path(self, value) -> bool:
         if isinstance(value, Path):
@@ -822,10 +815,6 @@ class InvalidValueSettingsIssueFinder(
         if value is None:
             return True
         return self._is_valid_path(value)
-
-    def _is_valid_log_level(self, value) -> bool:
-        """Check if a value is a valid logging level."""
-        return is_valid_log_level(value)
 
     def _is_valid_enum_string(self, value) -> bool:
         return isinstance(value, str)
@@ -865,7 +854,7 @@ class InvalidValueSettingsIssueFinder(
         if callable(value):
             return True
         if isinstance(value, str):
-            return self._looks_like_callable_import_path(value)
+            return looks_like_callable_import_path(value)
         return False
 
     def _is_valid_optional_int(self, value) -> bool:
@@ -1088,7 +1077,7 @@ class InvalidValueSettingsIssueFinder(
                 if isinstance(value, list):
                     for item in value:
                         if isinstance(item, str):
-                            if not self._looks_like_class_import_path(item):
+                            if not looks_like_class_import_path(item):
                                 return f"'{key}' in {feed_key!r} contains invalid import path {item!r}"
                         elif not isinstance(item, type):
                             return f"'{key}' in {feed_key!r} must be a list of class objects or class import path strings"
@@ -1096,7 +1085,7 @@ class InvalidValueSettingsIssueFinder(
                     return f"'{key}' in {feed_key!r} must be a list of class objects or class import path strings"
             elif key == "item_filter":
                 if isinstance(value, str):
-                    if not self._looks_like_class_import_path(value):
+                    if not looks_like_class_import_path(value):
                         return f"'item_filter' in {feed_key!r} contains invalid import path {value!r}"
                 elif not isinstance(value, type):
                     return f"'item_filter' in {feed_key!r} must be a class object or class import path string"
@@ -1110,7 +1099,7 @@ class InvalidValueSettingsIssueFinder(
                 return f"'store_empty' in {feed_key!r} must be a boolean"
             elif key == "uri_params":
                 if isinstance(value, str):
-                    if not self._looks_like_callable_import_path(value):
+                    if not looks_like_callable_import_path(value):
                         return f"'uri_params' in {feed_key!r} contains invalid callable import path {value!r}"
                 elif not callable(value):
                     return f"'uri_params' in {feed_key!r} must be a callable or callable import path string"
@@ -1189,7 +1178,7 @@ class InvalidValueSettingsIssueFinder(
                     for item in value_node.elts:
                         if isinstance(item, ast.Constant) and not (
                             isinstance(item.value, str)
-                            and self._looks_like_class_import_path(item.value)
+                            and looks_like_class_import_path(item.value)
                         ):
                             return f"'{key}' in {feed_key} contains invalid import path {item.value!r}"
                         # Allow any other AST node type for class references (Name, Attribute, etc.)
@@ -1198,7 +1187,7 @@ class InvalidValueSettingsIssueFinder(
             elif key == "item_filter":
                 if isinstance(value_node, ast.Constant) and not (
                     isinstance(value_node.value, str)
-                    and self._looks_like_class_import_path(value_node.value)
+                    and looks_like_class_import_path(value_node.value)
                 ):
                     return f"'item_filter' in {feed_key} contains invalid import path {value_node.value!r}"
                 # Allow any other AST node type for class references (Name, Attribute, etc.)
@@ -1223,7 +1212,7 @@ class InvalidValueSettingsIssueFinder(
                 and isinstance(value_node, ast.Constant)
                 and not (
                     isinstance(value_node.value, str)
-                    and self._looks_like_callable_import_path(value_node.value)
+                    and looks_like_callable_import_path(value_node.value)
                 )
             ):
                 return f"'uri_params' in {feed_key} contains invalid callable import path {value_node.value!r}"
@@ -2518,8 +2507,5 @@ class ImportPathStringIssueFinder(BaseSettingsIssueFinder):
 
     def _is_import_path_string_value(self, value: ast.AST) -> bool:
         if isinstance(value, ast.Constant) and isinstance(value.value, str):
-            return self._looks_like_class_import_path(value.value)
+            return looks_like_class_import_path(value.value)
         return False
-
-    def _looks_like_class_import_path(self, value: str) -> bool:
-        return looks_like_class_import_path(value)
