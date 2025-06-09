@@ -16,11 +16,16 @@ from .settings_data import (
     SettingType,
 )
 from .utilities import (
+    get_enum_validation_error,
     is_valid_log_level,
     is_version_greater_than,
     is_version_less_than_or_equal,
     looks_like_callable_import_path,
     looks_like_class_import_path,
+    validate_download_slots_config,
+    validate_feeds_config,
+    validate_periodic_log_config,
+    validate_periodic_log_config_ast,
 )
 
 if TYPE_CHECKING:
@@ -144,7 +149,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.OPT_PATH: self._is_valid_optional_path,
             SettingType.LOG_LEVEL: is_valid_log_level,
             SettingType.ENUM_STR: self._is_valid_enum_string,
-            SettingType.PERIODIC_LOG_CONFIG: self._is_valid_periodic_log_config,
+            SettingType.PERIODIC_LOG_CONFIG: validate_periodic_log_config,
             SettingType.OPT_CALLABLE: self._is_valid_optional_callable,
             SettingType.OPT_INT: self._is_valid_optional_int,
         }
@@ -201,7 +206,9 @@ class InvalidValueSettingsIssueFinder(
             SettingType.PATH: "only supports Path objects or strings",
             SettingType.OPT_PATH: "only supports None, Path objects, or strings",
             SettingType.LOG_LEVEL: f"only supports valid logging levels: {', '.join(map(repr, self.VALID_LOG_LEVEL_LITERALS))} or any integer",
-            SettingType.ENUM_STR: self._get_enum_message(setting_name),
+            SettingType.ENUM_STR: get_enum_validation_error(
+                setting_name, self.enum_settings
+            ),
             SettingType.PERIODIC_LOG_CONFIG: "only supports None, True, or a dict with 'include' and/or 'exclude' keys containing lists of strings",
             SettingType.OPT_CALLABLE: "only supports None, callable objects, or strings containing callable import paths",
             SettingType.OPT_INT: "only supports None or values that can be passed to int()",
@@ -354,14 +361,16 @@ class InvalidValueSettingsIssueFinder(
             return self._is_invalid_user_agent(value_node)
 
         if setting_name == "FEEDS":
-            feeds_error = self._get_feeds_validation_error(value_node)
+            feeds_error = validate_feeds_config(
+                value_node, self.feeds_key_versions, self.get_package_version
+            )
             if feeds_error:
                 self._feeds_error_message = feeds_error
                 return True
             return False
 
         if setting_name == "DOWNLOAD_SLOTS":
-            download_slots_error = self._get_download_slots_validation_error(value_node)
+            download_slots_error = validate_download_slots_config(value_node)
             if download_slots_error:
                 self._feeds_error_message = download_slots_error
                 return True
@@ -375,7 +384,7 @@ class InvalidValueSettingsIssueFinder(
 
         # Special handling for periodic log config settings
         if setting_type == SettingType.PERIODIC_LOG_CONFIG:
-            return self._is_invalid_periodic_log_config_ast(value_node)
+            return validate_periodic_log_config_ast(value_node)
 
         # If we can identify the literal value
         if isinstance(value_node, ast.Constant):
@@ -499,34 +508,6 @@ class InvalidValueSettingsIssueFinder(
     def _is_valid_enum_string(self, value) -> bool:
         return isinstance(value, str)
 
-    def _is_valid_periodic_log_config(self, value) -> bool:  # noqa: PLR0911
-        """Check if a value is valid for PERIODIC_LOG_DELTA or PERIODIC_LOG_STATS."""
-        # Allow None
-        if value is None:
-            return True
-
-        # Allow True (but not False or other boolean values)
-        if value is True:
-            return True
-
-        # Allow dict with only 'include' and/or 'exclude' keys
-        if isinstance(value, dict):
-            # Check that only 'include' and/or 'exclude' keys are present
-            allowed_keys = {"include", "exclude"}
-            if not set(value.keys()).issubset(allowed_keys):
-                return False
-
-            # Check that values are lists of strings
-            for val in value.values():
-                if not isinstance(val, list):
-                    return False
-                if not all(isinstance(item, str) for item in val):
-                    return False
-
-            return True
-
-        return False
-
     def _is_valid_optional_callable(self, value) -> bool:
         """Check if a value is valid for OPT_CALLABLE type settings."""
         if value is None:
@@ -542,49 +523,6 @@ class InvalidValueSettingsIssueFinder(
         if value is None:
             return True
         return self._can_convert_to_int(value)
-
-    def _is_invalid_periodic_log_config_ast(self, value_node: ast.AST) -> bool:  # noqa: PLR0911
-        """Check if an AST node is invalid for PERIODIC_LOG_DELTA or PERIODIC_LOG_STATS."""
-        # Handle constants (None, True, False, strings, etc.)
-        if isinstance(value_node, ast.Constant):
-            return not self._is_valid_periodic_log_config(value_node.value)
-
-        # Handle dictionaries
-        if isinstance(value_node, ast.Dict):
-            # Check that only 'include' and/or 'exclude' keys are present
-            allowed_keys = {"include", "exclude"}
-            for key_node in value_node.keys:
-                if not isinstance(key_node, ast.Constant) or not isinstance(
-                    key_node.value, str
-                ):
-                    return True  # Invalid key type
-                if key_node.value not in allowed_keys:
-                    return True  # Invalid key name
-
-            # Check that values are lists
-            for value_node_item in value_node.values:
-                if not isinstance(value_node_item, ast.List):
-                    return True  # Value is not a list
-
-                # Check that list items are strings
-                for list_item in value_node_item.elts:
-                    if not isinstance(list_item, ast.Constant) or not isinstance(
-                        list_item.value, str
-                    ):
-                        return True  # List item is not a string
-
-            return False  # Valid dict
-
-        # All other types are invalid
-        return True
-
-    def _get_enum_message(self, setting_name: str) -> str:
-        if setting_name in self.enum_settings:
-            allowed_values = ", ".join(
-                f"'{v}'" for v in self.enum_settings[setting_name]
-            )
-            return f"only supports the following values: {allowed_values}."
-        return "only supports specific string values."
 
     def _is_invalid_user_agent(self, value_node: ast.AST) -> bool:
         if not isinstance(value_node, ast.Constant):
@@ -619,399 +557,6 @@ class InvalidValueSettingsIssueFinder(
             or re.search(email_pattern, value)
             or re.search(phone_pattern, value)
         )
-
-    def _get_feeds_validation_error(self, value_node: ast.AST) -> str:  # noqa: PLR0911
-        """Get specific validation error for FEEDS setting, or empty string if valid."""
-        # FEEDS must be a dict
-        if isinstance(value_node, ast.Constant):
-            value = value_node.value
-            if isinstance(value, dict):
-                return self._get_feeds_dict_validation_error(value)
-            if isinstance(value, str):
-                try:
-                    parsed_value = json.loads(value)
-                    if not isinstance(parsed_value, dict):
-                        return "must be a dict"
-                    return self._get_feeds_dict_validation_error(parsed_value)
-                except (json.JSONDecodeError, TypeError):
-                    return "must be a dict"
-            else:
-                return "must be a dict"
-
-        if isinstance(value_node, ast.Dict):
-            return self._get_feeds_dict_ast_validation_error(value_node)
-
-        # Any other AST node type is invalid for FEEDS
-        return "must be a dict"
-
-    def _get_feeds_dict_validation_error(self, feeds_dict: dict) -> str:
-        """Get validation error for a FEEDS dict value at runtime."""
-        for key, feed_config in feeds_dict.items():
-            # Root keys may be strings or Path objects
-            if not isinstance(key, (str, Path)):
-                return f"key {key!r} must be a string or Path object"
-
-            # Feed config must be a dict
-            if not isinstance(feed_config, dict):
-                return f"feed config for {key!r} must be a dict"
-
-            # Validate feed config keys and values
-            error = self._get_feed_config_validation_error(key, feed_config)
-            if error:
-                return error
-
-        return ""
-
-    def _get_feeds_dict_ast_validation_error(self, dict_node: ast.Dict) -> str:
-        """Get validation error for a FEEDS dict AST node."""
-        for key_node, value_node in zip(dict_node.keys, dict_node.values):
-            # Root keys may be strings or Path objects
-            key_repr = "<?>"
-            if isinstance(key_node, ast.Constant):
-                key_repr = repr(key_node.value)
-                if not isinstance(key_node.value, str):
-                    return f"key {key_repr} must be a string or Path object"
-            elif not (
-                isinstance(key_node, ast.Call)
-                and isinstance(key_node.func, ast.Name)
-                and key_node.func.id == "Path"
-            ):
-                # Not a string constant or Path() call
-                return f"key {key_repr} must be a string or Path object"
-
-            # Feed config must be a dict
-            if not isinstance(value_node, ast.Dict):
-                # Check if this looks like feed config keys were used at the top level
-                if isinstance(key_node, ast.Constant) and isinstance(
-                    key_node.value, str
-                ):
-                    feed_config_keys = {
-                        "format",
-                        "batch_item_count",
-                        "encoding",
-                        "fields",
-                        "item_classes",
-                        "item_filter",
-                        "indent",
-                        "item_export_kwargs",
-                        "overwrite",
-                        "store_empty",
-                        "uri_params",
-                        "postprocessing",
-                    }
-                    if key_node.value in feed_config_keys:
-                        return f"missing feed URL: {key_repr} appears to be a feed configuration key, but FEEDS must be a dict where keys are feed URLs (like 'output.json') and values are feed configurations"
-                return f"feed config for {key_repr} must be a dict"
-
-            # Validate feed config AST
-            error = self._get_feed_config_ast_validation_error(key_repr, value_node)
-            if error:
-                return error
-
-        return ""
-
-    def _get_feed_config_validation_error(  # noqa: PLR0911, PLR0912
-        self, feed_key: str, feed_config: dict
-    ) -> str:
-        """Get validation error for a feed config dict value."""
-        for key, value in feed_config.items():
-            # Feed config keys must be strings
-            if not isinstance(key, str):
-                return f"feed config key {key!r} in {feed_key!r} must be a string"
-
-            # Check if this is a future key for the current Scrapy version
-            if key in self.feeds_key_versions:
-                required_version = self.feeds_key_versions[key]
-                scrapy_version = self.get_package_version("scrapy")
-                if scrapy_version is not None and is_version_greater_than(
-                    required_version, scrapy_version
-                ):
-                    return f"'{key}' in {feed_key!r} is not available in Scrapy {scrapy_version}, requires Scrapy {required_version} or later"
-
-            # Validate specific feed config keys
-            if key == "format" and not isinstance(value, str):
-                return f"'format' in {feed_key!r} must be a string"
-            if key == "batch_item_count" and not (
-                isinstance(value, int) and value >= 0
-            ):
-                return (
-                    f"'batch_item_count' in {feed_key!r} must be a non-negative integer"
-                )
-            if key == "encoding" and value is not None and not isinstance(value, str):
-                return f"'encoding' in {feed_key!r} must be a string or None"
-            if key == "fields":
-                if value is not None:
-                    if isinstance(value, list):
-                        if not all(isinstance(item, str) for item in value):
-                            return f"'fields' in {feed_key!r} must be None, a list of strings, or a dict mapping strings to strings"
-                    elif isinstance(value, dict):
-                        if not all(
-                            isinstance(k, str) and isinstance(v, str)
-                            for k, v in value.items()
-                        ):
-                            return f"'fields' in {feed_key!r} must be None, a list of strings, or a dict mapping strings to strings"
-                    else:
-                        return f"'fields' in {feed_key!r} must be None, a list of strings, or a dict mapping strings to strings"
-            elif key in ("item_classes", "postprocessing"):
-                if isinstance(value, list):
-                    for item in value:
-                        if isinstance(item, str):
-                            if not looks_like_class_import_path(item):
-                                return f"'{key}' in {feed_key!r} contains invalid import path {item!r}"
-                        elif not isinstance(item, type):
-                            return f"'{key}' in {feed_key!r} must be a list of class objects or class import path strings"
-                else:
-                    return f"'{key}' in {feed_key!r} must be a list of class objects or class import path strings"
-            elif key == "item_filter":
-                if isinstance(value, str):
-                    if not looks_like_class_import_path(value):
-                        return f"'item_filter' in {feed_key!r} contains invalid import path {value!r}"
-                elif not isinstance(value, type):
-                    return f"'item_filter' in {feed_key!r} must be a class object or class import path string"
-            elif key == "indent" and not (isinstance(value, int) and value >= 0):
-                return f"'indent' in {feed_key!r} must be a non-negative integer"
-            elif key == "item_export_kwargs" and not isinstance(value, dict):
-                return f"'item_export_kwargs' in {feed_key!r} must be a dict"
-            elif key == "overwrite" and not isinstance(value, bool):
-                return f"'overwrite' in {feed_key!r} must be a boolean"
-            elif key == "store_empty" and not isinstance(value, bool):
-                return f"'store_empty' in {feed_key!r} must be a boolean"
-            elif key == "uri_params":
-                if isinstance(value, str):
-                    if not looks_like_callable_import_path(value):
-                        return f"'uri_params' in {feed_key!r} contains invalid callable import path {value!r}"
-                elif not callable(value):
-                    return f"'uri_params' in {feed_key!r} must be a callable or callable import path string"
-
-        return ""
-
-    def _get_feed_config_ast_validation_error(  # noqa: PLR0911, PLR0912
-        self, feed_key: str, dict_node: ast.Dict
-    ) -> str:
-        """Get validation error for a feed config dict AST node."""
-        for key_node, value_node in zip(dict_node.keys, dict_node.values):
-            # Feed config keys must be strings
-            if not isinstance(key_node, ast.Constant) or not isinstance(
-                key_node.value, str
-            ):
-                return f"feed config key in {feed_key} must be a string"
-
-            key = key_node.value
-
-            # Check if this is a future key for the current Scrapy version
-            if key in self.feeds_key_versions:
-                required_version = self.feeds_key_versions[key]
-                scrapy_version = self.get_package_version("scrapy")
-                if scrapy_version is not None and is_version_greater_than(
-                    required_version, scrapy_version
-                ):
-                    return f"'{key}' in {feed_key} is not available in Scrapy {scrapy_version}, requires Scrapy {required_version} or later"
-
-            # Validate specific feed config keys
-            if key == "format":
-                if not (
-                    isinstance(value_node, ast.Constant)
-                    and isinstance(value_node.value, str)
-                ):
-                    return f"'format' in {feed_key} must be a string"
-            elif key == "batch_item_count":
-                if not (
-                    isinstance(value_node, ast.Constant)
-                    and isinstance(value_node.value, int)
-                    and value_node.value >= 0
-                ):
-                    return f"'batch_item_count' in {feed_key} must be a non-negative integer"
-            elif key == "encoding":
-                if not (
-                    isinstance(value_node, ast.Constant)
-                    and (value_node.value is None or isinstance(value_node.value, str))
-                ):
-                    return f"'encoding' in {feed_key} must be a string or None"
-            elif key == "fields":
-                if isinstance(value_node, ast.Constant):
-                    if value_node.value is not None:
-                        return f"'fields' in {feed_key} must be None, a list of strings, or a dict mapping strings to strings"
-                elif isinstance(value_node, ast.List):
-                    # List of strings
-                    for item in value_node.elts:
-                        if not (
-                            isinstance(item, ast.Constant)
-                            and isinstance(item.value, str)
-                        ):
-                            return f"'fields' in {feed_key} must be None, a list of strings, or a dict mapping strings to strings"
-                elif isinstance(value_node, ast.Dict):
-                    # Dict[str, str]
-                    for k, v in zip(value_node.keys, value_node.values):
-                        if not (
-                            isinstance(k, ast.Constant)
-                            and isinstance(k.value, str)
-                            and isinstance(v, ast.Constant)
-                            and isinstance(v.value, str)
-                        ):
-                            return f"'fields' in {feed_key} must be None, a list of strings, or a dict mapping strings to strings"
-                else:
-                    return f"'fields' in {feed_key} must be None, a list of strings, or a dict mapping strings to strings"
-            elif key in ("item_classes", "postprocessing"):
-                if isinstance(value_node, ast.List):
-                    for item in value_node.elts:
-                        if isinstance(item, ast.Constant) and not (
-                            isinstance(item.value, str)
-                            and looks_like_class_import_path(item.value)
-                        ):
-                            return f"'{key}' in {feed_key} contains invalid import path {item.value!r}"
-                        # Allow any other AST node type for class references (Name, Attribute, etc.)
-                else:
-                    return f"'{key}' in {feed_key} must be a list of class objects or class import path strings"
-            elif key == "item_filter":
-                if isinstance(value_node, ast.Constant) and not (
-                    isinstance(value_node.value, str)
-                    and looks_like_class_import_path(value_node.value)
-                ):
-                    return f"'item_filter' in {feed_key} contains invalid import path {value_node.value!r}"
-                # Allow any other AST node type for class references (Name, Attribute, etc.)
-            elif key == "indent":
-                if not (
-                    isinstance(value_node, ast.Constant)
-                    and isinstance(value_node.value, int)
-                    and value_node.value >= 0
-                ):
-                    return f"'indent' in {feed_key} must be a non-negative integer"
-            elif key == "item_export_kwargs":
-                if not isinstance(value_node, ast.Dict):
-                    return f"'item_export_kwargs' in {feed_key} must be a dict"
-            elif key in ("overwrite", "store_empty"):
-                if not (
-                    isinstance(value_node, ast.Constant)
-                    and isinstance(value_node.value, bool)
-                ):
-                    return f"'{key}' in {feed_key} must be a boolean"
-            elif (
-                key == "uri_params"
-                and isinstance(value_node, ast.Constant)
-                and not (
-                    isinstance(value_node.value, str)
-                    and looks_like_callable_import_path(value_node.value)
-                )
-            ):
-                return f"'uri_params' in {feed_key} contains invalid callable import path {value_node.value!r}"
-            # Allow any other AST node type for callable references (Name, Attribute, etc.)
-
-        return ""
-
-    def _get_download_slots_validation_error(self, value_node: ast.AST) -> str:  # noqa: PLR0911
-        if isinstance(value_node, ast.Constant):
-            value = value_node.value
-            if isinstance(value, dict):
-                return self._get_download_slots_dict_validation_error(value)
-            if isinstance(value, str):
-                try:
-                    parsed_value = json.loads(value)
-                    if not isinstance(parsed_value, dict):
-                        return "must be a dict"
-                    return self._get_download_slots_dict_validation_error(parsed_value)
-                except (json.JSONDecodeError, TypeError):
-                    return "must be a dict"
-            else:
-                return "must be a dict"
-
-        if isinstance(value_node, ast.Dict):
-            return self._get_download_slots_dict_ast_validation_error(value_node)
-
-        return "must be a dict"
-
-    def _get_download_slots_dict_validation_error(self, slots_dict: dict) -> str:
-        for key, slot_config in slots_dict.items():
-            if not isinstance(key, str):
-                return f"key {key!r} must be a string"
-
-            if not isinstance(slot_config, dict):
-                return f"slot config for {key!r} must be a dict"
-
-            error = self._get_slot_config_validation_error(key, slot_config)
-            if error:
-                return error
-
-        return ""
-
-    def _get_download_slots_dict_ast_validation_error(self, dict_node: ast.Dict) -> str:
-        for key_node, value_node in zip(dict_node.keys, dict_node.values):
-            key_repr = "<?>"
-            if isinstance(key_node, ast.Constant):
-                key_repr = repr(key_node.value)
-                if not isinstance(key_node.value, str):
-                    return f"key {key_repr} must be a string"
-            else:
-                return f"key {key_repr} must be a string"
-
-            if not isinstance(value_node, ast.Dict):
-                return f"slot config for {key_repr} must be a dict"
-
-            error = self._get_slot_config_ast_validation_error(key_repr, value_node)
-            if error:
-                return error
-
-        return ""
-
-    def _get_slot_config_validation_error(
-        self, slot_key: str, slot_config: dict
-    ) -> str:
-        allowed_keys = {"concurrency", "delay", "randomize_delay"}
-        for key, value in slot_config.items():
-            if not isinstance(key, str):
-                return f"slot config key {key!r} in {slot_key!r} must be a string"
-
-            if key not in allowed_keys:
-                return f"unknown slot config key '{key}' in {slot_key!r}, must be one of: {', '.join(sorted(allowed_keys))}"
-
-            if key == "concurrency" and not (isinstance(value, int) and value >= 1):
-                return f"'concurrency' in {slot_key!r} must be a positive integer (1+)"
-            if key == "delay" and not (
-                isinstance(value, (int, float)) and value >= 0.0
-            ):
-                return f"'delay' in {slot_key!r} must be a positive float (0.0+)"
-            if key == "randomize_delay" and not isinstance(value, bool):
-                return f"'randomize_delay' in {slot_key!r} must be a boolean"
-
-        return ""
-
-    def _get_slot_config_ast_validation_error(
-        self, slot_key: str, dict_node: ast.Dict
-    ) -> str:
-        allowed_keys = {"concurrency", "delay", "randomize_delay"}
-        for key_node, value_node in zip(dict_node.keys, dict_node.values):
-            if not isinstance(key_node, ast.Constant) or not isinstance(
-                key_node.value, str
-            ):
-                return f"slot config key in {slot_key} must be a string"
-
-            key = key_node.value
-
-            if key not in allowed_keys:
-                return f"unknown slot config key '{key}' in {slot_key}, must be one of: {', '.join(sorted(allowed_keys))}"
-
-            if key == "concurrency":
-                if not (
-                    isinstance(value_node, ast.Constant)
-                    and isinstance(value_node.value, int)
-                    and value_node.value >= 1
-                ):
-                    return (
-                        f"'concurrency' in {slot_key} must be a positive integer (1+)"
-                    )
-            elif key == "delay":
-                if not (
-                    isinstance(value_node, ast.Constant)
-                    and isinstance(value_node.value, (int, float))
-                    and value_node.value >= 0.0
-                ):
-                    return f"'delay' in {slot_key} must be a positive float (0.0+)"
-            elif key == "randomize_delay" and not (
-                isinstance(value_node, ast.Constant)
-                and isinstance(value_node.value, bool)
-            ):
-                return f"'randomize_delay' in {slot_key} must be a boolean"
-
-        return ""
 
     def check_subscript(
         self, node: ast.Subscript
