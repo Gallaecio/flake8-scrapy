@@ -775,6 +775,89 @@ ISSUE_COLUMN = 9
                 column=29,
             ),
         ),
+        # FEEDS future keys - testing version-based validation
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"batch_item_count": 100}}',
+                requirements="scrapy==2.2.0",
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'batch_item_count' in 'output.json' is not available in Scrapy 2.2.0, requires Scrapy 2.3.0 or later",
+                column=20,
+            ),
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"item_classes": ["myproject.items.Item"]}}',
+                requirements="scrapy==2.5.0",
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'item_classes' in 'output.json' is not available in Scrapy 2.5.0, requires Scrapy 2.6.0 or later",
+                column=20,
+            ),
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"item_filter": "myproject.filters.Filter"}}',
+                requirements="scrapy==2.5.0",
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'item_filter' in 'output.json' is not available in Scrapy 2.5.0, requires Scrapy 2.6.0 or later",
+                column=20,
+            ),
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"item_export_kwargs": {"root": "items"}}}',
+                requirements="scrapy==2.3.0",
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'item_export_kwargs' in 'output.json' is not available in Scrapy 2.3.0, requires Scrapy 2.4.0 or later",
+                column=20,
+            ),
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"overwrite": True}}',
+                requirements="scrapy==2.3.0",
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'overwrite' in 'output.json' is not available in Scrapy 2.3.0, requires Scrapy 2.4.0 or later",
+                column=20,
+            ),
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"postprocessing": ["myproject.processors.Processor"]}}',
+                requirements="scrapy==2.5.0",
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'postprocessing' in 'output.json' is not available in Scrapy 2.5.0, requires Scrapy 2.6.0 or later",
+                column=20,
+            ),
+        ),
+        # Valid when Scrapy version is sufficient
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"batch_item_count": 100}}',
+                requirements="scrapy==2.3.0",
+            ),
+            NO_ISSUE,
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"item_classes": ["myproject.items.Item"]}}',
+                requirements="scrapy==2.6.0",
+            ),
+            NO_ISSUE,
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"overwrite": True}}',
+                requirements="scrapy==2.4.0",
+            ),
+            NO_ISSUE,
+        ),
         # SCP18: Ignored (valid) values
         *(
             (

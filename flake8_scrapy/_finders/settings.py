@@ -993,6 +993,15 @@ class InvalidValueSettingsIssueFinder(
             SettingType.OPT_INT: self._is_valid_optional_int,
         }
 
+        self.feeds_key_versions = {
+            "batch_item_count": "2.3.0",
+            "item_classes": "2.6.0",
+            "item_filter": "2.6.0",
+            "item_export_kwargs": "2.4.0",
+            "overwrite": "2.4.0",
+            "postprocessing": "2.6.0",
+        }
+
     def should_report_setting(self, setting_name: str) -> bool:
         return (
             (
@@ -1598,6 +1607,16 @@ class InvalidValueSettingsIssueFinder(
             if not isinstance(key, str):
                 return f"feed config key {key!r} in {feed_key!r} must be a string"
 
+            # Check if this is a future key for the current Scrapy version
+            if key in self.feeds_key_versions:
+                required_version = self.feeds_key_versions[key]
+                scrapy_version = self.get_package_version("scrapy")
+                if (
+                    scrapy_version is not None
+                    and Version(required_version) > scrapy_version
+                ):
+                    return f"'{key}' in {feed_key!r} is not available in Scrapy {scrapy_version}, requires Scrapy {required_version} or later"
+
             # Validate specific feed config keys
             if key == "format" and not isinstance(value, str):
                 return f"'format' in {feed_key!r} must be a string"
@@ -1667,6 +1686,16 @@ class InvalidValueSettingsIssueFinder(
                 return f"feed config key in {feed_key} must be a string"
 
             key = key_node.value
+
+            # Check if this is a future key for the current Scrapy version
+            if key in self.feeds_key_versions:
+                required_version = self.feeds_key_versions[key]
+                scrapy_version = self.get_package_version("scrapy")
+                if (
+                    scrapy_version is not None
+                    and Version(required_version) > scrapy_version
+                ):
+                    return f"'{key}' in {feed_key} is not available in Scrapy {scrapy_version}, requires Scrapy {required_version} or later"
 
             # Validate specific feed config keys
             if key == "format":
