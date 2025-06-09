@@ -946,6 +946,7 @@ class InvalidValueSettingsIssueFinder(
         super().__init__(filename, *args, **kwargs)
         self.typed_settings = {}
         self.enum_settings = {}
+        self._feeds_error_message = ""
         for name, info in SETTINGS.items():
             if info.type in (
                 SettingType.BOOL,
@@ -988,7 +989,10 @@ class InvalidValueSettingsIssueFinder(
 
     def should_report_setting(self, setting_name: str) -> bool:
         return (
-            (setting_name in self.typed_settings or setting_name == "USER_AGENT")
+            (
+                setting_name in self.typed_settings
+                or setting_name in ("USER_AGENT", "FEEDS")
+            )
             and setting_name not in self.allowed_settings
             and setting_name not in self.exclude_settings
         )
@@ -999,6 +1003,12 @@ class InvalidValueSettingsIssueFinder(
                 "SCP22: USER_AGENT does not seem to provide contact "
                 "information. Put an URL, email address or phone number in it "
                 "so that web masters of target websites may contact you."
+            )
+
+        if setting_name == "FEEDS":
+            # This will be overridden by specific FEEDS error messages
+            return (
+                f"{self.msg_code}: {self.msg_info}: FEEDS {self._feeds_error_message}"
             )
 
         setting_type = self.typed_settings[setting_name]
@@ -1163,9 +1173,16 @@ class InvalidValueSettingsIssueFinder(
                     value.lineno, value.col_offset, setting_name
                 )
 
-    def _is_invalid_value(self, value_node: ast.AST, setting_name: str) -> bool:
+    def _is_invalid_value(self, value_node: ast.AST, setting_name: str) -> bool:  # noqa: PLR0911
         if setting_name == "USER_AGENT":
             return self._is_invalid_user_agent(value_node)
+
+        if setting_name == "FEEDS":
+            feeds_error = self._get_feeds_validation_error(value_node)
+            if feeds_error:
+                self._feeds_error_message = feeds_error
+                return True
+            return False
 
         setting_type = self.typed_settings[setting_name]
 
@@ -1295,6 +1312,16 @@ class InvalidValueSettingsIssueFinder(
             if not part.isidentifier():
                 return False
         return parts[-1][0].isupper()
+
+    def _looks_like_callable_import_path(self, value: str) -> bool:
+        """Check if a string looks like a valid import path for any callable (function, class, etc.)."""
+        if not value:
+            return False
+        parts = value.split(".")
+        MINIMUM_IMPORT_PARTS = 2
+        if len(parts) < MINIMUM_IMPORT_PARTS:
+            return False
+        return all(part.isidentifier() for part in parts)
 
     def _is_valid_path(self, value) -> bool:
         if isinstance(value, Path):
@@ -1435,6 +1462,257 @@ class InvalidValueSettingsIssueFinder(
             or re.search(email_pattern, value)
             or re.search(phone_pattern, value)
         )
+
+    def _get_feeds_validation_error(self, value_node: ast.AST) -> str:
+        """Get specific validation error for FEEDS setting, or empty string if valid."""
+        # FEEDS must be a dict
+        if isinstance(value_node, ast.Constant):
+            value = value_node.value
+            if not isinstance(value, dict):
+                return "must be a dict"
+            return self._get_feeds_dict_validation_error(value)
+
+        if isinstance(value_node, ast.Dict):
+            return self._get_feeds_dict_ast_validation_error(value_node)
+
+        # Any other AST node type is invalid for FEEDS
+        return "must be a dict"
+
+    def _get_feeds_dict_validation_error(self, feeds_dict: dict) -> str:
+        """Get validation error for a FEEDS dict value at runtime."""
+        for key, feed_config in feeds_dict.items():
+            # Root keys may be strings or Path objects
+            if not isinstance(key, (str, Path)):
+                return f"key {key!r} must be a string or Path object"
+
+            # Feed config must be a dict
+            if not isinstance(feed_config, dict):
+                return f"feed config for {key!r} must be a dict"
+
+            # Validate feed config keys and values
+            error = self._get_feed_config_validation_error(key, feed_config)
+            if error:
+                return error
+
+        return ""
+
+    def _get_feeds_dict_ast_validation_error(self, dict_node: ast.Dict) -> str:
+        """Get validation error for a FEEDS dict AST node."""
+        for key_node, value_node in zip(dict_node.keys, dict_node.values):
+            # Root keys may be strings or Path objects
+            key_repr = "<?>"
+            if isinstance(key_node, ast.Constant):
+                key_repr = repr(key_node.value)
+                if not isinstance(key_node.value, str):
+                    return f"key {key_repr} must be a string or Path object"
+            elif not (
+                isinstance(key_node, ast.Call)
+                and isinstance(key_node.func, ast.Name)
+                and key_node.func.id == "Path"
+            ):
+                # Not a string constant or Path() call
+                return f"key {key_repr} must be a string or Path object"
+
+            # Feed config must be a dict
+            if not isinstance(value_node, ast.Dict):
+                # Check if this looks like feed config keys were used at the top level
+                if isinstance(key_node, ast.Constant) and isinstance(
+                    key_node.value, str
+                ):
+                    feed_config_keys = {
+                        "format",
+                        "batch_item_count",
+                        "encoding",
+                        "fields",
+                        "item_classes",
+                        "item_filter",
+                        "indent",
+                        "item_export_kwargs",
+                        "overwrite",
+                        "store_empty",
+                        "uri_params",
+                        "postprocessing",
+                    }
+                    if key_node.value in feed_config_keys:
+                        return f"missing feed URL: {key_repr} appears to be a feed configuration key, but FEEDS must be a dict where keys are feed URLs (like 'output.json') and values are feed configurations"
+                return f"feed config for {key_repr} must be a dict"
+
+            # Validate feed config AST
+            error = self._get_feed_config_ast_validation_error(key_repr, value_node)
+            if error:
+                return error
+
+        return ""
+
+    def _get_feed_config_validation_error(  # noqa: PLR0911, PLR0912
+        self, feed_key: str, feed_config: dict
+    ) -> str:
+        """Get validation error for a feed config dict value."""
+        for key, value in feed_config.items():
+            # Feed config keys must be strings
+            if not isinstance(key, str):
+                return f"feed config key {key!r} in {feed_key!r} must be a string"
+
+            # Validate specific feed config keys
+            if key == "format" and not isinstance(value, str):
+                return f"'format' in {feed_key!r} must be a string"
+            if key == "batch_item_count" and not (
+                isinstance(value, int) and value >= 0
+            ):
+                return (
+                    f"'batch_item_count' in {feed_key!r} must be a non-negative integer"
+                )
+            if key == "encoding" and value is not None and not isinstance(value, str):
+                return f"'encoding' in {feed_key!r} must be a string or None"
+            if key == "fields":
+                if value is not None:
+                    if isinstance(value, list):
+                        if not all(isinstance(item, str) for item in value):
+                            return f"'fields' in {feed_key!r} must be None, a list of strings, or a dict mapping strings to strings"
+                    elif isinstance(value, dict):
+                        if not all(
+                            isinstance(k, str) and isinstance(v, str)
+                            for k, v in value.items()
+                        ):
+                            return f"'fields' in {feed_key!r} must be None, a list of strings, or a dict mapping strings to strings"
+                    else:
+                        return f"'fields' in {feed_key!r} must be None, a list of strings, or a dict mapping strings to strings"
+            elif key in ("item_classes", "postprocessing"):
+                if isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, str):
+                            if not self._looks_like_class_import_path(item):
+                                return f"'{key}' in {feed_key!r} contains invalid import path {item!r}"
+                        elif not isinstance(item, type):
+                            return f"'{key}' in {feed_key!r} must be a list of class objects or class import path strings"
+                else:
+                    return f"'{key}' in {feed_key!r} must be a list of class objects or class import path strings"
+            elif key == "item_filter":
+                if isinstance(value, str):
+                    if not self._looks_like_class_import_path(value):
+                        return f"'item_filter' in {feed_key!r} contains invalid import path {value!r}"
+                elif not isinstance(value, type):
+                    return f"'item_filter' in {feed_key!r} must be a class object or class import path string"
+            elif key == "indent" and not (isinstance(value, int) and value >= 0):
+                return f"'indent' in {feed_key!r} must be a non-negative integer"
+            elif key == "item_export_kwargs" and not isinstance(value, dict):
+                return f"'item_export_kwargs' in {feed_key!r} must be a dict"
+            elif key == "overwrite" and not isinstance(value, bool):
+                return f"'overwrite' in {feed_key!r} must be a boolean"
+            elif key == "store_empty" and not isinstance(value, bool):
+                return f"'store_empty' in {feed_key!r} must be a boolean"
+            elif key == "uri_params":
+                if isinstance(value, str):
+                    if not self._looks_like_callable_import_path(value):
+                        return f"'uri_params' in {feed_key!r} contains invalid callable import path {value!r}"
+                elif not callable(value):
+                    return f"'uri_params' in {feed_key!r} must be a callable or callable import path string"
+
+        return ""
+
+    def _get_feed_config_ast_validation_error(  # noqa: PLR0911, PLR0912
+        self, feed_key: str, dict_node: ast.Dict
+    ) -> str:
+        """Get validation error for a feed config dict AST node."""
+        for key_node, value_node in zip(dict_node.keys, dict_node.values):
+            # Feed config keys must be strings
+            if not isinstance(key_node, ast.Constant) or not isinstance(
+                key_node.value, str
+            ):
+                return f"feed config key in {feed_key} must be a string"
+
+            key = key_node.value
+
+            # Validate specific feed config keys
+            if key == "format":
+                if not (
+                    isinstance(value_node, ast.Constant)
+                    and isinstance(value_node.value, str)
+                ):
+                    return f"'format' in {feed_key} must be a string"
+            elif key == "batch_item_count":
+                if not (
+                    isinstance(value_node, ast.Constant)
+                    and isinstance(value_node.value, int)
+                    and value_node.value >= 0
+                ):
+                    return f"'batch_item_count' in {feed_key} must be a non-negative integer"
+            elif key == "encoding":
+                if not (
+                    isinstance(value_node, ast.Constant)
+                    and (value_node.value is None or isinstance(value_node.value, str))
+                ):
+                    return f"'encoding' in {feed_key} must be a string or None"
+            elif key == "fields":
+                if isinstance(value_node, ast.Constant):
+                    if value_node.value is not None:
+                        return f"'fields' in {feed_key} must be None, a list of strings, or a dict mapping strings to strings"
+                elif isinstance(value_node, ast.List):
+                    # List of strings
+                    for item in value_node.elts:
+                        if not (
+                            isinstance(item, ast.Constant)
+                            and isinstance(item.value, str)
+                        ):
+                            return f"'fields' in {feed_key} must be None, a list of strings, or a dict mapping strings to strings"
+                elif isinstance(value_node, ast.Dict):
+                    # Dict[str, str]
+                    for k, v in zip(value_node.keys, value_node.values):
+                        if not (
+                            isinstance(k, ast.Constant)
+                            and isinstance(k.value, str)
+                            and isinstance(v, ast.Constant)
+                            and isinstance(v.value, str)
+                        ):
+                            return f"'fields' in {feed_key} must be None, a list of strings, or a dict mapping strings to strings"
+                else:
+                    return f"'fields' in {feed_key} must be None, a list of strings, or a dict mapping strings to strings"
+            elif key in ("item_classes", "postprocessing"):
+                if isinstance(value_node, ast.List):
+                    for item in value_node.elts:
+                        if isinstance(item, ast.Constant) and not (
+                            isinstance(item.value, str)
+                            and self._looks_like_class_import_path(item.value)
+                        ):
+                            return f"'{key}' in {feed_key} contains invalid import path {item.value!r}"
+                        # Allow any other AST node type for class references (Name, Attribute, etc.)
+                else:
+                    return f"'{key}' in {feed_key} must be a list of class objects or class import path strings"
+            elif key == "item_filter":
+                if isinstance(value_node, ast.Constant) and not (
+                    isinstance(value_node.value, str)
+                    and self._looks_like_class_import_path(value_node.value)
+                ):
+                    return f"'item_filter' in {feed_key} contains invalid import path {value_node.value!r}"
+                # Allow any other AST node type for class references (Name, Attribute, etc.)
+            elif key == "indent":
+                if not (
+                    isinstance(value_node, ast.Constant)
+                    and isinstance(value_node.value, int)
+                    and value_node.value >= 0
+                ):
+                    return f"'indent' in {feed_key} must be a non-negative integer"
+            elif key == "item_export_kwargs":
+                if not isinstance(value_node, ast.Dict):
+                    return f"'item_export_kwargs' in {feed_key} must be a dict"
+            elif key in ("overwrite", "store_empty"):
+                if not (
+                    isinstance(value_node, ast.Constant)
+                    and isinstance(value_node.value, bool)
+                ):
+                    return f"'{key}' in {feed_key} must be a boolean"
+            elif (
+                key == "uri_params"
+                and isinstance(value_node, ast.Constant)
+                and not (
+                    isinstance(value_node.value, str)
+                    and self._looks_like_callable_import_path(value_node.value)
+                )
+            ):
+                return f"'uri_params' in {feed_key} contains invalid callable import path {value_node.value!r}"
+                # Allow any other AST node type for callable references (Name, Attribute, etc.)
+
+        return ""
 
     def check_subscript(
         self, node: ast.Subscript

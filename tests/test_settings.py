@@ -15,10 +15,6 @@ from .helpers import check_input
 ISSUE_COLUMN = 9
 
 
-class TestScheduler:
-    pass
-
-
 @pytest.mark.parametrize(
     ("input", "expected"),
     [
@@ -522,7 +518,195 @@ class TestScheduler:
                     "only supports None, True, or a dict with 'include' and/or 'exclude' keys containing lists of strings",
                     33,
                 ),
+                # FEEDS setting validation
+                (
+                    "FEEDS",
+                    "not_a_dict",
+                    "must be a dict",
+                    20,
+                ),
+                (
+                    "FEEDS",
+                    123,
+                    "must be a dict",
+                    20,
+                ),
+                (
+                    "FEEDS",
+                    [],
+                    "must be a dict",
+                    20,
+                ),
+                (
+                    "FEEDS",
+                    None,
+                    "must be a dict",
+                    20,
+                ),
             )
+        ),
+        # SCP18: FEEDS specific validation test cases
+        (
+            Input('settings["FEEDS"] = {"output.json": "not_a_dict"}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS feed config for 'output.json' must be a dict",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": 123}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS feed config for 'output.json' must be a dict",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": []}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS feed config for 'output.json' must be a dict",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": {"format": 123}}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'format' in 'output.json' must be a string",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": {"batch_item_count": -1}}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'batch_item_count' in 'output.json' must be a non-negative integer",
+                column=20,
+            ),
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"batch_item_count": "not_int"}}'
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'batch_item_count' in 'output.json' must be a non-negative integer",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": {"encoding": 123}}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'encoding' in 'output.json' must be a string or None",
+                column=20,
+            ),
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"fields": "not_list_or_dict"}}'
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'fields' in 'output.json' must be None, a list of strings, or a dict mapping strings to strings",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": {"fields": [123]}}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'fields' in 'output.json' must be None, a list of strings, or a dict mapping strings to strings",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": {"fields": {"key": 123}}}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'fields' in 'output.json' must be None, a list of strings, or a dict mapping strings to strings",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": {"item_classes": "not_list"}}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'item_classes' in 'output.json' must be a list of class objects or class import path strings",
+                column=20,
+            ),
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"item_classes": ["invalid_path"]}}'
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'item_classes' in 'output.json' contains invalid import path 'invalid_path'",
+                column=20,
+            ),
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"item_filter": "invalid_path"}}'
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'item_filter' in 'output.json' contains invalid import path 'invalid_path'",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": {"indent": -1}}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'indent' in 'output.json' must be a non-negative integer",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": {"indent": "not_int"}}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'indent' in 'output.json' must be a non-negative integer",
+                column=20,
+            ),
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"item_export_kwargs": "not_dict"}}'
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'item_export_kwargs' in 'output.json' must be a dict",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": {"overwrite": "not_bool"}}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'overwrite' in 'output.json' must be a boolean",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": {"store_empty": "not_bool"}}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'store_empty' in 'output.json' must be a boolean",
+                column=20,
+            ),
+        ),
+        (
+            Input('settings["FEEDS"] = {"output.json": {"uri_params": "invalid"}}'),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'uri_params' in 'output.json' contains invalid callable import path 'invalid'",
+                column=20,
+            ),
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {"output.json": {"postprocessing": ["invalid_path"]}}'
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS 'postprocessing' in 'output.json' contains invalid import path 'invalid_path'",
+                column=20,
+            ),
+        ),
+        # Missing feed URL - feed config keys at top level
+        (
+            Input(
+                'settings["FEEDS"] = {\n    "item_classes": [ProductItem],\n    "item_filter": MyFilter,\n    "uri_params": get_uri_params,\n}'
+            ),
+            Issue(
+                "SCP18: invalid setting value: FEEDS missing feed URL: 'item_classes' appears to be a feed configuration key, but FEEDS must be a dict where keys are feed URLs (like 'output.json') and values are feed configurations",
+                column=20,
+            ),
         ),
         # SCP18: Ignored (valid) values
         *(
@@ -581,6 +765,51 @@ class TestScheduler:
                 ("PERIODIC_LOG_DELTA", {"include": []}),
                 ("PERIODIC_LOG_DELTA", {"exclude": []}),
                 ("PERIODIC_LOG_DELTA", {}),
+                # FEEDS setting validation - valid values
+                ("FEEDS", {}),
+                ("FEEDS", {"output.json": {"format": "json"}}),
+                (
+                    "FEEDS",
+                    {
+                        "output.csv": {
+                            "format": "csv",
+                            "fields": ["name", "price"],
+                            "encoding": "utf-8",
+                        }
+                    },
+                ),
+                (
+                    "FEEDS",
+                    {
+                        "output.xml": {
+                            "format": "xml",
+                            "batch_item_count": 100,
+                            "encoding": None,
+                            "fields": {
+                                "name": "product_name",
+                                "price": "product_price",
+                            },
+                            "item_classes": ["myproject.items.ProductItem"],
+                            "item_filter": "myproject.filters.MyFilter",
+                            "indent": 2,
+                            "item_export_kwargs": {"root_element": "products"},
+                            "overwrite": True,
+                            "store_empty": False,
+                            "uri_params": "myproject.utils.get_uri_params",
+                        }
+                    },
+                ),
+                (
+                    "FEEDS",
+                    {
+                        "output.json": {
+                            "format": "json",
+                            "batch_item_count": 0,
+                            "indent": 0,
+                            "fields": None,
+                        }
+                    },
+                ),
             )
         ),
         *(
@@ -589,6 +818,18 @@ class TestScheduler:
                 NO_ISSUE,
             )
             for setting, value in (("SCHEDULER", "CustomScheduler"),)
+        ),
+        (
+            Input(
+                'settings["FEEDS"] = {\n'
+                '    "output.jsonl": {\n'
+                '        "item_classes": [ProductItem],\n'
+                '        "item_filter": MyFilter,\n'
+                '        "uri_params": get_uri_params,\n'
+                "    }\n"
+                "}\n"
+            ),
+            NO_ISSUE,
         ),
         # SCP22: flagged values.
         *(
