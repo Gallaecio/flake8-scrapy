@@ -16,16 +16,6 @@ if TYPE_CHECKING:
     from packaging.requirements import Requirement
 
 
-class AllowedExcludeSettingsMixin:
-    """Mixin for handling allowed and exclude settings lists."""
-
-    def _init_allowed_exclude_settings(
-        self, allowed_settings=None, exclude_settings=None
-    ):
-        self.allowed_settings = set(allowed_settings) if allowed_settings else set()
-        self.exclude_settings = set(exclude_settings) if exclude_settings else set()
-
-
 class VersionValidationMixin:
     """Mixin for validating version requirements."""
 
