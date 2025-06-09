@@ -35,6 +35,7 @@ class SettingType(Enum):
     PATH = "path"
     OPT_PATH = "opt_path"
     LOG_LEVEL = "log_level"
+    ENUM_STR = "enum_str"
 
 
 class AllowedExcludeSettingsMixin:
@@ -54,6 +55,7 @@ class SettingInfo:
     package: str = "scrapy"
     type: SettingType | None = None
     has_default: bool | None = None
+    allowed_values: tuple[str, ...] | None = None
 
     def __post_init__(self):
         if self.has_default is None:
@@ -121,7 +123,10 @@ SETTINGS = {
     "DOWNLOAD_WARNSIZE": SettingInfo(type=SettingType.INT),
     "DOWNLOADER": SettingInfo(type=SettingType.CLS),
     "DOWNLOADER_CLIENT_TLS_CIPHERS": SettingInfo(),
-    "DOWNLOADER_CLIENT_TLS_METHOD": SettingInfo(),
+    "DOWNLOADER_CLIENT_TLS_METHOD": SettingInfo(
+        type=SettingType.ENUM_STR,
+        allowed_values=("TLS", "TLSv1.0", "TLSv1.1", "TLSv1.2"),
+    ),
     "DOWNLOADER_CLIENT_TLS_VERBOSE_LOGGING": SettingInfo(type=SettingType.BOOL),
     "DOWNLOADER_CLIENTCONTEXTFACTORY": SettingInfo(type=SettingType.CLS),
     "DOWNLOADER_HTTPCLIENTFACTORY": SettingInfo(type=SettingType.CLS),
@@ -935,6 +940,7 @@ class InvalidValueSettingsIssueFinder(
     ):
         super().__init__(filename, *args, **kwargs)
         self.typed_settings = {}
+        self.enum_settings = {}
         for name, info in SETTINGS.items():
             if info.type in (
                 SettingType.BOOL,
@@ -950,8 +956,11 @@ class InvalidValueSettingsIssueFinder(
                 SettingType.PATH,
                 SettingType.OPT_PATH,
                 SettingType.LOG_LEVEL,
+                SettingType.ENUM_STR,
             ):
                 self.typed_settings[name] = info.type
+                if info.type == SettingType.ENUM_STR and info.allowed_values:
+                    self.enum_settings[name] = info.allowed_values
         self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
         self.validators = {
             SettingType.BOOL: lambda v: v in self.VALID_BOOL_LITERALS,
@@ -967,6 +976,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.PATH: self._is_valid_path,
             SettingType.OPT_PATH: self._is_valid_optional_path,
             SettingType.LOG_LEVEL: self._is_valid_log_level,
+            SettingType.ENUM_STR: self._is_valid_enum_string,
         }
 
     def should_report_setting(self, setting_name: str) -> bool:
@@ -1000,6 +1010,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.PATH: "only supports Path objects or strings",
             SettingType.OPT_PATH: "only supports None, Path objects, or strings",
             SettingType.LOG_LEVEL: f"only supports valid logging levels: {', '.join(map(repr, self.VALID_LOG_LEVEL_LITERALS))} or any integer",
+            SettingType.ENUM_STR: self._get_enum_message(setting_name),
         }
 
         message_suffix = type_messages.get(setting_type, "has an invalid value")
@@ -1150,6 +1161,10 @@ class InvalidValueSettingsIssueFinder(
 
         setting_type = self.typed_settings[setting_name]
 
+        # Special handling for enum string settings
+        if setting_type == SettingType.ENUM_STR:
+            return self._is_invalid_enum_value(value_node, setting_name)
+
         # If we can identify the literal value
         if isinstance(value_node, ast.Constant):
             return self._is_invalid_constant_value(value_node.value, setting_type)
@@ -1159,6 +1174,19 @@ class InvalidValueSettingsIssueFinder(
             return self._is_invalid_ast_node_type(value_node, setting_type)
 
         return False
+
+    def _is_invalid_enum_value(self, value_node: ast.AST, setting_name: str) -> bool:
+        if setting_name not in self.enum_settings:
+            return False
+        allowed_values = self.enum_settings[setting_name]
+        if isinstance(value_node, ast.Constant):
+            value = value_node.value
+            if value is None:
+                return True
+            if not isinstance(value, str):
+                return True
+            return value not in allowed_values
+        return isinstance(value_node, (ast.List, ast.Dict, ast.Set, ast.Tuple))
 
     def _is_invalid_constant_value(self, value, setting_type: SettingType) -> bool:
         if setting_type in self.validators:
@@ -1181,6 +1209,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.CLS,
             SettingType.PATH,
             SettingType.OPT_PATH,
+            SettingType.ENUM_STR,
         ):
             return isinstance(value_node, complex_types)
         return isinstance(value_node, complex_types)
@@ -1286,6 +1315,17 @@ class InvalidValueSettingsIssueFinder(
 
         # Reject None and other types
         return False
+
+    def _is_valid_enum_string(self, value) -> bool:
+        return isinstance(value, str)
+
+    def _get_enum_message(self, setting_name: str) -> str:
+        if setting_name in self.enum_settings:
+            allowed_values = ", ".join(
+                f"'{v}'" for v in self.enum_settings[setting_name]
+            )
+            return f"only supports the following values: {allowed_values}."
+        return "only supports specific string values."
 
     def _is_invalid_user_agent(self, value_node: ast.AST) -> bool:
         if not isinstance(value_node, ast.Constant):

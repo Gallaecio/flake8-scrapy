@@ -480,6 +480,18 @@ class TestScheduler:
                     "only supports valid logging levels: 'CRITICAL', 'FATAL', 'ERROR', 'WARNING', 'WARN', 'INFO', 'DEBUG', 'NOTSET', 'critical', 'fatal', 'error', 'warning', 'warn', 'info', 'debug', 'notset', 50, 40, 30, 20, 10, 0 or any integer",
                     24,
                 ),
+                (
+                    "DOWNLOADER_CLIENT_TLS_METHOD",
+                    None,
+                    "only supports the following values: 'TLS', 'TLSv1.0', 'TLSv1.1', 'TLSv1.2'.",
+                    43,
+                ),
+                (
+                    "DOWNLOADER_CLIENT_TLS_METHOD",
+                    "TLSv1.3",
+                    "only supports the following values: 'TLS', 'TLSv1.0', 'TLSv1.1', 'TLSv1.2'.",
+                    43,
+                ),
             )
         ),
         # SCP18: Ignored (valid) values
@@ -529,6 +541,8 @@ class TestScheduler:
                 ("LOG_LEVEL", 20),
                 ("LOG_LEVEL", 0),
                 ("LOG_LEVEL", 25),
+                ("DOWNLOADER_CLIENT_TLS_METHOD", "TLS"),
+                ("DOWNLOADER_CLIENT_TLS_METHOD", "TLSv1.2"),
             )
         ),
         *(
