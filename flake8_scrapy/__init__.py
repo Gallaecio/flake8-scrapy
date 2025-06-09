@@ -34,17 +34,14 @@ from ._finders.settings import (
 __version__ = "0.0.2"
 
 
-class IssueReporter(ast.NodeVisitor):
+class ScrapyStyleIssueFinder(ast.NodeVisitor):
     def __init__(
         self,
         filename=None,
         allowed_settings=None,
         enable_project_checks=True,
-        enable_global_checks=False,
-        *args,
-        **kwargs,
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__()
         self.issues = []
         # MissingPackageSettingsIssueFinder must be first to have priority
         missing_package_finder = MissingPackageSettingsIssueFinder(
@@ -92,13 +89,11 @@ class IssueReporter(ast.NodeVisitor):
             IgnoredGetDefaultIssueFinder(filename),
             DuplicateSettingsIssueFinder(filename),
         )
-        global_finders = []
-        if enable_global_checks:
-            global_finders = [
-                MissingUserAgentIssueFinder(filename),
-                RobotsTxtObeyIssueFinder(filename),
-                ThrottlingConfigIssueFinder(filename),
-            ]
+        global_finders = [
+            MissingUserAgentIssueFinder(filename),
+            RobotsTxtObeyIssueFinder(filename),
+            ThrottlingConfigIssueFinder(filename),
+        ]
         project_finders = []
         if enable_project_checks:
             project_finders = [
@@ -177,20 +172,16 @@ class Plugin:
             if setting.strip()
         ]
 
-    def __init__(
-        self, tree, filename, enable_project_checks=True, enable_global_checks=False
-    ):
+    def __init__(self, tree, filename, enable_project_checks=True):
         self.tree = tree
         self.filename = filename
         self.enable_project_checks = enable_project_checks
-        self.enable_global_checks = enable_global_checks
 
     def run(self):
-        reporter = IssueReporter(
+        reporter = ScrapyStyleIssueFinder(
             self.filename,
             allowed_settings=self.allowed_settings,
             enable_project_checks=self.enable_project_checks,
-            enable_global_checks=self.enable_global_checks,
         )
         reporter.visit(self.tree)
         for line, col, msg in reporter.issues:

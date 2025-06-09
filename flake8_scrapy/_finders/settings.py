@@ -1553,9 +1553,6 @@ class ImportPathStringIssueFinder(BaseSettingsIssueFinder):
     def __init__(self, filename=None, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
         ImportPathStringIssueFinder._instance_count += 1
-        print(
-            f"SCP27 instance #{ImportPathStringIssueFinder._instance_count} created for filename: {filename}"
-        )
 
     def should_report_setting(self, setting_name: str) -> bool:
         # Always return False here to prevent base class from reporting
@@ -1573,17 +1570,8 @@ class ImportPathStringIssueFinder(BaseSettingsIssueFinder):
     def check_assignment(
         self, node: ast.Assign
     ) -> Generator[tuple[int, int, str], None, None]:
-        # Completely override base class to prevent duplicate reporting
-        import traceback
-
-        print(
-            f"SCP27 check_assignment called for {[t.id if isinstance(t, ast.Name) else str(t) for t in node.targets]}"
-        )
-        print(f"Call stack: {traceback.format_stack()[-3]}")
-
         # Add a guard to prevent duplicate processing
         if hasattr(node, "_scp27_processed"):
-            print("SCP27: Node already processed, skipping")
             return
         node._scp27_processed = True
 
@@ -1608,17 +1596,16 @@ class ImportPathStringIssueFinder(BaseSettingsIssueFinder):
             ):
                 setting_name = target.slice.value
 
-            if setting_name:
-                print(f"SCP27 checking setting: {setting_name}")
-                if self._should_report_cls_setting(setting_name):
-                    print(f"SCP27 {setting_name} is CLS setting")
-                    if self._is_import_path_string_value(node.value):
-                        print(f"SCP27 {setting_name} has import path string value")
-                        yield (
-                            node.value.lineno,
-                            node.value.col_offset,
-                            self.get_setting_message(setting_name),
-                        )
+            if (
+                setting_name
+                and self._should_report_cls_setting(setting_name)
+                and self._is_import_path_string_value(node.value)
+            ):
+                yield (
+                    node.value.lineno,
+                    node.value.col_offset,
+                    self.get_setting_message(setting_name),
+                )
 
         # Handle custom_settings assignments like the base class does
         if isinstance(node.value, ast.Dict):

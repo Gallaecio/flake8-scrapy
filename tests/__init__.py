@@ -17,13 +17,12 @@ def load_sample_file(filename):
     return (Path(__file__).parent / "samples" / filename).read_text()
 
 
-def run_checker(  # noqa: PLR0913
+def run_checker(
     code,
     filename=None,
     allowed_settings=None,
     enable_project_checks=False,
     requirements=None,
-    enable_global_checks=False,
 ):
     tree = ast.parse(code)
     if allowed_settings is not None:
@@ -46,7 +45,6 @@ def run_checker(  # noqa: PLR0913
         tree,
         filename,
         enable_project_checks=enable_project_checks,
-        enable_global_checks=enable_global_checks,
     )
     result = list(checker.run())
     if temp_dir is not None:

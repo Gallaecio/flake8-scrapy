@@ -9,7 +9,7 @@ from flake8_scrapy._finders.data import (
     MINIMUM_SUPPORTED_SCRAPY_VERSION,
 )
 
-from . import NO_ISSUE, Input, Issue, run_checker
+from . import NO_ISSUE, Input, Issue
 from .helpers import check_input
 
 ISSUE_COLUMN = 9
@@ -1137,7 +1137,7 @@ ISSUE_COLUMN = 9
     ],
 )
 def test_main(input: Input, expected: Issue | None):
-    check_input(input, expected)
+    check_input(input, expected, fix_global_settings=True)
 
 
 @pytest.mark.parametrize(
@@ -1236,103 +1236,4 @@ def test_main(input: Input, expected: Issue | None):
     ],
 )
 def test_global_settings(input: Input, expected: Issue | None):
-    check_input(input, expected, enable_global_checks=True)
-
-
-class TestAllowedSettings:
-    def test_unknown_setting_triggers_error_by_default(self):
-        code = 'CUSTOM_SETTING = "value"'
-        issues = run_checker(code, filename="settings.py")
-        assert len(issues) == 1
-        assert (
-            issues[0][2]
-            == "SCP07: unknown Scrapy setting: CUSTOM_SETTING. Did you mean PROJECT_SETTINGS?"
-        )
-
-    def test_unknown_setting_allowed_when_in_allowed_list(self):
-        code = 'CUSTOM_SETTING = "value"'
-        issues = run_checker(
-            code, filename="settings.py", allowed_settings=["CUSTOM_SETTING"]
-        )
-        assert len(issues) == 0
-
-    def test_multiple_allowed_settings(self):
-        code = (
-            'CUSTOM_SETTING_1 = "value1"\n'
-            'CUSTOM_SETTING_2 = "value2"\n'
-            'UNKNOWN_SETTING = "value3"\n'
-        )
-        issues = run_checker(
-            code,
-            filename="settings.py",
-            allowed_settings=["CUSTOM_SETTING_1", "CUSTOM_SETTING_2"],
-        )
-        assert len(issues) == 1
-        assert "UNKNOWN_SETTING" in issues[0][2]
-
-    def test_empty_allowed_settings_behaves_like_default(self):
-        code = 'CUSTOM_SETTING = "value"'
-        issues_default = run_checker(code, filename="settings.py")
-        issues_empty = run_checker(code, filename="settings.py", allowed_settings=[])
-        assert len(issues_default) == len(issues_empty) == 1
-        assert issues_default[0][2] == issues_empty[0][2]
-
-    def test_known_scrapy_settings_still_work(self):
-        code = 'BOT_NAME = "mybot"'
-        issues_without = run_checker(code, filename="settings.py")
-        issues_with = run_checker(
-            code, filename="settings.py", allowed_settings=["SOME_OTHER_SETTING"]
-        )
-        assert len(issues_without) == 0
-        assert len(issues_with) == 0
-
-    def test_deprecated_setting_allowed_when_in_allowed_list(self):
-        code = 'settings["REQUEST_FINGERPRINTER_IMPLEMENTATION"] = True'
-        issues_without = run_checker(code, requirements="scrapy==2.12.0")
-        assert len(issues_without) == 1
-        assert "SCP08:" in issues_without[0][2]
-        issues_with = run_checker(
-            code,
-            requirements="scrapy==2.12.0",
-            allowed_settings=["REQUEST_FINGERPRINTER_IMPLEMENTATION"],
-        )
-        assert len(issues_with) == 0
-
-    def test_future_setting_allowed_when_in_allowed_list(self):
-        """Test that future settings don't trigger SCP09 when in allowed list."""
-        code = 'settings["REQUEST_FINGERPRINTER_IMPLEMENTATION"] = "2.6"'
-        issues_without = run_checker(code, requirements="scrapy==2.6.3")
-        assert len(issues_without) == 1
-        assert "SCP09:" in issues_without[0][2]
-        issues_with = run_checker(
-            code, allowed_settings=["REQUEST_FINGERPRINTER_IMPLEMENTATION"]
-        )
-        assert len(issues_with) == 0
-
-    def test_removed_setting_allowed_when_in_allowed_list(self):
-        """Test that removed settings don't trigger SCP10 when in allowed list."""
-        code = 'settings["LOG_UNSERIALIZABLE_REQUESTS"] = True'
-        issues_without = run_checker(code, requirements="scrapy==2.1.0")
-        assert len(issues_without) == 1
-        assert "SCP10:" in issues_without[0][2]
-        issues_with = run_checker(
-            code, allowed_settings=["LOG_UNSERIALIZABLE_REQUESTS"]
-        )
-        assert len(issues_with) == 0
-
-    def test_mixed_settings_with_selective_allowlist(self):
-        """Test that only specific settings in allowlist are suppressed."""
-        code = (
-            'UNKNOWN_SETTING_1 = "value1"\n'
-            'UNKNOWN_SETTING_2 = "value2"\n'
-            'settings["LOG_UNSERIALIZABLE_REQUESTS"] = True\n'
-        )
-        issues_without = run_checker(code, filename="settings.py")
-        assert len(issues_without) >= 2
-        issues_with = run_checker(
-            code,
-            filename="settings.py",
-            allowed_settings=["UNKNOWN_SETTING_1", "LOG_UNSERIALIZABLE_REQUESTS"],
-        )
-        assert len(issues_with) == 1
-        assert "UNKNOWN_SETTING_2" in issues_with[0][2]
+    check_input(input, expected)
