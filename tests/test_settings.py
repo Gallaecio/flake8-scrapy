@@ -468,6 +468,18 @@ class TestScheduler:
                     "only supports None, str, tuple, dict, or list values",
                     33,
                 ),
+                (
+                    "LOG_LEVEL",
+                    None,
+                    "only supports valid logging levels: 'CRITICAL', 'FATAL', 'ERROR', 'WARNING', 'WARN', 'INFO', 'DEBUG', 'NOTSET', 'critical', 'fatal', 'error', 'warning', 'warn', 'info', 'debug', 'notset', 50, 40, 30, 20, 10, 0 or any integer",
+                    24,
+                ),
+                (
+                    "LOG_LEVEL",
+                    "FOO",
+                    "only supports valid logging levels: 'CRITICAL', 'FATAL', 'ERROR', 'WARNING', 'WARN', 'INFO', 'DEBUG', 'NOTSET', 'critical', 'fatal', 'error', 'warning', 'warn', 'info', 'debug', 'notset', 50, 40, 30, 20, 10, 0 or any integer",
+                    24,
+                ),
             )
         ),
         # SCP18: Ignored (valid) values
@@ -512,6 +524,11 @@ class TestScheduler:
                 ("JOBDIR", None),
                 ("JOBDIR", "/tmp/foo"),
                 ("JOBDIR", Path("/tmp/foo")),
+                ("LOG_LEVEL", "INFO"),
+                ("LOG_LEVEL", "debug"),
+                ("LOG_LEVEL", 20),
+                ("LOG_LEVEL", 0),
+                ("LOG_LEVEL", 25),
             )
         ),
         *(

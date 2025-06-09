@@ -34,6 +34,7 @@ class SettingType(Enum):
     CLS = "cls"
     PATH = "path"
     OPT_PATH = "opt_path"
+    LOG_LEVEL = "log_level"
 
 
 class AllowedExcludeSettingsMixin:
@@ -98,7 +99,9 @@ SETTINGS = {
     "CONCURRENT_REQUESTS_PER_IP": SettingInfo(type=SettingType.INT),
     "COOKIES_DEBUG": SettingInfo(type=SettingType.BOOL),
     "COOKIES_ENABLED": SettingInfo(type=SettingType.BOOL),
-    "DEFAULT_DROPITEM_LOG_LEVEL": SettingInfo(added_version="2.13.0"),
+    "DEFAULT_DROPITEM_LOG_LEVEL": SettingInfo(
+        added_version="2.13.0", type=SettingType.LOG_LEVEL
+    ),
     "DEFAULT_ITEM_CLASS": SettingInfo(type=SettingType.CLS),
     "DEFAULT_REQUEST_HEADERS": SettingInfo(type=SettingType.DICT),
     "DEPTH_LIMIT": SettingInfo(type=SettingType.INT),
@@ -196,7 +199,7 @@ SETTINGS = {
     "LOG_FILE_APPEND": SettingInfo(added_version="2.6.0", type=SettingType.BOOL),
     "LOG_FORMAT": SettingInfo(type=SettingType.STR),
     "LOG_FORMATTER": SettingInfo(type=SettingType.CLS),
-    "LOG_LEVEL": SettingInfo(),
+    "LOG_LEVEL": SettingInfo(type=SettingType.LOG_LEVEL),
     "LOG_SHORT_NAMES": SettingInfo(type=SettingType.BOOL),
     "LOG_STDOUT": SettingInfo(type=SettingType.BOOL),
     "LOG_VERSIONS": SettingInfo(added_version="2.13.0", type=SettingType.LIST),
@@ -894,6 +897,34 @@ class InvalidValueSettingsIssueFinder(
     # Valid types for bool settings when literal value cannot be determined
     VALID_BOOL_TYPES: ClassVar[set[type]] = {str, int, bool}
 
+    # Valid literal values for log level settings
+    VALID_LOG_LEVEL_LITERALS = (
+        # String levels (case-insensitive)
+        "CRITICAL",
+        "FATAL",
+        "ERROR",
+        "WARNING",
+        "WARN",
+        "INFO",
+        "DEBUG",
+        "NOTSET",
+        "critical",
+        "fatal",
+        "error",
+        "warning",
+        "warn",
+        "info",
+        "debug",
+        "notset",
+        # Standard numeric levels
+        50,
+        40,
+        30,
+        20,
+        10,
+        0,
+    )
+
     def __init__(
         self,
         filename=None,
@@ -918,6 +949,7 @@ class InvalidValueSettingsIssueFinder(
                 SettingType.CLS,
                 SettingType.PATH,
                 SettingType.OPT_PATH,
+                SettingType.LOG_LEVEL,
             ):
                 self.typed_settings[name] = info.type
         self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
@@ -934,6 +966,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.CLS: self._is_valid_class,
             SettingType.PATH: self._is_valid_path,
             SettingType.OPT_PATH: self._is_valid_optional_path,
+            SettingType.LOG_LEVEL: self._is_valid_log_level,
         }
 
     def should_report_setting(self, setting_name: str) -> bool:
@@ -966,6 +999,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.CLS: "only supports class objects or strings containing class import paths",
             SettingType.PATH: "only supports Path objects or strings",
             SettingType.OPT_PATH: "only supports None, Path objects, or strings",
+            SettingType.LOG_LEVEL: f"only supports valid logging levels: {', '.join(map(repr, self.VALID_LOG_LEVEL_LITERALS))} or any integer",
         }
 
         message_suffix = type_messages.get(setting_type, "has an invalid value")
@@ -1230,6 +1264,28 @@ class InvalidValueSettingsIssueFinder(
         if value is None:
             return True
         return self._is_valid_path(value)
+
+    def _is_valid_log_level(self, value) -> bool:
+        """Check if a value is a valid logging level."""
+        # Accept any integer (logging accepts any integer level)
+        if isinstance(value, int):
+            return True
+
+        # Accept valid string logging level names (case-insensitive)
+        if isinstance(value, str):
+            return value.upper() in {
+                "CRITICAL",
+                "FATAL",
+                "ERROR",
+                "WARNING",
+                "WARN",
+                "INFO",
+                "DEBUG",
+                "NOTSET",
+            }
+
+        # Reject None and other types
+        return False
 
     def _is_invalid_user_agent(self, value_node: ast.AST) -> bool:
         if not isinstance(value_node, ast.Constant):
