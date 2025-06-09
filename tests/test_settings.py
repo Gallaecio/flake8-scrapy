@@ -531,6 +531,12 @@ ISSUE_COLUMN = 9
                     30,
                 ),
                 (
+                    "FEED_EXPORT_INDENT",
+                    "not_int",
+                    "only supports None or values that can be passed to int()",
+                    33,
+                ),
+                (
                     "FEEDS",
                     "not_a_dict",
                     "must be a dict",
@@ -772,6 +778,11 @@ ISSUE_COLUMN = 9
                 ("PERIODIC_LOG_DELTA", {}),
                 ("FEED_URI_PARAMS", None),
                 ("FEED_URI_PARAMS", "myproject.utils.get_uri_params"),
+                ("FEED_EXPORT_INDENT", None),
+                ("FEED_EXPORT_INDENT", 0),
+                ("FEED_EXPORT_INDENT", 1),
+                ("FEED_EXPORT_INDENT", "2"),
+                ("FEED_EXPORT_INDENT", True),
                 ("FEEDS", {}),
                 ("FEEDS", {"output.json": {"format": "json"}}),
                 (

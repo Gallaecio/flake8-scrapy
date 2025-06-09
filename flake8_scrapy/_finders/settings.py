@@ -38,6 +38,7 @@ class SettingType(Enum):
     ENUM_STR = "enum_str"
     PERIODIC_LOG_CONFIG = "periodic_log_config"
     OPT_CALLABLE = "opt_callable"
+    OPT_INT = "opt_int"
 
 
 class AllowedExcludeSettingsMixin:
@@ -124,7 +125,7 @@ SETTINGS = {
     "DOWNLOAD_TIMEOUT": SettingInfo(type=SettingType.FLOAT),
     "DOWNLOAD_WARNSIZE": SettingInfo(type=SettingType.INT),
     "DOWNLOADER": SettingInfo(type=SettingType.CLS),
-    "DOWNLOADER_CLIENT_TLS_CIPHERS": SettingInfo(),
+    "DOWNLOADER_CLIENT_TLS_CIPHERS": SettingInfo(type=SettingType.STR),
     "DOWNLOADER_CLIENT_TLS_METHOD": SettingInfo(
         type=SettingType.ENUM_STR,
         allowed_values=("TLS", "TLSv1.0", "TLSv1.1", "TLSv1.2"),
@@ -145,7 +146,7 @@ SETTINGS = {
     ),
     "FEED_EXPORT_ENCODING": SettingInfo(type=SettingType.OPT_STR),
     "FEED_EXPORT_FIELDS": SettingInfo(type=SettingType.DICT_OR_LIST),
-    "FEED_EXPORT_INDENT": SettingInfo(),
+    "FEED_EXPORT_INDENT": SettingInfo(type=SettingType.OPT_INT),
     "FEED_EXPORTERS": SettingInfo(type=SettingType.BASED_DICT),
     "FEED_EXPORTERS_BASE": SettingInfo(),
     "FEED_STORAGE_FTP_ACTIVE": SettingInfo(type=SettingType.BOOL),
@@ -197,7 +198,7 @@ SETTINGS = {
     "IMAGES_URLS_FIELD": SettingInfo(type=SettingType.OPT_STR),
     "ITEM_PIPELINES": SettingInfo(type=SettingType.BASED_DICT),
     "ITEM_PIPELINES_BASE": SettingInfo(),
-    "ITEM_PROCESSOR": SettingInfo(),
+    "ITEM_PROCESSOR": SettingInfo(type=SettingType.CLS),
     "JOBDIR": SettingInfo(type=SettingType.OPT_PATH),
     "LOG_DATEFORMAT": SettingInfo(type=SettingType.STR),
     "LOG_ENABLED": SettingInfo(type=SettingType.BOOL),
@@ -966,6 +967,7 @@ class InvalidValueSettingsIssueFinder(
                 SettingType.ENUM_STR,
                 SettingType.PERIODIC_LOG_CONFIG,
                 SettingType.OPT_CALLABLE,
+                SettingType.OPT_INT,
             ):
                 self.typed_settings[name] = info.type
                 if info.type == SettingType.ENUM_STR and info.allowed_values:
@@ -988,6 +990,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.ENUM_STR: self._is_valid_enum_string,
             SettingType.PERIODIC_LOG_CONFIG: self._is_valid_periodic_log_config,
             SettingType.OPT_CALLABLE: self._is_valid_optional_callable,
+            SettingType.OPT_INT: self._is_valid_optional_int,
         }
 
     def should_report_setting(self, setting_name: str) -> bool:
@@ -1033,6 +1036,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.ENUM_STR: self._get_enum_message(setting_name),
             SettingType.PERIODIC_LOG_CONFIG: "only supports None, True, or a dict with 'include' and/or 'exclude' keys containing lists of strings",
             SettingType.OPT_CALLABLE: "only supports None, callable objects, or strings containing callable import paths",
+            SettingType.OPT_INT: "only supports None or values that can be passed to int()",
         }
 
         message_suffix = type_messages.get(setting_type, "has an invalid value")
@@ -1244,6 +1248,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.OPT_PATH,
             SettingType.ENUM_STR,
             SettingType.OPT_CALLABLE,
+            SettingType.OPT_INT,
         ):
             return isinstance(value_node, complex_types)
         return isinstance(value_node, complex_types)
@@ -1400,6 +1405,12 @@ class InvalidValueSettingsIssueFinder(
         if isinstance(value, str):
             return self._looks_like_callable_import_path(value)
         return False
+
+    def _is_valid_optional_int(self, value) -> bool:
+        """Check if a value is valid for OPT_INT type settings."""
+        if value is None:
+            return True
+        return self._can_convert_to_int(value)
 
     def _is_invalid_periodic_log_config_ast(self, value_node: ast.AST) -> bool:  # noqa: PLR0911
         """Check if an AST node is invalid for PERIODIC_LOG_DELTA or PERIODIC_LOG_STATS."""
