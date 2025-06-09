@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from flake8_scrapy._finders import (
+from flake8_scrapy._finders.data import (
     LATEST_KNOWN_SCRAPY_VERSION,
     MINIMUM_SUPPORTED_SCRAPY_VERSION,
 )

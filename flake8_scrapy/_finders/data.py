@@ -3,7 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from . import MINIMUM_SUPPORTED_SCRAPY_VERSION
+LATEST_KNOWN_SCRAPY_VERSION = "2.13.1"
+MIN_SUGGESTION_SCORE = 0.6
+MINIMUM_SUPPORTED_SCRAPY_VERSION = "2.0.1"
+
+HARDCODED_SUGGESTIONS = {
+    "CONCURRENCY": ["CONCURRENT_REQUESTS", "CONCURRENT_REQUESTS_PER_DOMAIN"],
+    "DELAY": ["DOWNLOAD_DELAY"],
+}
 
 
 class SettingType(Enum):
@@ -510,10 +517,3 @@ SETTINGS = {
     ),
     "ZYTE_SMARTPROXY_KEEP_HEADERS": SettingInfo(package="scrapy-zyte-smartproxy"),
 }
-
-HARDCODED_SUGGESTIONS = {
-    "CONCURRENCY": ["CONCURRENT_REQUESTS", "CONCURRENT_REQUESTS_PER_DOMAIN"],
-    "DELAY": ["DOWNLOAD_DELAY"],
-}
-
-MIN_SUGGESTION_SCORE = 0.6

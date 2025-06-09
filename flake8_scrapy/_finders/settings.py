@@ -7,17 +7,18 @@ from difflib import get_close_matches
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
-from . import MINIMUM_SUPPORTED_SCRAPY_VERSION, IssueFinder
+from . import IssueFinder
+from .data import (
+    HARDCODED_SUGGESTIONS,
+    MIN_SUGGESTION_SCORE,
+    MINIMUM_SUPPORTED_SCRAPY_VERSION,
+    SETTINGS,
+    SettingType,
+)
 from .messaging import (
     get_enum_validation_error,
 )
 from .settings_base import AllowedExcludeSettingsMixin, BaseSettingsIssueFinder
-from .settings_data import (
-    HARDCODED_SUGGESTIONS,
-    MIN_SUGGESTION_SCORE,
-    SETTINGS,
-    SettingType,
-)
 from .validation import (
     is_valid_log_level,
     looks_like_callable_import_path,

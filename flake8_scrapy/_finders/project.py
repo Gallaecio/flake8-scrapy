@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-from . import MINIMUM_SUPPORTED_SCRAPY_VERSION, IssueFinder
+from . import IssueFinder
+from .data import MINIMUM_SUPPORTED_SCRAPY_VERSION
 from .messaging import (
     format_issue_message,
     format_replacement_message,

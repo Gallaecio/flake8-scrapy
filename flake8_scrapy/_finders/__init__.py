@@ -9,9 +9,6 @@ from packaging.requirements import InvalidRequirement, Requirement
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-LATEST_KNOWN_SCRAPY_VERSION = "2.13.1"
-MINIMUM_SUPPORTED_SCRAPY_VERSION = "2.0.1"
-
 
 class IssueFinder:
     msg_code = ""
