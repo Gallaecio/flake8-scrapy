@@ -36,6 +36,7 @@ class SettingType(Enum):
     OPT_PATH = "opt_path"
     LOG_LEVEL = "log_level"
     ENUM_STR = "enum_str"
+    PERIODIC_LOG_CONFIG = "periodic_log_config"
 
 
 class AllowedExcludeSettingsMixin:
@@ -228,8 +229,12 @@ SETTINGS = {
     "METAREFRESH_IGNORE_TAGS": SettingInfo(type=SettingType.LIST),
     "METAREFRESH_MAXDELAY": SettingInfo(type=SettingType.INT),
     "NEWSPIDER_MODULE": SettingInfo(type=SettingType.STR),
-    "PERIODIC_LOG_DELTA": SettingInfo(added_version="2.11.0"),
-    "PERIODIC_LOG_STATS": SettingInfo(added_version="2.11.0"),
+    "PERIODIC_LOG_DELTA": SettingInfo(
+        added_version="2.11.0", type=SettingType.PERIODIC_LOG_CONFIG
+    ),
+    "PERIODIC_LOG_STATS": SettingInfo(
+        added_version="2.11.0", type=SettingType.PERIODIC_LOG_CONFIG
+    ),
     "PERIODIC_LOG_TIMING_ENABLED": SettingInfo(
         added_version="2.11.0", type=SettingType.BOOL
     ),
@@ -957,6 +962,7 @@ class InvalidValueSettingsIssueFinder(
                 SettingType.OPT_PATH,
                 SettingType.LOG_LEVEL,
                 SettingType.ENUM_STR,
+                SettingType.PERIODIC_LOG_CONFIG,
             ):
                 self.typed_settings[name] = info.type
                 if info.type == SettingType.ENUM_STR and info.allowed_values:
@@ -977,6 +983,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.OPT_PATH: self._is_valid_optional_path,
             SettingType.LOG_LEVEL: self._is_valid_log_level,
             SettingType.ENUM_STR: self._is_valid_enum_string,
+            SettingType.PERIODIC_LOG_CONFIG: self._is_valid_periodic_log_config,
         }
 
     def should_report_setting(self, setting_name: str) -> bool:
@@ -1011,6 +1018,7 @@ class InvalidValueSettingsIssueFinder(
             SettingType.OPT_PATH: "only supports None, Path objects, or strings",
             SettingType.LOG_LEVEL: f"only supports valid logging levels: {', '.join(map(repr, self.VALID_LOG_LEVEL_LITERALS))} or any integer",
             SettingType.ENUM_STR: self._get_enum_message(setting_name),
+            SettingType.PERIODIC_LOG_CONFIG: "only supports None, True, or a dict with 'include' and/or 'exclude' keys containing lists of strings",
         }
 
         message_suffix = type_messages.get(setting_type, "has an invalid value")
@@ -1165,6 +1173,10 @@ class InvalidValueSettingsIssueFinder(
         if setting_type == SettingType.ENUM_STR:
             return self._is_invalid_enum_value(value_node, setting_name)
 
+        # Special handling for periodic log config settings
+        if setting_type == SettingType.PERIODIC_LOG_CONFIG:
+            return self._is_invalid_periodic_log_config_ast(value_node)
+
         # If we can identify the literal value
         if isinstance(value_node, ast.Constant):
             return self._is_invalid_constant_value(value_node.value, setting_type)
@@ -1318,6 +1330,69 @@ class InvalidValueSettingsIssueFinder(
 
     def _is_valid_enum_string(self, value) -> bool:
         return isinstance(value, str)
+
+    def _is_valid_periodic_log_config(self, value) -> bool:  # noqa: PLR0911
+        """Check if a value is valid for PERIODIC_LOG_DELTA or PERIODIC_LOG_STATS."""
+        # Allow None
+        if value is None:
+            return True
+
+        # Allow True (but not False or other boolean values)
+        if value is True:
+            return True
+
+        # Allow dict with only 'include' and/or 'exclude' keys
+        if isinstance(value, dict):
+            # Check that only 'include' and/or 'exclude' keys are present
+            allowed_keys = {"include", "exclude"}
+            if not set(value.keys()).issubset(allowed_keys):
+                return False
+
+            # Check that values are lists of strings
+            for val in value.values():
+                if not isinstance(val, list):
+                    return False
+                if not all(isinstance(item, str) for item in val):
+                    return False
+
+            return True
+
+        return False
+
+    def _is_invalid_periodic_log_config_ast(self, value_node: ast.AST) -> bool:  # noqa: PLR0911
+        """Check if an AST node is invalid for PERIODIC_LOG_DELTA or PERIODIC_LOG_STATS."""
+        # Handle constants (None, True, False, strings, etc.)
+        if isinstance(value_node, ast.Constant):
+            return not self._is_valid_periodic_log_config(value_node.value)
+
+        # Handle dictionaries
+        if isinstance(value_node, ast.Dict):
+            # Check that only 'include' and/or 'exclude' keys are present
+            allowed_keys = {"include", "exclude"}
+            for key_node in value_node.keys:
+                if not isinstance(key_node, ast.Constant) or not isinstance(
+                    key_node.value, str
+                ):
+                    return True  # Invalid key type
+                if key_node.value not in allowed_keys:
+                    return True  # Invalid key name
+
+            # Check that values are lists
+            for value_node_item in value_node.values:
+                if not isinstance(value_node_item, ast.List):
+                    return True  # Value is not a list
+
+                # Check that list items are strings
+                for list_item in value_node_item.elts:
+                    if not isinstance(list_item, ast.Constant) or not isinstance(
+                        list_item.value, str
+                    ):
+                        return True  # List item is not a string
+
+            return False  # Valid dict
+
+        # All other types are invalid
+        return True
 
     def _get_enum_message(self, setting_name: str) -> str:
         if setting_name in self.enum_settings:

@@ -492,6 +492,36 @@ class TestScheduler:
                     "only supports the following values: 'TLS', 'TLSv1.0', 'TLSv1.1', 'TLSv1.2'.",
                     43,
                 ),
+                (
+                    "PERIODIC_LOG_DELTA",
+                    False,
+                    "only supports None, True, or a dict with 'include' and/or 'exclude' keys containing lists of strings",
+                    33,
+                ),
+                (
+                    "PERIODIC_LOG_DELTA",
+                    "invalid",
+                    "only supports None, True, or a dict with 'include' and/or 'exclude' keys containing lists of strings",
+                    33,
+                ),
+                (
+                    "PERIODIC_LOG_DELTA",
+                    {"invalid_key": ["stats"]},
+                    "only supports None, True, or a dict with 'include' and/or 'exclude' keys containing lists of strings",
+                    33,
+                ),
+                (
+                    "PERIODIC_LOG_DELTA",
+                    {"include": "not_a_list"},
+                    "only supports None, True, or a dict with 'include' and/or 'exclude' keys containing lists of strings",
+                    33,
+                ),
+                (
+                    "PERIODIC_LOG_DELTA",
+                    {"include": [123]},
+                    "only supports None, True, or a dict with 'include' and/or 'exclude' keys containing lists of strings",
+                    33,
+                ),
             )
         ),
         # SCP18: Ignored (valid) values
@@ -543,6 +573,14 @@ class TestScheduler:
                 ("LOG_LEVEL", 25),
                 ("DOWNLOADER_CLIENT_TLS_METHOD", "TLS"),
                 ("DOWNLOADER_CLIENT_TLS_METHOD", "TLSv1.2"),
+                ("PERIODIC_LOG_DELTA", None),
+                ("PERIODIC_LOG_DELTA", True),
+                ("PERIODIC_LOG_DELTA", {"include": ["stats"]}),
+                ("PERIODIC_LOG_DELTA", {"exclude": ["downloader/response_count"]}),
+                ("PERIODIC_LOG_DELTA", {"include": ["stats"], "exclude": ["other"]}),
+                ("PERIODIC_LOG_DELTA", {"include": []}),
+                ("PERIODIC_LOG_DELTA", {"exclude": []}),
+                ("PERIODIC_LOG_DELTA", {}),
             )
         ),
         *(
