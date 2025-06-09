@@ -26,7 +26,7 @@ GLOBAL_SETTINGS = {
 
 def check_input(input, expected, fix_global_settings=False):
     code = input.code
-    file_path = input.filename
+    file_path = input.file_path
 
     if file_path and Path(file_path).name == "settings.py" and fix_global_settings:
         # Add settings that, if missing from settings.py, trigger issues.
@@ -37,7 +37,7 @@ def check_input(input, expected, fix_global_settings=False):
 
     issues = run_checker(
         code,
-        input.filename,
+        input.file_path,
         requirements=input.requirements,
     )
 

@@ -30,7 +30,7 @@ ISSUE_COLUMN = 9
             )
             for setting, value in [("FOO", "bar")]
             for case in (
-                {"input": Input(f"{setting} = {value!r}", filename="settings.py")},
+                {"input": Input(f"{setting} = {value!r}", file_path="settings.py")},
                 {
                     "input": Input(f'crawler.settings["{setting}"] = {value!r}'),
                     "column": 17,
@@ -138,9 +138,9 @@ ISSUE_COLUMN = 9
                 Input('FOO = "BAR"'),
                 # In settings.py, variables that are _-prefixed, lowercase or
                 # shorter than 3 characters are not considered settings.
-                Input('_FOO = "BAR"', filename="settings.py"),
-                Input('foo = "BAR"', filename="settings.py"),
-                Input('FO = "BAR"', filename="settings.py"),
+                Input('_FOO = "BAR"', file_path="settings.py"),
+                Input('foo = "BAR"', file_path="settings.py"),
+                Input('FO = "BAR"', file_path="settings.py"),
                 # Dict class variables other than custom_settings are
                 # not considered settings.
                 Input('class MyClass:\n    foo = {\n        "FOO": "bar",\n    }\n'),
@@ -315,17 +315,17 @@ ISSUE_COLUMN = 9
         # For unknown settings, suggestions may be provided.
         (
             # 1 hardcoded
-            Input("DELAY = 5", filename="settings.py"),
+            Input("DELAY = 5", file_path="settings.py"),
             Issue("SCP07: unknown Scrapy setting: DELAY. Did you mean DOWNLOAD_DELAY?"),
         ),
         (
             # 1 automatic
-            Input("ADD_ONS = {}", filename="settings.py"),
+            Input("ADD_ONS = {}", file_path="settings.py"),
             Issue("SCP07: unknown Scrapy setting: ADD_ONS. Did you mean ADDONS?"),
         ),
         (
             # 2+ hardcoded
-            Input("CONCURRENCY = 1", filename="settings.py"),
+            Input("CONCURRENCY = 1", file_path="settings.py"),
             Issue(
                 "SCP07: unknown Scrapy setting: CONCURRENCY. Did you mean one "
                 "of: CONCURRENT_REQUESTS, CONCURRENT_REQUESTS_PER_DOMAIN?"
@@ -333,7 +333,7 @@ ISSUE_COLUMN = 9
         ),
         (
             # 2+ automatic
-            Input("CONCURRENT_REQUESTS_PER_SLOT = 1", filename="settings.py"),
+            Input("CONCURRENT_REQUESTS_PER_SLOT = 1", file_path="settings.py"),
             Issue(
                 "SCP07: unknown Scrapy setting: CONCURRENT_REQUESTS_PER_SLOT. "
                 "Did you mean one of: CONCURRENT_REQUESTS_PER_IP, "
@@ -392,7 +392,7 @@ ISSUE_COLUMN = 9
         # SCP18: Supported setter syntaxes
         *(
             (
-                Input(syntax, filename=filename),
+                Input(syntax, file_path=filename),
                 Issue(
                     "SCP18: invalid setting value: AUTOTHROTTLE_ENABLED only "
                     "supports the following values: True, False, 0, 1, "
@@ -1035,16 +1035,16 @@ ISSUE_COLUMN = 9
         ),
         # SCP23
         (
-            Input('BOT_NAME = "foo"', filename="settings.py"),
+            Input('BOT_NAME = "foo"', file_path="settings.py"),
             NO_ISSUE,
         ),
         (
-            Input('BOT_NAME = "foo"\nBOT_NAME = "bar"', filename="settings.py"),
+            Input('BOT_NAME = "foo"\nBOT_NAME = "bar"', file_path="settings.py"),
             Issue("SCP23: BOT_NAME is set multiple times in settings.py", line=2),
         ),
         # SCP24
         (
-            Input("DOWNLOAD_HANDLERS_BASE = {}", filename="settings.py"),
+            Input("DOWNLOAD_HANDLERS_BASE = {}", file_path="settings.py"),
             Issue(
                 "SCP24: use of BASE setting: do not use DOWNLOAD_HANDLERS_BASE, use DOWNLOAD_HANDLERS instead"
             ),
@@ -1113,7 +1113,7 @@ ISSUE_COLUMN = 9
         # SCP27: unnecessary import path strings
         *(
             (
-                Input(f"{setting} = {value}", filename="settings.py"),
+                Input(f"{setting} = {value}", file_path="settings.py"),
                 Issue(
                     f"SCP27: import path string in setting: {setting} should import the class directly instead of using import path string",
                     column=len(setting) + 3,
@@ -1130,7 +1130,7 @@ ISSUE_COLUMN = 9
             Input(
                 "SPIDER_MIDDLEWARES = "
                 '{"scrapy.spidermiddlewares.httperror.HttpErrorMiddleware": None}',
-                filename="settings.py",
+                file_path="settings.py",
             ),
             NO_ISSUE,
         ),
@@ -1152,7 +1152,7 @@ def test_main(input: Input, expected: Issue | None):
                 'USER_AGENT = "Jane Doe (+https://jane.doe.example)"\n'
                 "ROBOTSTXT_OBEY = True\n"
                 "AUTOTHROTTLE_ENABLED = True",
-                filename="settings.py",
+                file_path="settings.py",
             ),
             NO_ISSUE,
         ),
@@ -1163,12 +1163,12 @@ def test_main(input: Input, expected: Issue | None):
                 "CONCURRENT_REQUESTS = 1\n"
                 "CONCURRENT_REQUESTS_PER_DOMAIN = 1\n"
                 "DOWNLOAD_DELAY = 5",
-                filename="settings.py",
+                file_path="settings.py",
             ),
             NO_ISSUE,
         ),
         (
-            Input("", filename="settings.py"),
+            Input("", file_path="settings.py"),
             [
                 Issue("SCP19: No USER_AGENT in settings.py"),
                 Issue("SCP20: ROBOTSTXT_OBEY not enabled in settings.py"),
@@ -1182,7 +1182,7 @@ def test_main(input: Input, expected: Issue | None):
                 'USER_AGENT = "Jane Doe (+https://jane.doe.example)"\n'
                 "ROBOTSTXT_OBEY = False\n"
                 "AUTOTHROTTLE_ENABLED = True",
-                filename="settings.py",
+                file_path="settings.py",
             ),
             Issue("SCP20: ROBOTSTXT_OBEY not enabled in settings.py"),
         ),
@@ -1191,7 +1191,7 @@ def test_main(input: Input, expected: Issue | None):
                 'USER_AGENT = "Jane Doe (+https://jane.doe.example)"\n'
                 "ROBOTSTXT_OBEY = True\n"
                 "AUTOTHROTTLE_ENABLED = False",
-                filename="settings.py",
+                file_path="settings.py",
             ),
             Issue(
                 "SCP21: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: CONCURRENT_REQUESTS, CONCURRENT_REQUESTS_PER_DOMAIN, DOWNLOAD_DELAY"
@@ -1203,7 +1203,7 @@ def test_main(input: Input, expected: Issue | None):
                 "ROBOTSTXT_OBEY = True\n"
                 "CONCURRENT_REQUESTS_PER_DOMAIN = 1\n"
                 "DOWNLOAD_DELAY = 5",
-                filename="settings.py",
+                file_path="settings.py",
             ),
             Issue(
                 "SCP21: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: CONCURRENT_REQUESTS"
@@ -1215,7 +1215,7 @@ def test_main(input: Input, expected: Issue | None):
                 "ROBOTSTXT_OBEY = True\n"
                 "CONCURRENT_REQUESTS = 1\n"
                 "DOWNLOAD_DELAY = 5",
-                filename="settings.py",
+                file_path="settings.py",
             ),
             Issue(
                 "SCP21: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: CONCURRENT_REQUESTS_PER_DOMAIN"
@@ -1227,7 +1227,7 @@ def test_main(input: Input, expected: Issue | None):
                 "ROBOTSTXT_OBEY = True\n"
                 "CONCURRENT_REQUESTS = 1\n"
                 "CONCURRENT_REQUESTS_PER_DOMAIN = 1",
-                filename="settings.py",
+                file_path="settings.py",
             ),
             Issue(
                 "SCP21: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: DOWNLOAD_DELAY"

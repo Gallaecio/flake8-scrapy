@@ -55,7 +55,7 @@ def run_checker(
 @dataclass
 class Input:
     code: str
-    filename: str | None = None
+    file_path: str | None = None
     requirements: str | None = None
 
 
