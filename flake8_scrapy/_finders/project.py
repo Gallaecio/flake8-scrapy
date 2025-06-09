@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-from packaging.version import InvalidVersion, Version
-
 from . import MINIMUM_SUPPORTED_SCRAPY_VERSION, IssueFinder
+from .utilities import (
+    is_frozen_requirement,
+    is_version_less_than,
+    parse_requirement_line,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -58,13 +61,6 @@ class BaseProjectIssueFinder(IssueFinder):
     def find_issues(self, node) -> Generator[tuple[int, int, str], None, None]:
         yield from self.process_requirements_txt(node)
 
-    @staticmethod
-    def is_version_less_than(version: str, min_version: str) -> bool:
-        try:
-            return Version(version) < Version(min_version)
-        except InvalidVersion:
-            return False
-
 
 class RequirementsTxtIssueFinder(BaseProjectIssueFinder):
     msg_code = "SCP11"
@@ -81,8 +77,8 @@ class NonFrozenDependenciesIssueFinder(BaseProjectIssueFinder):
     def check_requirement_line(
         self, line_num: int, line: str
     ) -> Generator[tuple[int, int, str], None, None]:
-        req = self.parse_requirement_line(line)
-        if req is not None and not self.is_frozen_requirement(req):
+        req = parse_requirement_line(line)
+        if req is not None and not is_frozen_requirement(req):
             message = f"{self.msg_code} {self.msg_info}: {req.name}"
             yield (line_num, 0, message)
 
@@ -95,12 +91,12 @@ class BaseScrapyVersionIssueFinder(BaseProjectIssueFinder):
     def check_requirement_line(
         self, line_num: int, line: str
     ) -> Generator[tuple[int, int, str], None, None]:
-        req = self.parse_requirement_line(line)
+        req = parse_requirement_line(line)
         if req is None:
             return
-        if req.name.lower() == "scrapy" and self.is_frozen_requirement(req):
+        if req.name.lower() == "scrapy" and is_frozen_requirement(req):
             version_part = next(iter(req.specifier)).version
-            if self.is_version_less_than(version_part, self.minimum_version):
+            if is_version_less_than(version_part, self.minimum_version):
                 message = f"{self.msg_code} {self.msg_info}: {version_part} (minimum required: {self.minimum_version})"
                 yield (line_num, 0, message)
 
@@ -129,7 +125,7 @@ class ObsoletePackagesIssueFinder(BaseProjectIssueFinder):
     def check_requirement_line(
         self, line_num: int, line: str
     ) -> Generator[tuple[int, int, str], None, None]:
-        req = self.parse_requirement_line(line)
+        req = parse_requirement_line(line)
         if req is None:
             return
 

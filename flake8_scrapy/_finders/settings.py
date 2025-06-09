@@ -18,6 +18,12 @@ from .settings_data import (
     SETTINGS,
     SettingType,
 )
+from .utilities import (
+    build_package_versions_dict,
+    is_valid_log_level,
+    looks_like_callable_import_path,
+    looks_like_class_import_path,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -345,34 +351,14 @@ class BaseSettingsIssueFinder(IssueFinder, ABC):
         message = self.get_setting_message(setting_name)
         yield (line, col, message)
 
-    def get_package_version(self, package_name) -> str | None:
+    def get_package_version(self, package_name) -> Version | None:
         return self.package_versions.get(canonicalize_name(package_name), None)
 
     @property
-    def package_versions(self) -> dict[str, str]:
+    def package_versions(self) -> dict[str, Version]:
         if hasattr(self, "_package_versions"):
             return self._package_versions
-        self._package_versions = {}
-        project_root = self.get_project_root()
-        if not project_root:
-            return self._package_versions
-        requirements_txt = project_root / "requirements.txt"
-        if not requirements_txt.exists():
-            return self._package_versions
-        try:
-            requirements = requirements_txt.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            return self._package_versions
-        for line in requirements.splitlines():
-            requirement = self.parse_requirement_line(line)
-            if requirement is None:
-                continue
-            if not self.is_frozen_requirement(requirement):
-                continue
-            version = next(iter(requirement.specifier)).version
-            self._package_versions[canonicalize_name(requirement.name)] = Version(
-                version
-            )
+        self._package_versions = build_package_versions_dict(self.get_project_root())
         return self._package_versions
 
 
@@ -821,26 +807,11 @@ class InvalidValueSettingsIssueFinder(
         return False
 
     def _looks_like_class_import_path(self, value: str) -> bool:
-        if not value:
-            return False
-        parts = value.split(".")
-        MINIMUM_IMPORT_PARTS = 2
-        if len(parts) < MINIMUM_IMPORT_PARTS:
-            return False
-        for part in parts:
-            if not part.isidentifier():
-                return False
-        return parts[-1][0].isupper()
+        return looks_like_class_import_path(value)
 
     def _looks_like_callable_import_path(self, value: str) -> bool:
         """Check if a string looks like a valid import path for any callable (function, class, etc.)."""
-        if not value:
-            return False
-        parts = value.split(".")
-        MINIMUM_IMPORT_PARTS = 2
-        if len(parts) < MINIMUM_IMPORT_PARTS:
-            return False
-        return all(part.isidentifier() for part in parts)
+        return looks_like_callable_import_path(value)
 
     def _is_valid_path(self, value) -> bool:
         if isinstance(value, Path):
@@ -854,25 +825,7 @@ class InvalidValueSettingsIssueFinder(
 
     def _is_valid_log_level(self, value) -> bool:
         """Check if a value is a valid logging level."""
-        # Accept any integer (logging accepts any integer level)
-        if isinstance(value, int):
-            return True
-
-        # Accept valid string logging level names (case-insensitive)
-        if isinstance(value, str):
-            return value.upper() in {
-                "CRITICAL",
-                "FATAL",
-                "ERROR",
-                "WARNING",
-                "WARN",
-                "INFO",
-                "DEBUG",
-                "NOTSET",
-            }
-
-        # Reject None and other types
-        return False
+        return is_valid_log_level(value)
 
     def _is_valid_enum_string(self, value) -> bool:
         return isinstance(value, str)
@@ -2569,13 +2522,4 @@ class ImportPathStringIssueFinder(BaseSettingsIssueFinder):
         return False
 
     def _looks_like_class_import_path(self, value: str) -> bool:
-        if not value:
-            return False
-        parts = value.split(".")
-        MINIMUM_IMPORT_PARTS = 2
-        if len(parts) < MINIMUM_IMPORT_PARTS:
-            return False
-        for part in parts:
-            if not part.isidentifier():
-                return False
-        return parts[-1][0].isupper()
+        return looks_like_class_import_path(value)

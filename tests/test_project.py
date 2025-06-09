@@ -491,15 +491,10 @@ def test_unreadable_requirements_txt():
 
 
 def test_invalid_version_format():
-    from flake8_scrapy._finders.project import (
-        AncientScrapyVersionIssueFinder,
-        InsecureScrapyVersionIssueFinder,
-    )
+    from flake8_scrapy._finders.utilities import is_version_less_than
 
-    finder = AncientScrapyVersionIssueFinder()
-    result = finder.is_version_less_than("invalid-version", "2.0.0")
+    result = is_version_less_than("invalid-version", "2.0.0")
     assert result is False
 
-    insecure_finder = InsecureScrapyVersionIssueFinder()
-    result = insecure_finder.is_version_less_than("invalid-version", "2.11.2")
+    result = is_version_less_than("invalid-version", "2.11.2")
     assert result is False
