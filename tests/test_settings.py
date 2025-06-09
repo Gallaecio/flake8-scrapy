@@ -378,6 +378,21 @@ class TestScheduler:
                 ("SPIDER_CONTRACTS", "getwithbase"),
             )
         ),
+        *(
+            (
+                Input(f'settings.getbool("{setting}")'),
+                Issue(
+                    f"SCP17: wrong setting getter: use [] or get() to read {setting}",
+                    column=17,
+                ),
+            )
+            for setting in (
+                "BOT_NAME",
+                "AWS_ACCESS_KEY_ID",
+                "SCHEDULER",
+                "JOBDIR",
+            )
+        ),
         # SCP18: Supported setter syntaxes
         *(
             (

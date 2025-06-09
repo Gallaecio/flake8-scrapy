@@ -1526,6 +1526,8 @@ class TypeMismatchSettingsIssueFinder(
     def get_setting_message(self, setting_name: str) -> str:
         setting_type = self.typed_settings[setting_name]
         expected_method = self.TYPE_TO_METHOD.get(setting_type, "get")
+        if expected_method == "get":
+            return f"{self.msg_code}: {self.msg_info}: use [] or get() to read {setting_name}"
         return f"{self.msg_code}: {self.msg_info}: use {expected_method}() to read {setting_name}"
 
     def check_settings_method_args(
@@ -1956,13 +1958,12 @@ class UnnecessaryGetIssueFinder(BaseSettingsIssueFinder):
         super().__init__(filename, *args, **kwargs)
 
     def should_report_setting(self, setting_name: str) -> bool:
-        # Only report if it's a known setting and doesn't have a specific typed method (SCP17)
+        # Only report if it's a known setting and doesn't have a specific typed getter (to avoid conflicts with SCP17)
         if setting_name not in SETTINGS:
             return False
         setting_info = SETTINGS[setting_name]
-        # Only exclude if it has a type that requires a specific getter method (not "get")
         if setting_info.type is not None:
-            # Check if this type has a specific getter method
+            # Check if this type has a specific getter method defined in SCP17
             type_to_method = {
                 SettingType.BOOL: "getbool",
                 SettingType.INT: "getint",
@@ -1972,8 +1973,8 @@ class UnnecessaryGetIssueFinder(BaseSettingsIssueFinder):
                 SettingType.DICT_OR_LIST: "getdictorlist",
                 SettingType.BASED_DICT: "getwithbase",
             }
-            specific_method = type_to_method.get(setting_info.type, "get")
-            return specific_method == "get"
+            # Only report if the type doesn't have a specific getter (i.e., uses "get")
+            return setting_info.type not in type_to_method
         return True
 
     def get_setting_message(self, setting_name: str) -> str:
@@ -1989,18 +1990,8 @@ class UnnecessaryGetIssueFinder(BaseSettingsIssueFinder):
         if not isinstance(node.func, ast.Attribute):
             return
 
-        getter_methods = {
-            "get",
-            "getbool",
-            "getint",
-            "getfloat",
-            "getlist",
-            "getdict",
-            "getdictorlist",
-            "getwithbase",
-        }
-
-        if self.is_settings_method_call(node) and node.func.attr in getter_methods:
+        # Only check get() calls for SCP25, not typed getters (those are handled by SCP17)
+        if self.is_settings_method_call(node) and node.func.attr == "get":
             yield from self.check_settings_method_args(node)
 
     def check_subscript(
@@ -2020,18 +2011,9 @@ class UnnecessaryGetIssueFinder(BaseSettingsIssueFinder):
     ) -> Generator[tuple[int, int, str], None, None]:
         assert isinstance(node.func, ast.Attribute)
         method_name = node.func.attr
-        getter_methods = {
-            "get",
-            "getbool",
-            "getint",
-            "getfloat",
-            "getlist",
-            "getdict",
-            "getdictorlist",
-            "getwithbase",
-        }
 
-        if method_name not in getter_methods:
+        # Only handle get() calls for SCP25
+        if method_name != "get":
             return
 
         first_arg = node.args[0] if node.args else None
