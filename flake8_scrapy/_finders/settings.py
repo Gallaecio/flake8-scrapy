@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from . import MINIMUM_SUPPORTED_SCRAPY_VERSION, IssueFinder
+from .messaging import (
+    get_enum_validation_error,
+)
 from .settings_base import AllowedExcludeSettingsMixin, BaseSettingsIssueFinder
 from .settings_data import (
     HARDCODED_SUGGESTIONS,
@@ -15,17 +18,18 @@ from .settings_data import (
     SETTINGS,
     SettingType,
 )
-from .utilities import (
-    get_enum_validation_error,
+from .validation import (
     is_valid_log_level,
-    is_version_greater_than,
-    is_version_less_than_or_equal,
     looks_like_callable_import_path,
     looks_like_class_import_path,
     validate_download_slots_config,
     validate_feeds_config,
     validate_periodic_log_config,
     validate_periodic_log_config_ast,
+)
+from .versions import (
+    is_version_greater_than,
+    is_version_less_than_or_equal,
 )
 
 if TYPE_CHECKING:

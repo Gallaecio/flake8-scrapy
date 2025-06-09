@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from packaging.utils import canonicalize_name
 
 from . import IssueFinder
-from .utilities import build_package_versions_dict
+from .versions import build_package_versions_dict
 
 if TYPE_CHECKING:
     from collections.abc import Generator

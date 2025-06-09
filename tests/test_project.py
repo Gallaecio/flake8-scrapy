@@ -7,6 +7,7 @@ from flake8_scrapy._finders.project import (
     NonFrozenDependenciesIssueFinder,
     RequirementsTxtIssueFinder,
 )
+from flake8_scrapy._finders.versions import is_version_less_than
 
 from . import run_checker
 
@@ -491,8 +492,6 @@ def test_unreadable_requirements_txt():
 
 
 def test_invalid_version_format():
-    from flake8_scrapy._finders.utilities import is_version_less_than
-
     result = is_version_less_than("invalid-version", "2.0.0")
     assert result is False
 

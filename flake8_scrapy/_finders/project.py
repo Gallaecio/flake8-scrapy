@@ -3,13 +3,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar
 
 from . import MINIMUM_SUPPORTED_SCRAPY_VERSION, IssueFinder
-from .utilities import (
-    check_package_obsolescence,
+from .messaging import (
     format_issue_message,
     format_replacement_message,
+)
+from .versions import (
+    RequirementsParsingMixin,
+    VersionValidationMixin,
+    check_package_obsolescence,
     is_frozen_requirement,
 )
-from .versions import RequirementsParsingMixin, VersionValidationMixin
 
 if TYPE_CHECKING:
     from collections.abc import Generator
