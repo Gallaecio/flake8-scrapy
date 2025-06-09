@@ -5,6 +5,9 @@ from typing import TYPE_CHECKING, ClassVar
 from . import MINIMUM_SUPPORTED_SCRAPY_VERSION, IssueFinder
 from .mixins import RequirementsParsingMixin, VersionValidationMixin
 from .utilities import (
+    check_package_obsolescence,
+    format_issue_message,
+    format_replacement_message,
     is_frozen_requirement,
 )
 
@@ -38,7 +41,7 @@ class NonFrozenDependenciesIssueFinder(BaseProjectIssueFinder):
     ) -> Generator[tuple[int, int, str], None, None]:
         req = self.parse_requirement_from_line(line)
         if req is not None and not is_frozen_requirement(req):
-            message = f"{self.msg_code} {self.msg_info}: {req.name}"
+            message = format_issue_message(self.msg_code, self.msg_info, req.name)
             yield (line_num, 0, message)
 
 
@@ -53,7 +56,9 @@ class BaseScrapyVersionIssueFinder(BaseProjectIssueFinder, VersionValidationMixi
         req = self.parse_requirement_from_line(line)
         if req is None:
             return
-        yield from self.validate_scrapy_version(req, line_num)
+        yield from self.check_version_requirement(
+            req, line_num, "scrapy", self.minimum_version
+        )
 
 
 class AncientScrapyVersionIssueFinder(BaseScrapyVersionIssueFinder):
@@ -84,11 +89,11 @@ class ObsoletePackagesIssueFinder(BaseProjectIssueFinder):
         if req is None:
             return
 
-        package_name = req.name.lower()
-        if package_name in self.OBSOLETE_PACKAGES:
-            replacements = self.OBSOLETE_PACKAGES[package_name]
-            replacement_text = (
-                replacements[0] if len(replacements) == 1 else " or ".join(replacements)
+        is_obsolete, replacements = check_package_obsolescence(
+            req.name, self.OBSOLETE_PACKAGES
+        )
+        if is_obsolete:
+            message = format_replacement_message(
+                self.msg_code, self.msg_info, req.name, replacements
             )
-            message = f"{self.msg_code} {self.msg_info}: {req.name} (use {replacement_text} instead)"
             yield (line_num, 0, message)

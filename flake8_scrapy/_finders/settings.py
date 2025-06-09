@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from packaging.utils import canonicalize_name
-from packaging.version import Version
 
 from . import MINIMUM_SUPPORTED_SCRAPY_VERSION, IssueFinder
 from .mixins import AllowedExcludeSettingsMixin
@@ -22,12 +21,16 @@ from .settings_data import (
 from .utilities import (
     build_package_versions_dict,
     is_valid_log_level,
+    is_version_greater_than,
+    is_version_less_than_or_equal,
     looks_like_callable_import_path,
     looks_like_class_import_path,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+
+    from packaging.version import Version
 
 MIN_VALID_SETTING_NAME_LENGTH = 3
 
@@ -1036,9 +1039,8 @@ class InvalidValueSettingsIssueFinder(
             if key in self.feeds_key_versions:
                 required_version = self.feeds_key_versions[key]
                 scrapy_version = self.get_package_version("scrapy")
-                if (
-                    scrapy_version is not None
-                    and Version(required_version) > scrapy_version
+                if scrapy_version is not None and is_version_greater_than(
+                    required_version, scrapy_version
                 ):
                     return f"'{key}' in {feed_key!r} is not available in Scrapy {scrapy_version}, requires Scrapy {required_version} or later"
 
@@ -1116,9 +1118,8 @@ class InvalidValueSettingsIssueFinder(
             if key in self.feeds_key_versions:
                 required_version = self.feeds_key_versions[key]
                 scrapy_version = self.get_package_version("scrapy")
-                if (
-                    scrapy_version is not None
-                    and Version(required_version) > scrapy_version
+                if scrapy_version is not None and is_version_greater_than(
+                    required_version, scrapy_version
                 ):
                     return f"'{key}' in {feed_key} is not available in Scrapy {scrapy_version}, requires Scrapy {required_version} or later"
 
@@ -1401,16 +1402,16 @@ class DeprecatedSettingsIssueFinder(
             package_version = self.get_package_version(info.package)
             if package_version is None:
                 continue
-            if (
-                info.removed_version
-                and Version(info.removed_version) <= package_version
+            if info.removed_version and is_version_less_than_or_equal(
+                info.removed_version, package_version
             ):
                 continue
-            if info.added_version and Version(info.added_version) > package_version:
+            if info.added_version and is_version_greater_than(
+                info.added_version, package_version
+            ):
                 continue
-            if (
-                info.deprecated_version
-                and Version(info.deprecated_version) <= package_version
+            if info.deprecated_version and is_version_less_than_or_equal(
+                info.deprecated_version, package_version
             ):
                 deprecated.add(name)
         return deprecated
@@ -1457,9 +1458,8 @@ class FutureSettingsIssueFinder(BaseSettingsIssueFinder, AllowedExcludeSettingsM
             if not info.added_version:
                 continue
             package_version = self.get_package_version(info.package)
-            if (
-                package_version is not None
-                and Version(info.added_version) > package_version
+            if package_version is not None and is_version_greater_than(
+                info.added_version, package_version
             ):
                 self.future_settings.add(name)
         self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
@@ -1497,9 +1497,8 @@ class RemovedSettingsIssueFinder(BaseSettingsIssueFinder, AllowedExcludeSettings
             if not info.removed_version:
                 continue
             package_version = self.get_package_version(info.package)
-            if (
-                package_version is not None
-                and Version(info.removed_version) <= package_version
+            if package_version is not None and is_version_less_than_or_equal(
+                info.removed_version, package_version
             ):
                 self.removed_settings.add(name)
         self._init_allowed_exclude_settings(allowed_settings, exclude_settings)

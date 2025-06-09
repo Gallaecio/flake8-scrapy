@@ -79,10 +79,34 @@ def is_frozen_requirement(req: Requirement) -> bool:
     return len(req.specifier) == 1 and next(iter(req.specifier)).operator == "=="
 
 
-def is_version_less_than(version: str, min_version: str) -> bool:
-    """Compare two version strings, returning True if version < min_version."""
+def is_version_less_than(version: str | Version, min_version: str | Version) -> bool:
+    """Compare two versions, returning True if version < min_version."""
     try:
-        return Version(version) < Version(min_version)
+        v1 = version if isinstance(version, Version) else Version(version)
+        v2 = min_version if isinstance(min_version, Version) else Version(min_version)
+        return v1 < v2
+    except InvalidVersion:
+        return False
+
+
+def is_version_greater_than(version: str | Version, min_version: str | Version) -> bool:
+    """Compare two versions, returning True if version > min_version."""
+    try:
+        v1 = version if isinstance(version, Version) else Version(version)
+        v2 = min_version if isinstance(min_version, Version) else Version(min_version)
+        return v1 > v2
+    except InvalidVersion:
+        return False
+
+
+def is_version_less_than_or_equal(
+    version: str | Version, max_version: str | Version
+) -> bool:
+    """Compare two versions, returning True if version <= max_version."""
+    try:
+        v1 = version if isinstance(version, Version) else Version(version)
+        v2 = max_version if isinstance(max_version, Version) else Version(max_version)
+        return v1 <= v2
     except InvalidVersion:
         return False
 
@@ -141,3 +165,48 @@ def build_package_versions_dict(project_root: Path | None) -> dict[str, Version]
         package_versions[canonicalize_name(requirement.name)] = Version(version)
 
     return package_versions
+
+
+def format_issue_message(msg_code: str, msg_info: str, detail: str = "") -> str:
+    """Format a standard issue message with optional detail."""
+    base_message = f"{msg_code} {msg_info}"
+    if detail:
+        return f"{base_message}: {detail}"
+    return base_message
+
+
+def format_version_issue_message(
+    msg_code: str, msg_info: str, actual_version: str, minimum_version: str
+) -> str:
+    """Format a version-related issue message."""
+    detail = f"{actual_version} (minimum required: {minimum_version})"
+    return format_issue_message(msg_code, msg_info, detail)
+
+
+def format_replacement_message(
+    msg_code: str, msg_info: str, package_name: str, replacements: list[str]
+) -> str:
+    """Format a package replacement message."""
+    if len(replacements) == 1:
+        replacement_text = replacements[0]
+    else:
+        replacement_text = " or ".join(replacements)
+    detail = f"{package_name} (use {replacement_text} instead)"
+    return format_issue_message(msg_code, msg_info, detail)
+
+
+def check_package_obsolescence(
+    package_name: str, obsolete_packages: dict[str, list[str]]
+) -> tuple[bool, list[str]]:
+    """Check if a package is obsolete and return replacement suggestions."""
+    package_lower = package_name.lower()
+    if package_lower in obsolete_packages:
+        return True, obsolete_packages[package_lower]
+    return False, []
+
+
+def extract_version_from_requirement(req: Requirement) -> str | None:
+    """Extract version string from a frozen requirement."""
+    if not is_frozen_requirement(req):
+        return None
+    return next(iter(req.specifier)).version
