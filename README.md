@@ -6,6 +6,51 @@
 A [Flake8](https://flake8.pycqa.org/en/latest/) plugin to catch common issues
 on Scrapy projects.
 
+
+## Installation
+
+```
+pip install flake8-scrapy
+```
+
+## Initial setup
+
+For all checks to work, you must:
+
+-   Have a `scrapy.cfg` file in the root of your Scrapy project folder.
+
+-   Have a `requirements.txt` file there as well.
+
+-   Configure Flake8 to handle `requirements.txt` files. For example:
+
+    ```
+    # .flake8, setup.cfg or pyproject.toml
+    [flake8]
+    filename = *.py,requirements.txt
+    ```
+
+
+## Usage
+
+Once installed and setup, flake8-scrapy checks are run automatically when
+running Flake8:
+
+```
+flake8
+```
+
+When using [pre-commit](https://pre-commit.com/), configure Flake8 and list
+flake8-scrapy in `additional_dependencies`. For example:
+
+```yaml
+- repo: https://github.com/pycqa/flake8
+  rev: "7.2.0"
+  hooks:
+  - id: flake8
+    additional_dependencies:
+    - flake8-scrapy
+```
+
 ## Error codes
 
 | Code  | Meaning |
@@ -18,7 +63,7 @@ on Scrapy projects.
 | SCP08 | Use of settings deprecated in the target Scrapy and Scrapy plugin versions |
 | SCP09 | Use of settings not yet available in the target Scrapy and Scrapy plugin versions |
 | SCP10 | Use of old settings that have been removed from the target Scrapy and Scrapy plugin versions |
-| SCP11 | No requirements.txt |
+| SCP11 | Duplicate dependency in requirements.txt |
 | SCP12 | Non-frozen dependency in requirements.txt |
 | SCP13 | Ancient Scrapy version in requirements.txt |
 | SCP14 | Insecure Scrapy version in requirements.txt |
@@ -55,35 +100,6 @@ adding a setting to this list that is not specific to your project (i.e. made
 up by yourself for some custom Scrapy component), consider
 [opening an issue](https://github.com/stummjr/flake8-scrapy/issues) to request
 support for that setting.
-
-
-## Installation
-
-```
-pip install flake8-scrapy
-```
-
-
-## Usage
-
-Once installed, flake8-scrapy checks are run automatically when running
-[Flake8](https://flake8.pycqa.org/en/latest/):
-
-```
-flake8
-```
-
-When using [pre-commit](https://pre-commit.com/), configure Flake8 and list
-flake8-scrapy in `additional_dependencies`. For example:
-
-```yaml
-- repo: https://github.com/pycqa/flake8
-  rev: "7.2.0"
-  hooks:
-  - id: flake8
-    additional_dependencies:
-    - flake8-scrapy
-```
 
 ## Other recommended tools
 

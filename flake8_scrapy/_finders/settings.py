@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, ClassVar
 from . import IssueFinder
 from .data import (
     HARDCODED_SUGGESTIONS,
+    MIN_SCRAPY_VERSION,
     MIN_SUGGESTION_SCORE,
-    MINIMUM_SUPPORTED_SCRAPY_VERSION,
     SETTINGS,
     SettingType,
 )
@@ -661,8 +661,8 @@ class DeprecatedSettingsIssueFinder(
         setting_info = SETTINGS[setting_name]
         version = setting_info.deprecated_version
         package = setting_info.package
-        if package == "scrapy" and version == MINIMUM_SUPPORTED_SCRAPY_VERSION:
-            version = f"{MINIMUM_SUPPORTED_SCRAPY_VERSION} or earlier"
+        if package == "scrapy" and version == MIN_SCRAPY_VERSION:
+            version = f"{MIN_SCRAPY_VERSION} or earlier"
         package_name = "Scrapy" if package == "scrapy" else package
         if package == "scrapy":
             message = f"{self.msg_code}: {self.msg_info}: {setting_name} (deprecated in {package_name} {version})"

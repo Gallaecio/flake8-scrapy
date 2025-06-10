@@ -3,9 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-LATEST_KNOWN_SCRAPY_VERSION = "2.13.1"
+from packaging.version import Version
+
+LATEST_KNOWN_SCRAPY_VERSION = Version("2.13.1")
 MIN_SUGGESTION_SCORE = 0.6
-MINIMUM_SUPPORTED_SCRAPY_VERSION = "2.0.1"
+MIN_SCRAPY_VERSION = Version("2.0.1")
+MIN_SAFE_SCRAPY_VERSION = Version("2.11.2")
+
+OBSOLETE_PACKAGES: dict[str, list[str]] = {
+    "scrapy-crawlera": ["scrapy-zyte-smartproxy"],
+    "scrapy-splash": ["scrapy-zyte-api", "scrapy-playwright"],
+}
 
 HARDCODED_SUGGESTIONS = {
     "CONCURRENCY": ["CONCURRENT_REQUESTS", "CONCURRENT_REQUESTS_PER_DOMAIN"],
@@ -307,12 +315,12 @@ SETTINGS = {
     ),
     "LOG_UNSERIALIZABLE_REQUESTS": SettingInfo(
         removed_version="2.1.0",
-        deprecated_version=MINIMUM_SUPPORTED_SCRAPY_VERSION,
+        deprecated_version=MIN_SCRAPY_VERSION,
         deprecation_message="Use SCHEDULER_DEBUG instead.",
     ),
     "REDIRECT_MAX_METAREFRESH_DELAY": SettingInfo(
         removed_version="2.1.0",
-        deprecated_version=MINIMUM_SUPPORTED_SCRAPY_VERSION,
+        deprecated_version=MIN_SCRAPY_VERSION,
         deprecation_message="Use METAREFRESH_MAXDELAY instead.",
     ),
     # scrapy-feedexporter-azure-storage plugin settings, in order of appearance

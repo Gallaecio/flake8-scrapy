@@ -31,20 +31,9 @@ class IssueFinder:
             return None
         path = Path(self.filename).resolve()
         for parent in [path, *list(path.parents)]:
-            indicators = [
-                "scrapy.cfg",
-                "pyproject.toml",
-                "setup.py",
-                "setup.cfg",
-                ".git",
-                "scrapinghub.yml",
-                "requirements.txt",
-            ]
-            for indicator in indicators:
-                if (parent / indicator).exists():
-                    return parent
-        # If no indicators are found, use the directory containing the file
-        return path.parent if path.is_file() else path
+            if (parent / "scrapy.cfg").exists():
+                return parent
+        return None
 
     def parse_requirement_line(self, line: str) -> Requirement | None:
         line = line.strip()

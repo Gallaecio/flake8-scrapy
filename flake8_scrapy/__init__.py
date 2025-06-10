@@ -1,18 +1,14 @@
+from __future__ import annotations
+
 import ast
-from typing import ClassVar
+from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar
 
 from ._finders.domains import (
     UnreachableDomainIssueFinder,
     UrlInAllowedDomainsIssueFinder,
 )
 from ._finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
-from ._finders.project import (
-    AncientScrapyVersionIssueFinder,
-    InsecureScrapyVersionIssueFinder,
-    NonFrozenDependenciesIssueFinder,
-    ObsoletePackagesIssueFinder,
-    RequirementsTxtIssueFinder,
-)
 from ._finders.settings import (
     BaseSettingNameIssueFinder,
     DeprecatedSettingsIssueFinder,
@@ -30,8 +26,14 @@ from ._finders.settings import (
     UnknownSettingsIssueFinder,
     UnnecessaryGetIssueFinder,
 )
+from .requirements import check_requirements
 
 __version__ = "0.0.2"
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    from flake8_scrapy._finders.messaging import Issue
 
 
 class ScrapyStyleIssueFinder(ast.NodeVisitor):
@@ -94,16 +96,7 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
             RobotsTxtObeyIssueFinder(filename),
             ThrottlingConfigIssueFinder(filename),
         ]
-        project_finders = []
-        if enable_project_checks:
-            project_finders = [
-                RequirementsTxtIssueFinder(filename),
-                NonFrozenDependenciesIssueFinder(filename),
-                AncientScrapyVersionIssueFinder(filename),
-                InsecureScrapyVersionIssueFinder(filename),
-                ObsoletePackagesIssueFinder(filename),
-            ]
-        shared_finders = [*setting_finders, *global_finders, *project_finders]
+        shared_finders = [*setting_finders, *global_finders]
         node_specific_finders = {
             "Assign": [
                 UnreachableDomainIssueFinder(),
@@ -172,17 +165,37 @@ class Plugin:
             if setting.strip()
         ]
 
-    def __init__(self, tree, filename, enable_project_checks=True):
+    def __init__(
+        self,
+        tree: ast.AST | None,
+        filename: str,
+        lines: list[str],
+        enable_project_checks=True,
+    ):
         self.tree = tree
         self.filename = filename
+        self.lines = lines
         self.enable_project_checks = enable_project_checks
 
     def run(self):
+        for issue in self.run_checks():
+            yield (*issue, Plugin)
+
+    def run_checks(self):
+        if self.tree:
+            yield from self.check_code()
+        elif Path(self.filename).name == "requirements.txt":
+            yield from self.check_requirements()
+
+    def check_code(self) -> Generator[Issue, None, None]:
         reporter = ScrapyStyleIssueFinder(
             self.filename,
             allowed_settings=self.allowed_settings,
             enable_project_checks=self.enable_project_checks,
         )
+        assert self.tree is not None
         reporter.visit(self.tree)
-        for line, col, msg in reporter.issues:
-            yield (line, col, msg, Plugin)
+        yield from reporter.issues
+
+    def check_requirements(self) -> Generator[Issue, None, None]:
+        yield from check_requirements(self.filename, self.lines)
