@@ -118,3 +118,5 @@ In addition to flake8-scrapy, you may want to use the following tools:
   [`start_urls`](https://docs.scrapy.org/en/latest/topics/spiders.html#scrapy.Spider.start_urls)
   to `"https://toscrape.com"`, mypy will report that `start_urls` must be a
   list of strings.
+
+- [flake8-requirements](https://pypi.org/project/flake8-requirements/) to check for missing dependencies.
