@@ -1,3 +1,5 @@
+"""Test requirements.txt file checks."""
+
 from __future__ import annotations
 
 from packaging.version import Version

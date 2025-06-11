@@ -921,15 +921,14 @@ class TypeMismatchSettingsIssueFinder(
 
 class MissingUserAgentIssueFinder(IssueFinder):
     msg_code = "SCP19"
-    msg_info = "missing USER_AGENT setting"
+    msg_info = "no USER_AGENT"
 
     def __init__(self, filename=None, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
         self.found_user_agent = False
 
     def find_issues(self, node) -> Generator[tuple[int, int, str], None, None]:
-        file_name = Path(self.filename).name if self.filename else None
-        if file_name != "settings.py":
+        if not self.file_is_settings_module():
             return
 
         if isinstance(node, ast.Assign):
@@ -947,7 +946,7 @@ class MissingUserAgentIssueFinder(IssueFinder):
                             break
 
             if not self.found_user_agent:
-                yield (1, 0, f"{self.msg_code}: No USER_AGENT in settings.py")
+                yield (1, 0, f"{self.msg_code} {self.msg_info}")
 
 
 class RobotsTxtObeyIssueFinder(IssueFinder):
@@ -960,8 +959,7 @@ class RobotsTxtObeyIssueFinder(IssueFinder):
         self.robotstxt_obey_enabled = False
 
     def find_issues(self, node) -> Generator[tuple[int, int, str], None, None]:
-        file_name = Path(self.filename).name if self.filename else None
-        if file_name != "settings.py":
+        if not self.file_is_settings_module():
             return
 
         if isinstance(node, ast.Assign):
@@ -991,21 +989,18 @@ class RobotsTxtObeyIssueFinder(IssueFinder):
                             break
 
             if not self.found_robotstxt_obey or not self.robotstxt_obey_enabled:
-                yield (
-                    1,
-                    0,
-                    f"{self.msg_code}: ROBOTSTXT_OBEY not enabled in settings.py",
-                )
+                yield (1, 0, f"{self.msg_code} {self.msg_info}")
 
 
-class ThrottlingConfigIssueFinder:
+class ThrottlingConfigIssueFinder(IssueFinder):
     msg_code = "SCP21"
+    msg_info = "incomplete throttling config"
 
     def __init__(self, filename):
         self.filename = filename
 
     def find_issues(self, node):  # noqa: PLR0912
-        if not (self.filename and self.filename.endswith("settings.py")):
+        if not self.file_is_settings_module():
             return
 
         if not isinstance(node, ast.Module):
@@ -1053,12 +1048,7 @@ class ThrottlingConfigIssueFinder:
         if not autothrottle_enabled and found_settings != required_settings:
             missing_settings = required_settings - found_settings
             if missing_settings:
-                missing_list = ", ".join(sorted(missing_settings))
-                yield (
-                    1,
-                    0,
-                    f"{self.msg_code}: Incomplete throttling config in settings.py: enable AUTOTHROTTLE_ENABLED or set the following settings: {missing_list}",
-                )
+                yield (1, 0, f"{self.msg_code} {self.msg_info}")
 
 
 DEFAULT_SETTINGS = {
