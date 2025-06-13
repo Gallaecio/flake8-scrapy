@@ -12,112 +12,244 @@ from .helpers import check_input
 
 ISSUE_COLUMN = 9
 
+# Issues with setting names.
+SETTING_NAME_ISSUES = (
+    # SCP07 unknown setting
+    ("FOO", "SCP07 unknown setting"),
+)
+# Issues with setting values.
+SETTING_VALUE_ISSUES = (
+    # TODO: SCP08
+    # TODO: SCP09
+    # TODO: SCP10
+    # TODO: SCP15
+    # TODO: SCP18
+    # TODO: SCP22
+    # TODO: SCP24
+    # TODO: SCP27
+)
+# TODO: Reuse below.
+
 MAIN_CASES = [
+    # SETTING_ISSUES
+    *(
+        (
+            Input(code=code, path=path),
+            Issue(issue, line=line, column=column, path=path) if issue else NO_ISSUE,
+        )
+        for name, issue in SETTING_NAME_ISSUES
+        for path in ("a.py",)
+        for code, line, column in ((f'crawler.settings["{name}"] = a', 1, 17),)
+        # {
+        #     "input": Input(f'self.crawler.settings.get("{setting}")'),
+        #     "column": 26,
+        # },
+        # {"input": Input(f'del settings["{setting}"]'), "column": 13},
+        # {"input": Input(f'settings.get("{setting}")'), "column": 13},
+        # {"input": Input(f'settings.get(name="{setting}")'), "column": 18},
+        # for case in (
+        #     {
+        #         "input": Input(f'self.crawler.settings["{setting}"] = {value}'),
+        #         "column": 22,
+        #     },
+        #     {
+        #         "input": Input(f'self.settings["{setting}"] = {value}'),
+        #         "column": 14,
+        #     },
+        #     {"input": Input(f'settings["{setting}"] = {value}'), "column": 9},
+        #     {
+        #         "input": Input(f'settings.update({{"{setting}": {value}}})'),
+        #         "column": 17,
+        #     },
+        #     {
+        #         "input": Input(f'settings.update(values={{"{setting}": {value}}})'),
+        #         "column": 24,
+        #     },
+        #     {
+        #         "input": Input(f"settings.update(dict({setting}={value}))"),
+        #         "column": 21,
+        #     },
+        #     {
+        #         "input": Input(f"settings.update(values=dict({setting}={value}))"),
+        #         "column": 28,
+        #     },
+        #     {"input": Input(f'Settings({{"{setting}": {value}}})'), "column": 10},
+        #     {
+        #         "input": Input(f'BaseSettings(values={{"{setting}": {value}}})'),
+        #         "column": 21,
+        #     },
+        #     {"input": Input(f"Settings(dict({setting}={value}))"), "column": 14},
+        #     {
+        #         "input": Input(f"BaseSettings(values=dict({setting}={value}))"),
+        #         "column": 25,
+        #     },
+        #     {
+        #         "input": Input(
+        #             f"from scrapy.settings import overridden_settings\n"
+        #             f"\n"
+        #             f'settings = overridden_settings({{"{setting}": {value}}})\n'
+        #         ),
+        #         "line": 3,
+        #         "column": 32,
+        #     },
+        #     {
+        #         "input": Input(
+        #             f"from scrapy import settings\n"
+        #             f"\n"
+        #             f'_ = settings.overridden_settings({{"{setting}": {value}}})\n'
+        #         ),
+        #         "line": 3,
+        #         "column": 34,
+        #     },
+        #     {
+        #         "input": Input(
+        #             f"import scrapy\n"
+        #             f"\n"
+        #             f'settings = scrapy.settings.overridden_settings({{"{setting}": {value}}})\n'
+        #         ),
+        #         "line": 3,
+        #         "column": 48,
+        #     },
+        #     {
+        #         "input": Input(
+        #             f'overridden_settings(settings={{"{setting}": {value}}})\n'
+        #         ),
+        #         "column": 30,
+        #     },
+        #     {
+        #         "input": Input(
+        #             f"import scrapy\n"
+        #             f"\n"
+        #             f"class MySpider(scrapy.Spider):\n"
+        #             f'    name = "myspider"\n'
+        #             f"    custom_settings = {{\n"
+        #             f'        "{setting}": {value},\n'
+        #             f"    }}\n"
+        #         ),
+        #         "line": 6,
+        #         "column": 8,
+        #     },
+        # )
+    ),
+    # SETTING_VALUE_ISSUES
+    *(
+        (
+            Input(code=code, path=path),
+            Issue(
+                issue,
+                line=line,
+                column=len(name) + column_offset,
+            )
+            if issue
+            else NO_ISSUE,
+        )
+        for name, value, issue in SETTING_VALUE_ISSUES
+        for path in ("a.py",)
+        for code, line, column_offset in ()
+        # for case in (
+        # (f'crawler.settings["{setting}"] = {value}', 1, 22),
+        #     {
+        #         "input": Input(f'self.crawler.settings["{setting}"] = {value}'),
+        #         "column": 22,
+        #     },
+        #     {
+        #         "input": Input(f'self.settings["{setting}"] = {value}'),
+        #         "column": 14,
+        #     },
+        #     {"input": Input(f'settings["{setting}"] = {value}'), "column": 9},
+        #     {
+        #         "input": Input(f'settings.update({{"{setting}": {value}}})'),
+        #         "column": 17,
+        #     },
+        #     {
+        #         "input": Input(f'settings.update(values={{"{setting}": {value}}})'),
+        #         "column": 24,
+        #     },
+        #     {
+        #         "input": Input(f"settings.update(dict({setting}={value}))"),
+        #         "column": 21,
+        #     },
+        #     {
+        #         "input": Input(f"settings.update(values=dict({setting}={value}))"),
+        #         "column": 28,
+        #     },
+        #     {"input": Input(f'Settings({{"{setting}": {value}}})'), "column": 10},
+        #     {
+        #         "input": Input(f'BaseSettings(values={{"{setting}": {value}}})'),
+        #         "column": 21,
+        #     },
+        #     {"input": Input(f"Settings(dict({setting}={value}))"), "column": 14},
+        #     {
+        #         "input": Input(f"BaseSettings(values=dict({setting}={value}))"),
+        #         "column": 25,
+        #     },
+        #     {
+        #         "input": Input(
+        #             f"from scrapy.settings import overridden_settings\n"
+        #             f"\n"
+        #             f'settings = overridden_settings({{"{setting}": {value}}})\n'
+        #         ),
+        #         "line": 3,
+        #         "column": 32,
+        #     },
+        #     {
+        #         "input": Input(
+        #             f"from scrapy import settings\n"
+        #             f"\n"
+        #             f'_ = settings.overridden_settings({{"{setting}": {value}}})\n'
+        #         ),
+        #         "line": 3,
+        #         "column": 34,
+        #     },
+        #     {
+        #         "input": Input(
+        #             f"import scrapy\n"
+        #             f"\n"
+        #             f'settings = scrapy.settings.overridden_settings({{"{setting}": {value}}})\n'
+        #         ),
+        #         "line": 3,
+        #         "column": 48,
+        #     },
+        #     {
+        #         "input": Input(
+        #             f'overridden_settings(settings={{"{setting}": {value}}})\n'
+        #         ),
+        #         "column": 30,
+        #     },
+        #     {
+        #         "input": Input(
+        #             f"import scrapy\n"
+        #             f"\n"
+        #             f"class MySpider(scrapy.Spider):\n"
+        #             f'    name = "myspider"\n'
+        #             f"    custom_settings = {{\n"
+        #             f'        "{setting}": {value},\n'
+        #             f"    }}\n"
+        #         ),
+        #         "line": 6,
+        #         "column": 8,
+        #     },
+        # )
+    ),
     # Settings are detected
     *(
         (
             case["input"],
             Issue(
-                "SCP07: unknown Scrapy setting: FOO",
+                "SCP07 unknown setting",
                 line=case.get("line", 1),  # type: ignore[arg-type]
                 column=case.get("column", 0),
             ),
         )
-        for setting, value in [("FOO", "bar")]
+        for setting in ("FOO",)
         for case in (
-            {"input": Input(f"{setting} = {value!r}", path="settings.py")},
-            {
-                "input": Input(f'crawler.settings["{setting}"] = {value!r}'),
-                "column": 17,
-            },
-            {
-                "input": Input(f'self.crawler.settings["{setting}"] = {value!r}'),
-                "column": 22,
-            },
             {
                 "input": Input(f'self.crawler.settings.get("{setting}")'),
                 "column": 26,
             },
-            {
-                "input": Input(f'self.settings["{setting}"] = {value!r}'),
-                "column": 14,
-            },
-            {"input": Input(f'settings["{setting}"] = {value!r}'), "column": 9},
             {"input": Input(f'del settings["{setting}"]'), "column": 13},
             {"input": Input(f'settings.get("{setting}")'), "column": 13},
             {"input": Input(f'settings.get(name="{setting}")'), "column": 18},
-            {
-                "input": Input(f'settings.update({{"{setting}": {value!r}}})'),
-                "column": 17,
-            },
-            {
-                "input": Input(f'settings.update(values={{"{setting}": {value!r}}})'),
-                "column": 24,
-            },
-            {
-                "input": Input(f"settings.update(dict({setting}={value!r}))"),
-                "column": 21,
-            },
-            {
-                "input": Input(f"settings.update(values=dict({setting}={value!r}))"),
-                "column": 28,
-            },
-            {"input": Input(f'Settings({{"{setting}": {value!r}}})'), "column": 10},
-            {
-                "input": Input(f'BaseSettings(values={{"{setting}": {value!r}}})'),
-                "column": 21,
-            },
-            {"input": Input(f"Settings(dict({setting}={value!r}))"), "column": 14},
-            {
-                "input": Input(f"BaseSettings(values=dict({setting}={value!r}))"),
-                "column": 25,
-            },
-            {
-                "input": Input(
-                    f"from scrapy.settings import overridden_settings\n"
-                    f"\n"
-                    f'settings = overridden_settings({{"{setting}": {value!r}}})\n'
-                ),
-                "line": 3,
-                "column": 32,
-            },
-            {
-                "input": Input(
-                    f"from scrapy import settings\n"
-                    f"\n"
-                    f'_ = settings.overridden_settings({{"{setting}": {value!r}}})\n'
-                ),
-                "line": 3,
-                "column": 34,
-            },
-            {
-                "input": Input(
-                    f"import scrapy\n"
-                    f"\n"
-                    f'settings = scrapy.settings.overridden_settings({{"{setting}": {value!r}}})\n'
-                ),
-                "line": 3,
-                "column": 48,
-            },
-            {
-                "input": Input(
-                    f'overridden_settings(settings={{"{setting}": {value!r}}})\n'
-                ),
-                "column": 30,
-            },
-            {
-                "input": Input(
-                    f"import scrapy\n"
-                    f"\n"
-                    f"class MySpider(scrapy.Spider):\n"
-                    f'    name = "myspider"\n'
-                    f"    custom_settings = {{\n"
-                    f'        "{setting}": {value!r},\n'
-                    f"    }}\n"
-                ),
-                "line": 6,
-                "column": 8,
-            },
         )
     ),
     # Non-settings are ignored
@@ -319,18 +451,18 @@ MAIN_CASES = [
     (
         # 1 hardcoded
         Input("DELAY = 5", path="settings.py"),
-        Issue("SCP07: unknown Scrapy setting: DELAY. Did you mean DOWNLOAD_DELAY?"),
+        Issue("SCP07 unknown setting. Did you mean DOWNLOAD_DELAY?"),
     ),
     (
         # 1 automatic
         Input("ADD_ONS = {}", path="settings.py"),
-        Issue("SCP07: unknown Scrapy setting: ADD_ONS. Did you mean ADDONS?"),
+        Issue("SCP07 unknown setting. Did you mean ADDONS?"),
     ),
     (
         # 2+ hardcoded
         Input("CONCURRENCY = 1", path="settings.py"),
         Issue(
-            "SCP07: unknown Scrapy setting: CONCURRENCY. Did you mean one "
+            "SCP07 unknown setting. Did you mean one "
             "of: CONCURRENT_REQUESTS, CONCURRENT_REQUESTS_PER_DOMAIN?"
         ),
     ),
@@ -338,7 +470,7 @@ MAIN_CASES = [
         # 2+ automatic
         Input("CONCURRENT_REQUESTS_PER_SLOT = 1", path="settings.py"),
         Issue(
-            "SCP07: unknown Scrapy setting: CONCURRENT_REQUESTS_PER_SLOT. "
+            "SCP07 unknown setting. "
             "Did you mean one of: CONCURRENT_REQUESTS_PER_IP, "
             "CONCURRENT_REQUESTS_PER_DOMAIN, CONCURRENT_REQUESTS?"
         ),

@@ -573,7 +573,7 @@ class InvalidValueSettingsIssueFinder(
 
 class UnknownSettingsIssueFinder(BaseSettingsIssueFinder):
     msg_code = "SCP07"
-    msg_info = "unknown Scrapy setting"
+    msg_info = "unknown setting"
 
     def __init__(
         self,
@@ -597,7 +597,7 @@ class UnknownSettingsIssueFinder(BaseSettingsIssueFinder):
 
     def get_setting_message(self, setting_name: str) -> str:
         suggestions = get_setting_suggestions(setting_name, self.known_settings)
-        message = f"{self.msg_code}: {self.msg_info}: {setting_name}"
+        message = f"{self.msg_code} {self.msg_info}"
 
         if not suggestions:
             return message

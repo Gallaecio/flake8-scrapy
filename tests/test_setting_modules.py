@@ -7,6 +7,7 @@ from itertools import combinations
 from tests.helpers import check_project
 
 from . import NO_ISSUE, File, Issue, cases
+from .test_settings import SETTING_NAME_ISSUES, SETTING_VALUE_ISSUES
 
 
 def default_issues(path: str, exclude: int | set[int] | None = None) -> list[Issue]:
@@ -194,19 +195,53 @@ CASES = [
                 'if a:\n    BOT_NAME = "a"\nelse:\n    BOT_NAME = "b"',
                 default_issues(path),
             ),
+            # SETTING_ISSUES
+            *(
+                (
+                    code,
+                    (
+                        *(
+                            [Issue(issue, line=line, column=column, path=path)]
+                            if issue
+                            else []
+                        ),
+                        *default_issues(path),
+                    ),
+                )
+                for name, issue in SETTING_NAME_ISSUES
+                for code, line, column in (
+                    (f"{name} = a", 1, 0),
+                    (f"if a:\n    {name} = a", 2, 4),
+                )
+            ),
+            # SETTING_VALUE_ISSUES
+            *(
+                (
+                    code,
+                    (
+                        *(
+                            [
+                                Issue(
+                                    issue,
+                                    line=line,
+                                    column=len(name) + column_offset,
+                                    path=path,
+                                )
+                            ]
+                            if issue
+                            else []
+                        ),
+                        *default_issues(path),
+                    ),
+                )
+                for name, value, issue in SETTING_VALUE_ISSUES
+                for code, line, column_offset in (
+                    (f"{name} = {value}", 1, 2),
+                    (f"if a:\n    {name} = {value}", 2, 6),
+                )
+            ),
         )
     ),
-    # TODO: Use a shared test case constant for value-based checks, so that
-    # they are checked both for settings modules and for regular Python files.
-    # TODO: SCP07
-    # TODO: SCP08
-    # TODO: SCP09
-    # TODO: SCP10
-    # TODO: SCP15
-    # TODO: SCP18
-    # TODO: SCP22
-    # TODO: SCP24
-    # TODO: SCP27
 ]
 
 

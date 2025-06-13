@@ -54,10 +54,10 @@ def run_checker(
     tree = ast.parse(code) if filename is None or filename.endswith(".py") else None
     if allowed_settings is not None:
         options = Namespace()
-        options.allow_scrapy_settings = ",".join(allowed_settings)
+        options.known_scrapy_settings = ",".join(allowed_settings)
         Plugin.parse_options(options)
     else:
-        Plugin.allowed_settings = []
+        Plugin.user_known_settings = []
     temp_dir = None
     if requirements is not None:
         if filename is None:

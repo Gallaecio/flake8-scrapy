@@ -7,7 +7,6 @@ from typing import Any
 from packaging.version import Version
 
 LATEST_KNOWN_SCRAPY_VERSION = Version("2.13.1")
-MIN_SUGGESTION_SCORE = 0.6
 MIN_SCRAPY_VERSION = Version("2.0.1")
 MIN_SAFE_SCRAPY_VERSION = Version("2.11.2")
 
@@ -20,6 +19,8 @@ HARDCODED_SUGGESTIONS = {
     "CONCURRENCY": ["CONCURRENT_REQUESTS", "CONCURRENT_REQUESTS_PER_DOMAIN"],
     "DELAY": ["DOWNLOAD_DELAY"],
 }
+MAX_SUGGESTIONS = 3
+MIN_SUGGESTION_SCORE = 0.6
 
 
 def getbool(value: Any) -> bool:

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from flake8_scrapy._finders.settings_module import SettingsModuleIssueFinder
+from flake8_scrapy.config import Config
 
 from ._finders.domains import (
     UnreachableDomainIssueFinder,
@@ -143,7 +144,7 @@ class Plugin:
     options = None
     name = "flake8-scrapy"
     version = __version__
-    allowed_settings: ClassVar[list[str]] = []
+    user_known_settings: ClassVar[set[str]] = set()
 
     @classmethod
     def add_options(cls, parser):
@@ -162,13 +163,13 @@ class Plugin:
     def parse_allowed_settings(cls, options):
         if not options:  # pragma: no cover
             return
-        if not options.allow_scrapy_settings:
+        if not options.known_scrapy_settings:
             return
-        cls.allowed_settings = [
+        cls.user_known_settings = {
             setting.strip()
-            for setting in options.allow_scrapy_settings.split(",")
+            for setting in options.known_scrapy_settings.split(",")
             if setting.strip()
-        ]
+        }
 
     def __init__(
         self,
@@ -181,6 +182,9 @@ class Plugin:
         self.filename = filename
         self.lines = lines
         self.enable_project_checks = enable_project_checks
+        self.config = Config(
+            user_known_settings=self.user_known_settings,
+        )
 
     def run(self):
         for issue in self.run_checks():
@@ -226,10 +230,7 @@ class Plugin:
         return None
 
     def check_settings_module(self) -> Generator[Issue, None, None]:
-        finder = SettingsModuleIssueFinder(
-            self.filename,
-            allowed_settings=self.allowed_settings,
-        )
+        finder = SettingsModuleIssueFinder(self.config)
         assert self.tree is not None
         finder.visit(self.tree)
         yield from finder.issues
@@ -237,7 +238,7 @@ class Plugin:
     def check_code(self) -> Generator[Issue, None, None]:
         finder = ScrapyStyleIssueFinder(
             self.filename,
-            allowed_settings=self.allowed_settings,
+            allowed_settings=self.user_known_settings,
             enable_project_checks=self.enable_project_checks,
         )
         assert self.tree is not None

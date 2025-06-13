@@ -88,7 +88,7 @@ You can use the following additional options in your
 [flake8 configuration](https://flake8.pycqa.org/en/latest/user/configuration.html)
 to customize the behavior of flake8-scrapy:
 
-### `allow_scrapy_settings`
+### `known_scrapy_settings`
 
 Default: `[]`
 
