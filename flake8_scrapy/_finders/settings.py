@@ -7,7 +7,6 @@ from difflib import get_close_matches
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
-from . import IssueFinder
 from .data import (
     HARDCODED_SUGGESTIONS,
     MIN_SCRAPY_VERSION,
@@ -919,138 +918,6 @@ class TypeMismatchSettingsIssueFinder(
             )
 
 
-class MissingUserAgentIssueFinder(IssueFinder):
-    msg_code = "SCP19"
-    msg_info = "no USER_AGENT"
-
-    def __init__(self, filename=None, *args, **kwargs):
-        super().__init__(filename, *args, **kwargs)
-        self.found_user_agent = False
-
-    def find_issues(self, node) -> Generator[tuple[int, int, str], None, None]:
-        if not self.file_is_settings_module():
-            return
-
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "USER_AGENT":
-                    self.found_user_agent = True
-
-        if isinstance(node, ast.Module):
-            # Traverse all child nodes first to check for USER_AGENT
-            for child in ast.walk(node):
-                if isinstance(child, ast.Assign):
-                    for target in child.targets:
-                        if isinstance(target, ast.Name) and target.id == "USER_AGENT":
-                            self.found_user_agent = True
-                            break
-
-            if not self.found_user_agent:
-                yield (1, 0, f"{self.msg_code} {self.msg_info}")
-
-
-class RobotsTxtObeyIssueFinder(IssueFinder):
-    msg_code = "SCP20"
-    msg_info = "ROBOTSTXT_OBEY not enabled"
-
-    def __init__(self, filename=None, *args, **kwargs):
-        super().__init__(filename, *args, **kwargs)
-        self.found_robotstxt_obey = False
-        self.robotstxt_obey_enabled = False
-
-    def find_issues(self, node) -> Generator[tuple[int, int, str], None, None]:
-        if not self.file_is_settings_module():
-            return
-
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "ROBOTSTXT_OBEY":
-                    self.found_robotstxt_obey = True
-                    if (
-                        isinstance(node.value, ast.Constant)
-                        and node.value.value is True
-                    ):
-                        self.robotstxt_obey_enabled = True
-
-        if isinstance(node, ast.Module):
-            for child in ast.walk(node):
-                if isinstance(child, ast.Assign):
-                    for target in child.targets:
-                        if (
-                            isinstance(target, ast.Name)
-                            and target.id == "ROBOTSTXT_OBEY"
-                        ):
-                            self.found_robotstxt_obey = True
-                            if (
-                                isinstance(child.value, ast.Constant)
-                                and child.value.value is True
-                            ):
-                                self.robotstxt_obey_enabled = True
-                            break
-
-            if not self.found_robotstxt_obey or not self.robotstxt_obey_enabled:
-                yield (1, 0, f"{self.msg_code} {self.msg_info}")
-
-
-class ThrottlingConfigIssueFinder(IssueFinder):
-    msg_code = "SCP21"
-    msg_info = "incomplete throttling config"
-
-    def __init__(self, filename):
-        self.filename = filename
-
-    def find_issues(self, node):  # noqa: PLR0912
-        if not self.file_is_settings_module():
-            return
-
-        if not isinstance(node, ast.Module):
-            return
-
-        autothrottle_enabled = False
-        found_settings = set()
-        required_settings = {
-            "CONCURRENT_REQUESTS",
-            "CONCURRENT_REQUESTS_PER_DOMAIN",
-            "DOWNLOAD_DELAY",
-        }
-
-        for child in ast.walk(node):
-            if isinstance(child, ast.Assign):
-                for target in child.targets:
-                    if isinstance(target, ast.Name):
-                        if target.id == "AUTOTHROTTLE_ENABLED":
-                            if (
-                                isinstance(child.value, ast.Constant)
-                                and child.value.value is True
-                            ):
-                                autothrottle_enabled = True
-                        elif target.id in required_settings:
-                            found_settings.add(target.id)
-            elif (
-                isinstance(child, ast.Subscript)
-                and isinstance(child.value, ast.Name)
-                and child.value.id == "settings"
-                and isinstance(child.slice, ast.Constant)
-                and isinstance(child.slice.value, str)
-            ):
-                setting_name = child.slice.value
-                if setting_name == "AUTOTHROTTLE_ENABLED":
-                    parent = getattr(child, "parent", None)
-                    if (
-                        isinstance(parent, ast.Assign)
-                        and isinstance(parent.value, ast.Constant)
-                        and parent.value.value is True
-                    ):
-                        autothrottle_enabled = True
-                elif setting_name in required_settings:
-                    found_settings.add(setting_name)
-
-        if not autothrottle_enabled and found_settings != required_settings:
-            missing_settings = required_settings - found_settings
-            if missing_settings:
-                yield (1, 0, f"{self.msg_code} {self.msg_info}")
-
-
 DEFAULT_SETTINGS = {
     "ADDONS",
     "AJAXCRAWL_ENABLED",
@@ -1489,36 +1356,6 @@ class IgnoredGetDefaultIssueFinder(BaseSettingsIssueFinder):
                             )
                             yield (kw.value.lineno, kw.value.col_offset, message)
                             break
-
-
-class DuplicateSettingsIssueFinder:
-    msg_code = "SCP23"
-
-    def __init__(self, filename):
-        self.filename = filename
-
-    def find_issues(self, node):
-        if not (self.filename and self.filename.endswith("settings.py")):
-            return
-
-        if not isinstance(node, ast.Module):
-            return
-
-        seen_settings = {}
-
-        for child in node.body:
-            if isinstance(child, ast.Assign):
-                for target in child.targets:
-                    if isinstance(target, ast.Name) and target.id.isupper():
-                        setting_name = target.id
-                        if setting_name in seen_settings:
-                            yield (
-                                child.lineno,
-                                child.col_offset,
-                                f"{self.msg_code}: {setting_name} is set multiple times in settings.py",
-                            )
-                        else:
-                            seen_settings[setting_name] = child.lineno
 
 
 class BaseSettingNameIssueFinder(BaseSettingsIssueFinder):

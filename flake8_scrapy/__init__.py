@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import ast
+import sys
+from configparser import ConfigParser
+from contextlib import contextmanager
+from importlib.util import find_spec
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
+
+from flake8_scrapy._finders.settings_module import SettingsModuleIssueFinder
 
 from ._finders.domains import (
     UnreachableDomainIssueFinder,
@@ -12,16 +18,12 @@ from ._finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
 from ._finders.settings import (
     BaseSettingNameIssueFinder,
     DeprecatedSettingsIssueFinder,
-    DuplicateSettingsIssueFinder,
     FutureSettingsIssueFinder,
     IgnoredGetDefaultIssueFinder,
     ImportPathStringIssueFinder,
     InvalidValueSettingsIssueFinder,
     MissingPackageSettingsIssueFinder,
-    MissingUserAgentIssueFinder,
     RemovedSettingsIssueFinder,
-    RobotsTxtObeyIssueFinder,
-    ThrottlingConfigIssueFinder,
     TypeMismatchSettingsIssueFinder,
     UnknownSettingsIssueFinder,
     UnnecessaryGetIssueFinder,
@@ -34,6 +36,16 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
     from flake8_scrapy._finders.messaging import Issue
+
+
+@contextmanager
+def extend_sys_path(path):
+    original_sys_path = sys.path.copy()
+    sys.path.insert(0, path)
+    try:
+        yield
+    finally:
+        sys.path = original_sys_path
 
 
 class ScrapyStyleIssueFinder(ast.NodeVisitor):
@@ -53,7 +65,7 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
         # Get settings that are missing packages to exclude from other checks
         missing_package_settings = missing_package_finder.missing_package_settings
 
-        setting_finders = (
+        setting_finders = [
             missing_package_finder,
             DeprecatedSettingsIssueFinder(
                 filename,
@@ -89,14 +101,7 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
             ImportPathStringIssueFinder(filename),
             UnnecessaryGetIssueFinder(filename),
             IgnoredGetDefaultIssueFinder(filename),
-            DuplicateSettingsIssueFinder(filename),
-        )
-        global_finders = [
-            MissingUserAgentIssueFinder(filename),
-            RobotsTxtObeyIssueFinder(filename),
-            ThrottlingConfigIssueFinder(filename),
         ]
-        shared_finders = [*setting_finders, *global_finders]
         node_specific_finders = {
             "Assign": [
                 UnreachableDomainIssueFinder(),
@@ -115,7 +120,7 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
             "Module",
         ]:
             specific_finders = node_specific_finders.get(node_type, [])
-            self.finders[node_type] = specific_finders + shared_finders
+            self.finders[node_type] = specific_finders + setting_finders
 
     def find_issues_visitor(self, visitor, node):
         """Find issues for the provided visitor"""
@@ -182,20 +187,62 @@ class Plugin:
             yield (*issue, Plugin)
 
     def run_checks(self):
-        if self.tree:
+        if self.is_settings_module():
+            yield from self.check_settings_module()
+        elif self.tree:
             yield from self.check_code()
         elif Path(self.filename).name == "requirements.txt":
             yield from self.check_requirements()
 
+    def is_settings_module(self) -> bool:
+        if not self.filename:
+            return False
+        root = self.get_project_root()
+        if not root:
+            return False
+        config_file = root / "scrapy.cfg"
+        config = ConfigParser()
+        config.read(config_file)
+        if "settings" not in config:
+            return False
+        file_path = Path(self.filename).resolve()
+        with extend_sys_path(str(root.resolve())):
+            for module in config["settings"].values():
+                spec = find_spec(module)
+                if not spec or not spec.origin:
+                    continue
+                module_path = Path(spec.origin).resolve()
+                if module_path == file_path:
+                    return True
+        return False
+
+    def get_project_root(self):
+        if not self.filename:
+            return None
+        path = Path(self.filename).resolve()
+        for parent in [path, *list(path.parents)]:
+            if (parent / "scrapy.cfg").exists():
+                return parent
+        return None
+
+    def check_settings_module(self) -> Generator[Issue, None, None]:
+        finder = SettingsModuleIssueFinder(
+            self.filename,
+            allowed_settings=self.allowed_settings,
+        )
+        assert self.tree is not None
+        finder.visit(self.tree)
+        yield from finder.issues
+
     def check_code(self) -> Generator[Issue, None, None]:
-        reporter = ScrapyStyleIssueFinder(
+        finder = ScrapyStyleIssueFinder(
             self.filename,
             allowed_settings=self.allowed_settings,
             enable_project_checks=self.enable_project_checks,
         )
         assert self.tree is not None
-        reporter.visit(self.tree)
-        yield from reporter.issues
+        finder.visit(self.tree)
+        yield from finder.issues
 
     def check_requirements(self) -> Generator[Issue, None, None]:
         yield from check_requirements(self.filename, self.lines)

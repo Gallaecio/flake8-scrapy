@@ -1046,15 +1046,6 @@ MAIN_CASES = [
             "555-9292",
         )
     ),
-    # SCP23
-    (
-        Input('BOT_NAME = "foo"', path="settings.py"),
-        NO_ISSUE,
-    ),
-    (
-        Input('BOT_NAME = "foo"\nBOT_NAME = "bar"', path="settings.py"),
-        Issue("SCP23: BOT_NAME is set multiple times in settings.py", line=2),
-    ),
     # SCP24
     (
         Input("DOWNLOAD_HANDLERS_BASE = {}", path="settings.py"),

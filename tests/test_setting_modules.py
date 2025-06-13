@@ -83,13 +83,34 @@ CASES = [
         )
         for path in ["a.py"]
         for code, issues in (
+            # No issues
+            (
+                'USER_AGENT = "Jane Doe (+https://jane.doe.example)"\n'
+                "ROBOTSTXT_OBEY = True\n"
+                "AUTOTHROTTLE_ENABLED = True",
+                NO_ISSUE,
+            ),
+            (
+                'USER_AGENT = "Jane Doe (+https://jane.doe.example)"\n'
+                "ROBOTSTXT_OBEY = True\n"
+                "CONCURRENT_REQUESTS = 1\n"
+                "CONCURRENT_REQUESTS_PER_DOMAIN = 1\n"
+                "DOWNLOAD_DELAY = 5",
+                NO_ISSUE,
+            ),
             # SCP19 no USER_AGENT
             (
                 "USER_AGENT = 'Jane Doe (+https://jane.doe.example)'",
                 default_issues(path, exclude=19),
             ),
             # SCP20 ROBOTSTXT_OBEY not enabled
-            ("ROBOTSTXT_OBEY = False", default_issues(path)),
+            (
+                "ROBOTSTXT_OBEY = False",
+                (
+                    Issue("SCP20 ROBOTSTXT_OBEY not enabled", column=17, path=path),
+                    *default_issues(path, exclude=20),
+                ),
+            ),
             ("ROBOTSTXT_OBEY = True", default_issues(path, exclude=20)),
             # SCP21 incomplete throttling config
             ("AUTOTHROTTLE_ENABLED = False", default_issues(path)),
@@ -119,23 +140,52 @@ CASES = [
                 "CONCURRENT_REQUESTS = 1\nCONCURRENT_REQUESTS_PER_DOMAIN = 1\nDOWNLOAD_DELAY = 1",
                 default_issues(path, exclude=21),
             ),
-            # No issues
+            # SCP23 redefined setting
             (
-                'USER_AGENT = "Jane Doe (+https://jane.doe.example)"\n'
-                "ROBOTSTXT_OBEY = True\n"
-                "AUTOTHROTTLE_ENABLED = True",
-                NO_ISSUE,
+                'BOT_NAME = "a"',
+                default_issues(path),
             ),
             (
-                'USER_AGENT = "Jane Doe (+https://jane.doe.example)"\n'
-                "ROBOTSTXT_OBEY = True\n"
-                "CONCURRENT_REQUESTS = 1\n"
-                "CONCURRENT_REQUESTS_PER_DOMAIN = 1\n"
-                "DOWNLOAD_DELAY = 5",
-                NO_ISSUE,
+                'BOT_NAME = "a"\nBOT_NAME = "a"',
+                (
+                    Issue(
+                        "SCP23 redefined setting: seen first at line 1",
+                        line=2,
+                        path=path,
+                    ),
+                    *default_issues(path),
+                ),
+            ),
+            (
+                'BOT_NAME = "a"\nBOT_NAME = "b"',
+                (
+                    Issue(
+                        "SCP23 redefined setting: seen first at line 1",
+                        line=2,
+                        path=path,
+                    ),
+                    *default_issues(path),
+                ),
+            ),
+            (
+                'if a:\n    BOT_NAME = "a"\nelse:\n    BOT_NAME = "b"',
+                default_issues(path),
             ),
         )
     ),
+    # TODO: settings defined within if-else statements should count as defined,
+    # even though they do not count as duplicates.
+    # TODO: Use a shared test case constant for value-based checks, so that
+    # they are checked both for settings modules and for regular Python files.
+    # TODO: SCP07
+    # TODO: SCP08
+    # TODO: SCP09
+    # TODO: SCP10
+    # TODO: SCP15
+    # TODO: SCP18
+    # TODO: SCP22
+    # TODO: SCP24
+    # TODO: SCP27
 ]
 
 

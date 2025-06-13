@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from packaging.version import Version
 
@@ -19,6 +20,20 @@ HARDCODED_SUGGESTIONS = {
     "CONCURRENCY": ["CONCURRENT_REQUESTS", "CONCURRENT_REQUESTS_PER_DOMAIN"],
     "DELAY": ["DOWNLOAD_DELAY"],
 }
+
+
+def getbool(value: Any) -> bool:
+    """Convert the setting *value* to a boolean according to the logic of
+    Scrapy’s Settings.getbool()."""  # noqa: RUF002
+    try:
+        return bool(int(value))
+    except ValueError:
+        pass
+    if value in ("True", "true"):
+        return True
+    if value in ("False", "false"):
+        return False
+    raise ValueError
 
 
 class SettingType(Enum):
