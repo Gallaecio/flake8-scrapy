@@ -17,7 +17,9 @@ pip install flake8-scrapy
 
 For all checks to work, you must:
 
--   Have a `scrapy.cfg` file in the root of your Scrapy project folder.
+-   Have a
+    [`scrapy.cfg`](https://docs.scrapy.org/en/latest/topics/commands.html#default-structure-of-scrapy-projects)
+    file in the root of your Scrapy project folder.
 
 -   Have a `requirements.txt` file there as well.
 
