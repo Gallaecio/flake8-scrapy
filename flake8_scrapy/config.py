@@ -6,13 +6,13 @@ from typing import TYPE_CHECKING
 
 from packaging.utils import canonicalize_name
 
-from flake8_scrapy._finders.data import (
+from flake8_scrapy.finders.data import (
     HARDCODED_SUGGESTIONS,
     MAX_SUGGESTIONS,
     MIN_SUGGESTION_SCORE,
     SETTINGS,
 )
-from flake8_scrapy._finders.versions import (
+from flake8_scrapy.finders.versions import (
     build_package_versions_dict,
     is_version_greater_than,
     is_version_less_than_or_equal,

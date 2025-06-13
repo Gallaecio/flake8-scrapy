@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from flake8_scrapy._finders.data import (
+from flake8_scrapy.finders.data import (
     LATEST_KNOWN_SCRAPY_VERSION,
     MIN_SCRAPY_VERSION,
 )

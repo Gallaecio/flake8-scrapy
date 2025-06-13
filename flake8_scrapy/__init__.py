@@ -8,15 +8,13 @@ from importlib.util import find_spec
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
-from flake8_scrapy._finders.settings_module import SettingsModuleIssueFinder
-from flake8_scrapy.config import Config
-
-from ._finders.domains import (
+from .config import Config
+from .finders.domains import (
     UnreachableDomainIssueFinder,
     UrlInAllowedDomainsIssueFinder,
 )
-from ._finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
-from ._finders.settings import (
+from .finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
+from .finders.settings import (
     BaseSettingNameIssueFinder,
     DeprecatedSettingsIssueFinder,
     FutureSettingsIssueFinder,
@@ -29,6 +27,7 @@ from ._finders.settings import (
     UnknownSettingsIssueFinder,
     UnnecessaryGetIssueFinder,
 )
+from .finders.settings_module import SettingsModuleIssueFinder
 from .requirements import check_requirements
 
 __version__ = "0.0.2"
@@ -36,7 +35,7 @@ __version__ = "0.0.2"
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-    from flake8_scrapy._finders.messaging import Issue
+    from flake8_scrapy.finders.messaging import Issue
 
 
 @contextmanager
@@ -66,7 +65,7 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
         # Get settings that are missing packages to exclude from other checks
         missing_package_settings = missing_package_finder.missing_package_settings
 
-        setting_finders = [
+        settingfinders = [
             missing_package_finder,
             DeprecatedSettingsIssueFinder(
                 filename,
@@ -103,7 +102,7 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
             UnnecessaryGetIssueFinder(filename),
             IgnoredGetDefaultIssueFinder(filename),
         ]
-        node_specific_finders = {
+        node_specificfinders = {
             "Assign": [
                 UnreachableDomainIssueFinder(),
                 UrlInAllowedDomainsIssueFinder(),
@@ -120,8 +119,8 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
             "Delete",
             "Module",
         ]:
-            specific_finders = node_specific_finders.get(node_type, [])
-            self.finders[node_type] = specific_finders + setting_finders
+            specificfinders = node_specificfinders.get(node_type, [])
+            self.finders[node_type] = specificfinders + settingfinders
 
     def find_issues_visitor(self, visitor, node):
         """Find issues for the provided visitor"""

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from packaging.version import Version
 
-from flake8_scrapy._finders.data import LATEST_KNOWN_SCRAPY_VERSION
+from flake8_scrapy.finders.data import LATEST_KNOWN_SCRAPY_VERSION
 
 from . import NO_ISSUE, File, Issue, RegExpMatcher, cases
 from .helpers import check_project

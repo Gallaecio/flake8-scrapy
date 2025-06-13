@@ -3,13 +3,13 @@ from pathlib import Path
 
 from packaging.version import Version
 
-from ._finders.data import (
+from .finders.data import (
     MIN_SAFE_SCRAPY_VERSION,
     MIN_SCRAPY_VERSION,
     OBSOLETE_PACKAGES,
 )
-from ._finders.messaging import Issue
-from ._finders.versions import is_frozen_requirement, parse_requirement_line
+from .finders.messaging import Issue
+from .finders.versions import is_frozen_requirement, parse_requirement_line
 
 
 def check_requirements(

@@ -2,8 +2,8 @@ import ast
 from ast import Assign, Constant, Module, Name, NodeVisitor
 from contextlib import suppress
 
-from flake8_scrapy._finders.data import getbool
-from flake8_scrapy._finders.messaging import Issue
+from flake8_scrapy.finders.data import getbool
+from flake8_scrapy.finders.messaging import Issue
 
 
 class SettingsModuleIssueFinder(NodeVisitor):
