@@ -31,6 +31,7 @@ CASES = [
     (
         [
             File("[settings]\na=b", path="scrapy.cfg"),
+            File("", path="a.py"),
             File("", path="b.py"),
         ],
         default_issues("b.py"),
@@ -195,25 +196,6 @@ CASES = [
                 'if a:\n    BOT_NAME = "a"\nelse:\n    BOT_NAME = "b"',
                 default_issues(path),
             ),
-            # SETTING_ISSUES
-            *(
-                (
-                    code,
-                    (
-                        *(
-                            [Issue(issue, line=line, column=column, path=path)]
-                            if issue
-                            else []
-                        ),
-                        *default_issues(path),
-                    ),
-                )
-                for name, issue in SETTING_NAME_ISSUES
-                for code, line, column in (
-                    (f"{name} = a", 1, 0),
-                    (f"if a:\n    {name} = a", 2, 4),
-                )
-            ),
             # SETTING_VALUE_ISSUES
             *(
                 (
@@ -238,6 +220,52 @@ CASES = [
                 for code, line, column_offset in (
                     (f"{name} = {value}", 1, 2),
                     (f"if a:\n    {name} = {value}", 2, 6),
+                )
+            ),
+        )
+    ),
+    # Settings
+    *(
+        (
+            [
+                File("[settings]\na=a", path="scrapy.cfg"),
+                File(code, path=path),
+                *(
+                    [
+                        File(
+                            "\n".join(
+                                f"{package}=={version}"
+                                for package, version in options["versions"].items()
+                            ),
+                            path="requirements.txt",
+                        )
+                    ]
+                    if options.get("versions", None)
+                    else []
+                ),
+            ],
+            issues,
+        )
+        for path in ["a.py"]
+        for code, issues, options in (
+            # SETTING_NAME_ISSUES
+            *(
+                (
+                    code,
+                    (
+                        *(
+                            [Issue(issue, line=line, column=column, path=path)]
+                            if issue
+                            else []
+                        ),
+                        *default_issues(path),
+                    ),
+                    options,
+                )
+                for name, issue, options in SETTING_NAME_ISSUES
+                for code, line, column in (
+                    (f"{name} = a", 1, 0),
+                    (f"if a:\n    {name} = a", 2, 4),
                 )
             ),
         )

@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, ClassVar
 
 from .data import (
     HARDCODED_SUGGESTIONS,
-    MIN_SCRAPY_VERSION,
     MIN_SUGGESTION_SCORE,
     SETTINGS,
     SettingType,
@@ -615,7 +614,7 @@ class DeprecatedSettingsIssueFinder(
     BaseSettingsIssueFinder, AllowedExcludeSettingsMixin
 ):
     msg_code = "SCP08"
-    msg_info = "deprecated Scrapy setting"
+    msg_info = "deprecated setting"
 
     def __init__(
         self,
@@ -657,20 +656,7 @@ class DeprecatedSettingsIssueFinder(
         )
 
     def get_setting_message(self, setting_name: str) -> str:
-        setting_info = SETTINGS[setting_name]
-        version = setting_info.deprecated_version
-        package = setting_info.package
-        if package == "scrapy" and version == MIN_SCRAPY_VERSION:
-            version = f"{MIN_SCRAPY_VERSION} or earlier"
-        package_name = "Scrapy" if package == "scrapy" else package
-        if package == "scrapy":
-            message = f"{self.msg_code}: {self.msg_info}: {setting_name} (deprecated in {package_name} {version})"
-        else:
-            message = f"{self.msg_code}: deprecated setting: {setting_name} (deprecated in {package_name} {version})"
-        deprecation_message = setting_info.deprecation_message
-        if deprecation_message:
-            message += f". {deprecation_message}"
-        return message
+        return f"{self.msg_code} {self.msg_info}"
 
 
 class FutureSettingsIssueFinder(BaseSettingsIssueFinder, AllowedExcludeSettingsMixin):
@@ -819,11 +805,7 @@ class TypeMismatchSettingsIssueFinder(
         )
 
     def get_setting_message(self, setting_name: str) -> str:
-        setting_type = self.typed_settings[setting_name]
-        expected_method = self.TYPE_TO_METHOD.get(setting_type, "get")
-        if expected_method == "get":
-            return f"{self.msg_code}: {self.msg_info}: use [] or get() to read {setting_name}"
-        return f"{self.msg_code}: {self.msg_info}: use {expected_method}() to read {setting_name}"
+        return f"{self.msg_code} {self.msg_info}"
 
     def check_settings_method_args(
         self, node: ast.Call
@@ -1105,7 +1087,7 @@ DEFAULT_SETTINGS_WITH_NONE = {
 
 class UnnecessaryGetIssueFinder(BaseSettingsIssueFinder):
     msg_code = "SCP25"
-    msg_info = "unneeded get()"
+    msg_info = "unneeded get"
 
     def __init__(self, filename=None, *args, **kwargs):
         super().__init__(filename, *args, **kwargs)
@@ -1131,7 +1113,7 @@ class UnnecessaryGetIssueFinder(BaseSettingsIssueFinder):
         return True
 
     def get_setting_message(self, setting_name: str) -> str:
-        return f"{self.msg_code}: {self.msg_info}: use [] instead of get() to read {setting_name}"
+        return f"{self.msg_code} {self.msg_info}"
 
     def check_assignment(
         self, node: ast.Assign
@@ -1451,11 +1433,6 @@ class ImportPathStringIssueFinder(BaseSettingsIssueFinder):
             yield from self.check_settings_constructor_args(node)
         elif self.is_overridden_settings_call(node):
             yield from self.check_overridden_settings_args(node)
-
-    def is_settings_constructor_call(self, node: ast.Call) -> bool:
-        if isinstance(node.func, ast.Name):
-            return node.func.id in ("Settings", "BaseSettings")
-        return False
 
     def is_overridden_settings_call(self, node: ast.Call) -> bool:
         if isinstance(node.func, ast.Name):

@@ -7,19 +7,33 @@ from flake8_scrapy._finders.data import (
     MIN_SCRAPY_VERSION,
 )
 
-from . import NO_ISSUE, Input, Issue, cases
-from .helpers import check_input
+from . import NO_ISSUE, File, Input, Issue, cases
+from .helpers import check_input, check_project
+from .test_requirements import FUTURE_SCRAPY_VERSION
 
 ISSUE_COLUMN = 9
 
-# Issues with setting names.
+# Issues with setting names
 SETTING_NAME_ISSUES = (
     # SCP07 unknown setting
-    ("FOO", "SCP07 unknown setting"),
+    ("FOO", "SCP07 unknown setting", {}),
+    # SCP08 deprecated setting
+    *(
+        (
+            "REQUEST_FINGERPRINTER_IMPLEMENTATION",
+            "SCP08 deprecated setting",
+            {
+                "versions": {"scrapy": LATEST_KNOWN_SCRAPY_VERSION},
+                "value": "'2.6'",
+                "getter": "[]",
+            },
+        )
+        for version in ("2.12.0", LATEST_KNOWN_SCRAPY_VERSION, FUTURE_SCRAPY_VERSION)
+    ),
+    # TODO: Cover version ranges where REQUEST_FINGERPRINTER_IMPLEMENTATION was not yet deprecated and not yet added.
 )
-# Issues with setting values.
+# Issues with setting values
 SETTING_VALUE_ISSUES = (
-    # TODO: SCP08
     # TODO: SCP09
     # TODO: SCP10
     # TODO: SCP15
@@ -30,107 +44,154 @@ SETTING_VALUE_ISSUES = (
 )
 # TODO: Reuse below.
 
-MAIN_CASES = [
-    # SETTING_ISSUES
+CASES = (
+    # SETTING_NAME_ISSUES
     *(
         (
-            Input(code=code, path=path),
-            Issue(issue, line=line, column=column, path=path) if issue else NO_ISSUE,
+            [
+                File("", path="scrapy.cfg"),
+                File(code, path=path),
+                *(
+                    [
+                        File(
+                            "\n".join(
+                                f"{package}=={version}"
+                                for package, version in options["versions"].items()
+                            ),
+                            path="requirements.txt",
+                        )
+                    ]
+                    if options.get("versions", None)
+                    else []
+                ),
+            ],
+            [
+                Issue(issue, line=line, column=column, path=path)
+                if issue
+                else NO_ISSUE,
+                *getter_issues,
+            ],
         )
-        for name, issue in SETTING_NAME_ISSUES
+        for name, issue, options in SETTING_NAME_ISSUES
         for path in ("a.py",)
-        for code, line, column in ((f'crawler.settings["{name}"] = a', 1, 17),)
-        # {
-        #     "input": Input(f'self.crawler.settings.get("{setting}")'),
-        #     "column": 26,
-        # },
-        # {"input": Input(f'del settings["{setting}"]'), "column": 13},
-        # {"input": Input(f'settings.get("{setting}")'), "column": 13},
-        # {"input": Input(f'settings.get(name="{setting}")'), "column": 18},
-        # for case in (
-        #     {
-        #         "input": Input(f'self.crawler.settings["{setting}"] = {value}'),
-        #         "column": 22,
-        #     },
-        #     {
-        #         "input": Input(f'self.settings["{setting}"] = {value}'),
-        #         "column": 14,
-        #     },
-        #     {"input": Input(f'settings["{setting}"] = {value}'), "column": 9},
-        #     {
-        #         "input": Input(f'settings.update({{"{setting}": {value}}})'),
-        #         "column": 17,
-        #     },
-        #     {
-        #         "input": Input(f'settings.update(values={{"{setting}": {value}}})'),
-        #         "column": 24,
-        #     },
-        #     {
-        #         "input": Input(f"settings.update(dict({setting}={value}))"),
-        #         "column": 21,
-        #     },
-        #     {
-        #         "input": Input(f"settings.update(values=dict({setting}={value}))"),
-        #         "column": 28,
-        #     },
-        #     {"input": Input(f'Settings({{"{setting}": {value}}})'), "column": 10},
-        #     {
-        #         "input": Input(f'BaseSettings(values={{"{setting}": {value}}})'),
-        #         "column": 21,
-        #     },
-        #     {"input": Input(f"Settings(dict({setting}={value}))"), "column": 14},
-        #     {
-        #         "input": Input(f"BaseSettings(values=dict({setting}={value}))"),
-        #         "column": 25,
-        #     },
-        #     {
-        #         "input": Input(
-        #             f"from scrapy.settings import overridden_settings\n"
-        #             f"\n"
-        #             f'settings = overridden_settings({{"{setting}": {value}}})\n'
-        #         ),
-        #         "line": 3,
-        #         "column": 32,
-        #     },
-        #     {
-        #         "input": Input(
-        #             f"from scrapy import settings\n"
-        #             f"\n"
-        #             f'_ = settings.overridden_settings({{"{setting}": {value}}})\n'
-        #         ),
-        #         "line": 3,
-        #         "column": 34,
-        #     },
-        #     {
-        #         "input": Input(
-        #             f"import scrapy\n"
-        #             f"\n"
-        #             f'settings = scrapy.settings.overridden_settings({{"{setting}": {value}}})\n'
-        #         ),
-        #         "line": 3,
-        #         "column": 48,
-        #     },
-        #     {
-        #         "input": Input(
-        #             f'overridden_settings(settings={{"{setting}": {value}}})\n'
-        #         ),
-        #         "column": 30,
-        #     },
-        #     {
-        #         "input": Input(
-        #             f"import scrapy\n"
-        #             f"\n"
-        #             f"class MySpider(scrapy.Spider):\n"
-        #             f'    name = "myspider"\n'
-        #             f"    custom_settings = {{\n"
-        #             f'        "{setting}": {value},\n'
-        #             f"    }}\n"
-        #         ),
-        #         "line": 6,
-        #         "column": 8,
-        #     },
-        # )
+        for code, line, column, getter_issues in (
+            *(
+                (code, 1, column + len(var), getter_issues)
+                for var in ("settings", "crawler.settings", "self.crawler.settings")
+                for code, column, getter_issues in (
+                    # get
+                    *(
+                        (code, column, [])
+                        for code, column in (
+                            (f'{var}["{name}"]', 1),
+                            (f'{var}.get("{name}")', 5),
+                            (f'{var}.get(name="{name}")', 10),
+                            (f'{var}.getbool("{name}")', 9),
+                            (f'{var}.getbool(name="{name}")', 14),
+                            (f'{var}.getint("{name}")', 8),
+                            (f'{var}.getint(name="{name}")', 13),
+                            (f'{var}.getfloat("{name}")', 10),
+                            (f'{var}.getfloat(name="{name}")', 15),
+                            (f'{var}.getlist("{name}")', 9),
+                            (f'{var}.getlist(name="{name}")', 14),
+                            (f'{var}.getdict("{name}")', 9),
+                            (f'{var}.getdict(name="{name}")', 14),
+                            (f'{var}.getdictorlist("{name}")', 15),
+                            (f'{var}.getdictorlist(name="{name}")', 20),
+                            (f'{var}.getwithbase("{name}")', 13),
+                            (f'{var}.getwithbase(name="{name}")', 18),
+                        )
+                        # Unknown settings, no getter-specific issues
+                        if not options.get("getter", None)
+                    ),
+                    *(
+                        (
+                            code,
+                            column,
+                            []
+                            if not issue
+                            else [Issue(issue, column=len(var) + column, path=path)],
+                        )
+                        for code, column, issue in (
+                            (f'{var}["{name}"]', 1, None),
+                            (f'{var}.get("{name}")', 5, "SCP25 unneeded get"),
+                            (f'{var}.get(name="{name}")', 10, "SCP25 unneeded get"),
+                            (f'{var}.getbool("{name}")', 9, None),  # TODO: SCP17
+                            (f'{var}.getbool(name="{name}")', 14, None),  # TODO: SCP17
+                            (f'{var}.getint("{name}")', 8, None),  # TODO: SCP17
+                            (f'{var}.getint(name="{name}")', 13, None),  # TODO: SCP17
+                            (f'{var}.getfloat("{name}")', 10, None),  # TODO: SCP17
+                            (f'{var}.getfloat(name="{name}")', 15, None),  # TODO: SCP17
+                            (f'{var}.getlist("{name}")', 9, None),  # TODO: SCP17
+                            (f'{var}.getlist(name="{name}")', 14, None),  # TODO: SCP17
+                            (f'{var}.getdict("{name}")', 9, None),  # TODO: SCP17
+                            (f'{var}.getdict(name="{name}")', 14, None),  # TODO: SCP17
+                            (f'{var}.getdictorlist("{name}")', 15, None),  # TODO: SCP17
+                            (
+                                f'{var}.getdictorlist(name="{name}")',
+                                20,
+                                None,
+                            ),  # TODO: SCP17
+                            (f'{var}.getwithbase("{name}")', 13, None),  # TODO: SCP17
+                            (
+                                f'{var}.getwithbase(name="{name}")',
+                                18,
+                                None,
+                            ),  # TODO: SCP17
+                        )
+                        if options.get("getter", None) == "[]"
+                    ),
+                    # del
+                    (f'del {var}["{name}"]', 5, []),
+                    # set
+                    (f'{var}["{name}"] = a', 1, []),
+                    (f'{var}.update({{"{name}": a}})', 9, []),
+                    (f'{var}.update(values={{"{name}": a}})', 16, []),
+                    (f"{var}.update(dict({name}=a))", 13, []),
+                    (f"{var}.update(values=dict({name}=a))", 20, []),
+                )
+            ),
+            *(
+                (code, 1, column + len(cls) + len(prefix), [])
+                for cls, param in (
+                    ("BaseSettings", "values"),
+                    ("Settings", "values"),
+                    ("overridden_settings", "settings"),
+                )
+                for prefix in ("", "settings.", "scrapy.settings.")
+                for code, column in (
+                    (f'{prefix}{cls}({{"{name}": a}})', 2),
+                    (f'{prefix}{cls}({param}={{"{name}": a}})', 3 + len(param)),
+                    (f"{prefix}{cls}(dict({name}=a))", 6),
+                    (f"{prefix}{cls}({param}=dict({name}=a))", 7 + len(param)),
+                )
+            ),
+            (
+                f"class MySpider(Spider):\n"
+                f"    custom_settings = {{\n"
+                f'        "{name}": a,\n'
+                f"    }}",
+                3,
+                8,
+                [],
+            ),
+            (
+                f"class MySpider(Spider):\n    custom_settings = dict({name}=a)",
+                2,
+                27,
+                [],
+            ),
+        )
     ),
+)
+
+
+@cases(CASES)
+def test(input: list[File], expected: Issue | None):
+    check_project(input, expected)
+
+
+MAIN_CASES = [
     # SETTING_VALUE_ISSUES
     *(
         (
@@ -231,27 +292,6 @@ MAIN_CASES = [
         #     },
         # )
     ),
-    # Settings are detected
-    *(
-        (
-            case["input"],
-            Issue(
-                "SCP07 unknown setting",
-                line=case.get("line", 1),  # type: ignore[arg-type]
-                column=case.get("column", 0),
-            ),
-        )
-        for setting in ("FOO",)
-        for case in (
-            {
-                "input": Input(f'self.crawler.settings.get("{setting}")'),
-                "column": 26,
-            },
-            {"input": Input(f'del settings["{setting}"]'), "column": 13},
-            {"input": Input(f'settings.get("{setting}")'), "column": 13},
-            {"input": Input(f'settings.get(name="{setting}")'), "column": 18},
-        )
-    ),
     # Non-settings are ignored
     *(
         (input, NO_ISSUE)
@@ -310,22 +350,9 @@ MAIN_CASES = [
             (
                 "REQUEST_FINGERPRINTER_IMPLEMENTATION",
                 "2.6",
-                f"scrapy=={LATEST_KNOWN_SCRAPY_VERSION}",
-                Issue(
-                    "SCP08: deprecated Scrapy setting: "
-                    "REQUEST_FINGERPRINTER_IMPLEMENTATION (deprecated in Scrapy 2.12.0). See "
-                    "https://flake8-scrapy.readthedocs.io/en/latest/rules/scp08.html#request_fingerprinter_implementation",
-                    column=ISSUE_COLUMN,
-                ),
-            ),
-            (
-                "REQUEST_FINGERPRINTER_IMPLEMENTATION",
-                "2.6",
                 "scrapy==2.12.0",
                 Issue(
-                    "SCP08: deprecated Scrapy setting: "
-                    "REQUEST_FINGERPRINTER_IMPLEMENTATION (deprecated in Scrapy 2.12.0). See "
-                    "https://flake8-scrapy.readthedocs.io/en/latest/rules/scp08.html#request_fingerprinter_implementation",
+                    "SCP08 deprecated setting",
                     column=ISSUE_COLUMN,
                 ),
             ),
@@ -396,8 +423,7 @@ MAIN_CASES = [
                 f"scrapy=={MIN_SCRAPY_VERSION}",
                 [
                     Issue(
-                        "SCP08: deprecated Scrapy setting: LOG_UNSERIALIZABLE_REQUESTS (deprecated in Scrapy 2.0.1 or earlier). Use "
-                        "SCHEDULER_DEBUG instead.",
+                        "SCP08 deprecated setting",
                         column=ISSUE_COLUMN,
                     ),
                     Issue("SCP14 unsafe Scrapy", path="requirements.txt"),
@@ -414,7 +440,7 @@ MAIN_CASES = [
                 {},
                 "scrapy-poet==0.9.0",
                 Issue(
-                    "SCP08: deprecated setting: SCRAPY_POET_OVERRIDES (deprecated in scrapy-poet 0.9.0). Use SCRAPY_POET_DISCOVER and/or SCRAPY_POET_RULES instead",
+                    "SCP08 deprecated setting",
                     column=ISSUE_COLUMN,
                 ),
             ),
@@ -479,11 +505,7 @@ MAIN_CASES = [
     *(
         (
             Input(syntax),
-            Issue(
-                "SCP17: wrong setting getter: use getbool() to read "
-                "AUTOTHROTTLE_ENABLED",
-                column=column,
-            ),
+            Issue("SCP17 wrong setting getter", column=column),
         )
         for syntax, column in (
             ('settings.get("AUTOTHROTTLE_ENABLED")', 13),
@@ -495,10 +517,7 @@ MAIN_CASES = [
     *(
         (
             Input(f'settings["{setting}"]'),
-            Issue(
-                f"SCP17: wrong setting getter: use {method}() to read {setting}",
-                column=ISSUE_COLUMN,
-            ),
+            Issue("SCP17 wrong setting getter", column=ISSUE_COLUMN),
         )
         for setting, method in (
             ("CONCURRENT_REQUESTS", "getint"),
@@ -512,10 +531,7 @@ MAIN_CASES = [
     *(
         (
             Input(f'settings.getbool("{setting}")'),
-            Issue(
-                f"SCP17: wrong setting getter: use [] or get() to read {setting}",
-                column=17,
-            ),
+            Issue("SCP17 wrong setting getter", column=17),
         )
         for setting in (
             "BOT_NAME",
@@ -1189,10 +1205,7 @@ MAIN_CASES = [
     *(
         (
             Input(syntax),
-            Issue(
-                f"SCP25: unneeded get(): use [] instead of get() to read {setting}",
-                column=13,
-            ),
+            Issue("SCP25 unneeded get", column=13),
         )
         for setting in (
             "AWS_ACCESS_KEY_ID",  # Not in scrapy.settings.default_settings

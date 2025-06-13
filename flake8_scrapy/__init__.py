@@ -183,6 +183,7 @@ class Plugin:
         self.lines = lines
         self.enable_project_checks = enable_project_checks
         self.config = Config(
+            file_path=filename,
             user_known_settings=self.user_known_settings,
         )
 

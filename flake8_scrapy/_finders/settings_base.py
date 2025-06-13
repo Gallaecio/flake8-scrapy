@@ -86,12 +86,18 @@ class BaseSettingsIssueFinder(IssueFinder, ABC):
                     )
 
         # Check for custom_settings assignments in any class
-        if isinstance(node.value, ast.Dict):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "custom_settings":
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id == "custom_settings":
+                if isinstance(node.value, ast.Dict):
                     yield from self.check_dict_keys(
                         node.value, node.lineno, node.col_offset
                     )
+                elif (
+                    isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Name)
+                    and node.value.func.id == "dict"
+                ):
+                    yield from self.check_dict_constructor_keywords(node.value)
 
     def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:  # noqa: PLR0911
         if isinstance(node.func, ast.Attribute):
@@ -100,6 +106,9 @@ class BaseSettingsIssueFinder(IssueFinder, ABC):
                 return
             if self.is_settings_dict_method_call(node):
                 yield from self.check_settings_dict_method_args(node)
+                return
+            if self.is_settings_constructor_call(node):
+                yield from self.check_settings_constructor_args(node)
                 return
             if node.func.attr != "overridden_settings":
                 return
@@ -118,14 +127,38 @@ class BaseSettingsIssueFinder(IssueFinder, ABC):
                 yield from self.check_overridden_settings_args(node)
             return
 
-        if not isinstance(node.func, ast.Name):
-            return
-
-        if node.func.id in {"BaseSettings", "Settings"}:
+        if self.is_settings_constructor_call(node):
             yield from self.check_settings_constructor_args(node)
             return
-        if node.func.id == "overridden_settings":
+        if isinstance(node.func, ast.Name) and node.func.id == "overridden_settings":
             yield from self.check_overridden_settings_args(node)
+
+    def is_settings_constructor_call(self, node: ast.Call) -> bool:
+        """Check if the call is a Settings or BaseSettings constructor."""
+        if isinstance(node.func, ast.Name):
+            return node.func.id in ("Settings", "BaseSettings")
+
+        if isinstance(node.func, ast.Attribute):
+            if node.func.attr not in ("Settings", "BaseSettings"):
+                return False
+
+            # Handle settings.BaseSettings
+            if (
+                isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "settings"
+            ):
+                return True
+
+            # Handle scrapy.settings.BaseSettings
+            if (
+                isinstance(node.func.value, ast.Attribute)
+                and node.func.value.attr == "settings"
+                and isinstance(node.func.value.value, ast.Name)
+                and node.func.value.value.id == "scrapy"
+            ):
+                return True
+
+        return False
 
     def check_subscript(
         self, node: ast.Subscript
@@ -290,12 +323,25 @@ class BaseSettingsIssueFinder(IssueFinder, ABC):
                 yield from self.check_dict_keys(
                     first_arg, first_arg.lineno, first_arg.col_offset
                 )
+            elif (
+                isinstance(first_arg, ast.Call)
+                and isinstance(first_arg.func, ast.Name)
+                and first_arg.func.id == "dict"
+            ):
+                yield from self.check_dict_constructor_keywords(first_arg)
         for keyword in node.keywords:
-            if keyword.arg != "settings" or not isinstance(keyword.value, ast.Dict):
+            if keyword.arg != "settings":
                 continue
-            yield from self.check_dict_keys(
-                keyword.value, keyword.value.lineno, keyword.value.col_offset
-            )
+            if isinstance(keyword.value, ast.Dict):
+                yield from self.check_dict_keys(
+                    keyword.value, keyword.value.lineno, keyword.value.col_offset
+                )
+            elif (
+                isinstance(keyword.value, ast.Call)
+                and isinstance(keyword.value.func, ast.Name)
+                and keyword.value.func.id == "dict"
+            ):
+                yield from self.check_dict_constructor_keywords(keyword.value)
 
     def check_delete(
         self, node: ast.Delete

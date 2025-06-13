@@ -85,6 +85,15 @@ class SettingsModuleIssueFinder(NodeVisitor):
                             column=child.col_offset,
                         )
                     )
+                elif name in self.config.deprecated_settings:
+                    self.issues.append(
+                        Issue(
+                            8,
+                            "deprecated setting",
+                            line=child.lineno,
+                            column=child.col_offset,
+                        )
+                    )
                 # elif issue := get_setting_value_issue(name, child.value):
                 #     self.issues.append(issue)
 
