@@ -149,7 +149,18 @@ CASES = [
             ),
             ("AUTOTHROTTLE_ENABLED = True", default_issues(path, exclude=21)),
             (
+                "if a:\n"
+                "    AUTOTHROTTLE_ENABLED = False\n"
+                "else:\n"
+                "    AUTOTHROTTLE_ENABLED = True",
+                default_issues(path, exclude=21),
+            ),
+            (
                 "CONCURRENT_REQUESTS = 1\nCONCURRENT_REQUESTS_PER_DOMAIN = 1\nDOWNLOAD_DELAY = 1",
+                default_issues(path, exclude=21),
+            ),
+            (
+                "CONCURRENT_REQUESTS = 1\nCONCURRENT_REQUESTS_PER_DOMAIN = 1\nif a:\n    DOWNLOAD_DELAY = 1\nelse:\n    DOWNLOAD_DELAY = 0",
                 default_issues(path, exclude=21),
             ),
             # SCP23 redefined setting
@@ -185,8 +196,6 @@ CASES = [
             ),
         )
     ),
-    # TODO: settings defined within if-else statements should count as defined,
-    # even though they do not count as duplicates.
     # TODO: Use a shared test case constant for value-based checks, so that
     # they are checked both for settings modules and for regular Python files.
     # TODO: SCP07

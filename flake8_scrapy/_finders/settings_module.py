@@ -65,12 +65,12 @@ class SettingsModuleIssueFinder(NodeVisitor):
                             autothrottle_enabled = value
                 if name == "ROBOTSTXT_OBEY":
                     value = True
+                    col_offset = child.col_offset
                     if isinstance(child.value, Constant):
+                        col_offset = child.value.col_offset
                         with suppress(ValueError):
                             value = getbool(child.value.value)
-                    robotstxt_obey_values.append(
-                        (value, child.lineno, child.col_offset)
-                    )
+                    robotstxt_obey_values.append((value, child.lineno, col_offset))
 
         if "USER_AGENT" not in all_seen:
             self.issues.append(Issue(19, "no USER_AGENT"))
