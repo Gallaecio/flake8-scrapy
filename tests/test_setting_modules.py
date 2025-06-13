@@ -114,11 +114,16 @@ CASES = [
             (
                 "ROBOTSTXT_OBEY = False",
                 (
+                    Issue("SCP19 no USER_AGENT", path=path),
                     Issue("SCP20 ROBOTSTXT_OBEY not enabled", column=17, path=path),
-                    *default_issues(path, exclude=20),
+                    Issue("SCP21 incomplete throttling config", path=path),
                 ),
             ),
             ("ROBOTSTXT_OBEY = True", default_issues(path, exclude=20)),
+            (
+                "if a:\n    ROBOTSTXT_OBEY = True\nelse:\n    ROBOTSTXT_OBEY = False",
+                default_issues(path, exclude=20),
+            ),
             # SCP21 incomplete throttling config
             ("AUTOTHROTTLE_ENABLED = False", default_issues(path)),
             *(

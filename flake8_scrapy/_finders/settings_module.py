@@ -1,5 +1,6 @@
 import ast
 from ast import Assign, Constant, Module, Name, NodeVisitor
+from contextlib import suppress
 
 from flake8_scrapy._finders.data import getbool
 from flake8_scrapy._finders.messaging import Issue
@@ -15,11 +16,12 @@ class SettingsModuleIssueFinder(NodeVisitor):
         self.issues = []
 
     def visit_Module(self, node: Module) -> None:  # noqa: PLR0912
-        top_level_seen: dict[
-            str, int
-        ] = {}  # setting name: line number (top-level only)
-        all_settings_seen: set[str] = set()  # all settings seen anywhere in the code
+        # setting name: line number
+        top_level_seen: dict[str, int] = {}
+        all_seen: set[str] = set()
+
         autothrottle_enabled = False
+        robotstxt_obey_values = []
 
         # First pass: check for redefinitions at top level only
         for child in node.body:
@@ -50,7 +52,7 @@ class SettingsModuleIssueFinder(NodeVisitor):
                 if not (isinstance(target, Name) and target.id.isupper()):
                     continue
                 name = target.id
-                all_settings_seen.add(name)
+                all_seen.add(name)
                 if name == "AUTOTHROTTLE_ENABLED":
                     if not isinstance(child.value, Constant):
                         autothrottle_enabled = True
@@ -61,29 +63,28 @@ class SettingsModuleIssueFinder(NodeVisitor):
                             autothrottle_enabled = True
                         else:
                             autothrottle_enabled = value
-                if name == "ROBOTSTXT_OBEY" and isinstance(child.value, Constant):
-                    try:
-                        value = getbool(child.value.value)
-                    except ValueError:
-                        pass
-                    else:
-                        if value is False:
-                            self.issues.append(
-                                Issue(
-                                    20,
-                                    "ROBOTSTXT_OBEY not enabled",
-                                    line=child.lineno,
-                                    column=child.value.col_offset,
-                                )
-                            )
+                if name == "ROBOTSTXT_OBEY":
+                    value = True
+                    if isinstance(child.value, Constant):
+                        with suppress(ValueError):
+                            value = getbool(child.value.value)
+                    robotstxt_obey_values.append(
+                        (value, child.lineno, child.col_offset)
+                    )
 
-        # Check for missing settings using all_settings_seen
-        if "USER_AGENT" not in all_settings_seen:
+        if "USER_AGENT" not in all_seen:
             self.issues.append(Issue(19, "no USER_AGENT"))
-        if "ROBOTSTXT_OBEY" not in all_settings_seen:
+
+        if not robotstxt_obey_values:
             self.issues.append(Issue(20, "ROBOTSTXT_OBEY not enabled"))
+        elif all(not value for value, _, _ in robotstxt_obey_values):
+            _, line, col = robotstxt_obey_values[0]
+            self.issues.append(
+                Issue(20, "ROBOTSTXT_OBEY not enabled", line=line, column=col)
+            )
+
         if not autothrottle_enabled and not all(
-            setting in all_settings_seen
+            setting in all_seen
             for setting in (
                 "CONCURRENT_REQUESTS",
                 "CONCURRENT_REQUESTS_PER_DOMAIN",
