@@ -103,6 +103,13 @@ CASES = [
                 "USER_AGENT = 'Jane Doe (+https://jane.doe.example)'",
                 default_issues(path, exclude=19),
             ),
+            (
+                "if a:\n"
+                "    USER_AGENT = 'Jane Doe (+https://jane.doe.example)'\n"
+                "else:\n"
+                "    USER_AGENT = 'John Doe (+https://john.doe.example)'",
+                default_issues(path, exclude=19),
+            ),
             # SCP20 ROBOTSTXT_OBEY not enabled
             (
                 "ROBOTSTXT_OBEY = False",
