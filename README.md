@@ -59,28 +59,40 @@ flake8-scrapy in `additional_dependencies`. For example:
 | SCP02 | There are URLs in `allowed_domains` |
 | SCP03 | Use of `urljoin(response.url, '/foo')` instead of `response.urljoin('/foo')` |
 | SCP04 | Use of `Selector(response)` in callback |
-| SCP07 | Use of unknown settings |
-| SCP08 | Use of settings deprecated in the target Scrapy and Scrapy plugin versions |
-| SCP09 | Use of settings not yet available in the target Scrapy and Scrapy plugin versions |
-| SCP10 | Use of old settings that have been removed from the target Scrapy and Scrapy plugin versions |
-| SCP11 | Duplicate dependency in requirements.txt |
-| SCP12 | Non-frozen dependency in requirements.txt |
-| SCP13 | Ancient Scrapy version in requirements.txt |
-| SCP14 | Insecure Scrapy version in requirements.txt |
-| SCP15 | Use of setting of package not in requirements.txt |
-| SCP16 | Obsolete package in requirements.txt |
+| SCP07 | Unknown setting |
+| SCP08 | Deprecated setting |
+| SCP09 | Setting requires upgrading a requirement |
+| SCP10 | Removed setting |
+| SCP11 | Duplicate requirement |
+| SCP12 | Non-frozen requirement |
+| SCP13 | Ancient Scrapy version |
+| SCP14 | Insecure Scrapy version |
+| SCP15 | Setting of missing requirement |
+| SCP16 | Obsolete requirement |
 | SCP17 | Wrong setting getter |
 | SCP18 | Invalid setting value |
-| SCP19 | USER_AGENT missing from settings.py |
-| SCP20 | ROBOTSTXT_OBEY not enabled in settings.py |
-| SCP21 | Throttling settings missing in settings.py |
-| SCP22 | Missing contact info in USER_AGENT |
-| SCP23 | Redefined setting in settings.py |
-| SCP24 | Use of a BASE setting |
-| SCP25 | Unneeded settings.get() |
+| SCP19 | No project USER_AGENT |
+| SCP20 | Project ROBOTSTXT_OBEY not enabled |
+| SCP21 | Project throttling not set |
+| SCP22 | USER_AGENT wihtout contact info |
+| SCP23 | Redefined setting |
+| SCP24 | Use of BASE setting |
+| SCP25 | Unneeded setting get |
 | SCP26 | Ignored getter default |
 | SCP27 | Unneeded import path strings |
-
+| SCP28 | Unneeded filesystem path strings |
+| SCP29 | Redefined setting default |
+| SCP30 | Unpickleable setting value |
+| SCP31 | Missing recomended setting |
+| SCP32 | Missing setting with upcoming default value change |
+| SCP33 | No-op setting definition |
+| SCP34 | Unspecified --requirements-file |
+| SCP35 | No default stack |
+| SCP36 | Non-frozen stack |
+| SCP37 | Different stacks |
+| SCP38 | Missing stack requirememt |
+| SCP39 | Different requirements |
+| SCP40 | Conflicting requirement paths |
 
 ## Options
 
