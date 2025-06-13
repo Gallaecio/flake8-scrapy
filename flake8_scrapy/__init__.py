@@ -1,11 +1,11 @@
 import ast
 
-from ._finders.domains import (
+from .finders.domains import (
     UnreachableDomainIssueFinder,
     UrlInAllowedDomainsIssueFinder,
 )
-from ._finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
-from ._finders.unsupported import LambdaCallbackIssueFinder
+from .finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
+from .finders.unsupported import LambdaCallbackIssueFinder
 
 __version__ = "0.0.2"
 
