@@ -8,7 +8,7 @@ class AllowedDomainsSpider(scrapy.Spider):
 
     # name = 'allowed_domains'
     allowed_domains = (
-        "example.com",
+        "toscrape.com",
         "scrapy.org",
     )
     start_urls = [  # noqa: RUF012
