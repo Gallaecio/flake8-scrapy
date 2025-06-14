@@ -49,14 +49,6 @@ ALL_NON_REQUEST_CLASSES = (
     # Long import paths should not trigger issues.
     "a.b.c.d.e.f.g.Request",
 )
-NON_LAMBDA_CALLBACKS = (
-    "self.foo",
-    "foo",
-    "'foo'",
-    "None",
-    "NO_CALLBACK",
-    "scrapy.http.request.NO_CALLBACK",
-)
 
 CASES = (
     *(
