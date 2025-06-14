@@ -89,6 +89,10 @@ class LambdaCallbackIssueFinder(IssueFinder):
         """Check if this looks like a Request.replace() call."""
         return isinstance(func, Attribute) and func.attr == "replace"
 
+    def looks_like_response_follow(self, func: expr):
+        """Check if this looks like a Response.follow() or Response.follow_all() call."""
+        return isinstance(func, Attribute) and func.attr in {"follow", "follow_all"}
+
     def find_issues(
         self, node: Call | Assign
     ) -> Generator[tuple[int, int, str], None, None]:
@@ -116,8 +120,10 @@ class LambdaCallbackIssueFinder(IssueFinder):
     def _find_issues_in_call(
         self, node: Call
     ) -> Generator[tuple[int, int, str], None, None]:
-        if self.looks_like_request(node.func) or self.looks_like_request_replace(
-            node.func
+        if (
+            self.looks_like_request(node.func)
+            or self.looks_like_request_replace(node.func)
+            or self.looks_like_response_follow(node.func)
         ):
             yield from self._check_lambda_callbacks_in_call(node)
 

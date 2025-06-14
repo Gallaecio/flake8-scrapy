@@ -228,6 +228,65 @@ CASES = (
                 "request.replace(url='new_url', callback=lambda x: x)",
                 Issue("SCP05 lambda callback", column=40, path=path),
             ),
+            # Response.follow() calls with lambda callbacks/errbacks
+            (
+                "response.follow(url, callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=30, path=path),
+            ),
+            (
+                "response.follow(url, errback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=29, path=path),
+            ),
+            (
+                "response.follow(callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=25, path=path),
+            ),
+            (
+                "self.response.follow(url, callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=35, path=path),
+            ),
+            # Response.follow_all() calls with lambda callbacks/errbacks
+            (
+                "response.follow_all(urls, callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=35, path=path),
+            ),
+            (
+                "response.follow_all(urls, errback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=34, path=path),
+            ),
+            (
+                "response.follow_all(callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=29, path=path),
+            ),
+            # follow() with both callback and errback lambdas
+            (
+                "response.follow(url, callback=lambda x: x, errback=lambda y: y)",
+                [
+                    Issue("SCP05 lambda callback", column=30, path=path),
+                    Issue("SCP05 lambda callback", column=51, path=path),
+                ],
+            ),
+            # follow_all() with both callback and errback lambdas
+            (
+                "response.follow_all(urls, callback=lambda x: x, errback=lambda y: y)",
+                [
+                    Issue("SCP05 lambda callback", column=35, path=path),
+                    Issue("SCP05 lambda callback", column=56, path=path),
+                ],
+            ),
+            # follow() with non-lambda callbacks (should not trigger)
+            ("response.follow(url, callback=self.parse)", NO_ISSUE),
+            ("response.follow(url, errback=self.error_handler)", NO_ISSUE),
+            ("response.follow_all(urls, callback=None)", NO_ISSUE),
+            # follow() on other objects with lambda (pragmatic approach - should trigger)
+            (
+                "obj.follow(url, callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=25, path=path),
+            ),
+            (
+                "other_obj.follow_all(items, callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=37, path=path),
+            ),
         )
     ),
 )
