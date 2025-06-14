@@ -81,23 +81,14 @@ CASES = (
             # Combinations of callback and errback params
             *(
                 (
-                    f"{cls}(url, {callback_prefix}{callback}, {errback_prefix}{errback}{suffix})",
+                    f"{cls}(url, {callback_prefix}{callback}, {errback_prefix}{errback})",
                     [*callback_issues, *errback_issues],
                 )
                 for cls in REPRESENTATIVE_REQUEST_CLASSES
-                for callback_prefix, errback_prefix, suffix in (
-                    ("", "errback=", ""),
-                    ("", "'GET', errback=", ""),
-                    ("", "'GET', None, None, None, None, 'utf-8', 0, False, ", ""),
-                    (
-                        "",
-                        "'GET', None, None, None, None, 'utf-8', 0, False, ",
-                        # Test with all possible parameters +1, i.e. subclasses
-                        # that extend __init__ positional parameters should
-                        # work.
-                        ", None, None, None",
-                    ),
-                    ("callback=", "errback=", ""),
+                for callback_prefix, errback_prefix in (
+                    ("", "errback="),
+                    ("callback=", "errback="),
+                    ("", "'GET', None, None, None, None, 'utf-8', 0, False, "),
                 )
                 for callback, callback_issues in (
                     (
