@@ -93,6 +93,10 @@ class LambdaCallbackIssueFinder(IssueFinder):
         """Check if this looks like a Response.follow() or Response.follow_all() call."""
         return isinstance(func, Attribute) and func.attr in {"follow", "follow_all"}
 
+    def looks_like_from_response(self, func: expr):
+        """Check if this looks like a FormRequest.from_response() call."""
+        return isinstance(func, Attribute) and func.attr == "from_response"
+
     def find_issues(
         self, node: Call | Assign
     ) -> Generator[tuple[int, int, str], None, None]:
@@ -101,10 +105,10 @@ class LambdaCallbackIssueFinder(IssueFinder):
         elif isinstance(node, Assign):
             yield from self._find_issues_in_assign(node)
 
-    def _check_lambda_callbacks_in_call(
+    def _check_lambda_callbacks_positional(
         self, node: Call
     ) -> Generator[tuple[int, int, str], None, None]:
-        """Check for lambda callbacks in call arguments (both positional and keyword)."""
+        """Check for lambda callbacks in positional arguments."""
         for position in (
             1,  # callback
             10,  # errback
@@ -113,9 +117,21 @@ class LambdaCallbackIssueFinder(IssueFinder):
                 arg = node.args[position]
                 if isinstance(arg, ast.Lambda):
                     yield (arg.lineno, arg.col_offset, self.message)
+
+    def _check_lambda_callbacks_keyword_only(
+        self, node: Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        """Check for lambda callbacks in keyword arguments only."""
         for kw in node.keywords:
             if kw.arg in {"callback", "errback"} and isinstance(kw.value, ast.Lambda):
                 yield (kw.value.lineno, kw.value.col_offset, self.message)
+
+    def _check_lambda_callbacks_in_call(
+        self, node: Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        """Check for lambda callbacks in call arguments (both positional and keyword)."""
+        yield from self._check_lambda_callbacks_positional(node)
+        yield from self._check_lambda_callbacks_keyword_only(node)
 
     def _find_issues_in_call(
         self, node: Call
@@ -126,6 +142,8 @@ class LambdaCallbackIssueFinder(IssueFinder):
             or self.looks_like_response_follow(node.func)
         ):
             yield from self._check_lambda_callbacks_in_call(node)
+        elif self.looks_like_from_response(node.func):
+            yield from self._check_lambda_callbacks_keyword_only(node)
 
     def _find_issues_in_assign(
         self, node: Assign

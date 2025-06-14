@@ -287,6 +287,58 @@ CASES = (
                 "other_obj.follow_all(items, callback=lambda x: x)",
                 Issue("SCP05 lambda callback", column=37, path=path),
             ),
+            # FormRequest.from_response() calls with lambda callbacks/errbacks (keyword-only)
+            (
+                "FormRequest.from_response(response, callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=45, path=path),
+            ),
+            (
+                "FormRequest.from_response(response, errback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=44, path=path),
+            ),
+            (
+                "scrapy.FormRequest.from_response(response, callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=52, path=path),
+            ),
+            (
+                "self.FormRequest.from_response(response, callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=50, path=path),
+            ),
+            # from_response() with both callback and errback lambdas
+            (
+                "FormRequest.from_response(response, callback=lambda x: x, errback=lambda y: y)",
+                [
+                    Issue("SCP05 lambda callback", column=45, path=path),
+                    Issue("SCP05 lambda callback", column=66, path=path),
+                ],
+            ),
+            # from_response() with form data and lambda callback
+            (
+                "FormRequest.from_response(response, formdata={'key': 'value'}, callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=72, path=path),
+            ),
+            # from_response() with non-lambda callbacks (should not trigger)
+            ("FormRequest.from_response(response, callback=self.parse)", NO_ISSUE),
+            (
+                "FormRequest.from_response(response, errback=self.error_handler)",
+                NO_ISSUE,
+            ),
+            ("FormRequest.from_response(response, callback=None)", NO_ISSUE),
+            # from_response() on other objects with lambda (pragmatic approach - should trigger)
+            (
+                "obj.from_response(response, callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=37, path=path),
+            ),
+            (
+                "CustomRequest.from_response(response, errback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=46, path=path),
+            ),
+            # from_response() without callback/errback keywords should not trigger
+            ("FormRequest.from_response(response)", NO_ISSUE),
+            (
+                "FormRequest.from_response(response, formdata={'key': 'value'})",
+                NO_ISSUE,
+            ),
         )
     ),
 )
