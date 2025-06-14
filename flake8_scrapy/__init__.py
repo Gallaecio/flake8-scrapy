@@ -19,6 +19,7 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
                 UnreachableDomainIssueFinder(),
                 UrlInAllowedDomainsIssueFinder(),
                 OldSelectorIssueFinder(),
+                LambdaCallbackIssueFinder(),
             ],
             "Call": [
                 UrlJoinIssueFinder(),

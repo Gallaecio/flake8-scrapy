@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import ast
-from ast import Attribute, Call, Name, expr
+from ast import Assign, Attribute, Call, Name, expr
 from typing import TYPE_CHECKING
 
 from . import IssueFinder
@@ -85,7 +85,17 @@ class LambdaCallbackIssueFinder(IssueFinder):
             in VALID_REQUEST_IMPORT_PATHS[func.attr]
         )
 
-    def find_issues(self, node: Call) -> Generator[tuple[int, int, str], None, None]:
+    def find_issues(
+        self, node: Call | Assign
+    ) -> Generator[tuple[int, int, str], None, None]:
+        if isinstance(node, Call):
+            yield from self._find_issues_in_call(node)
+        elif isinstance(node, Assign):
+            yield from self._find_issues_in_assign(node)
+
+    def _find_issues_in_call(
+        self, node: Call
+    ) -> Generator[tuple[int, int, str], None, None]:
         if not self.looks_like_request(node.func):
             return
         for position in (
@@ -99,3 +109,19 @@ class LambdaCallbackIssueFinder(IssueFinder):
         for kw in node.keywords:
             if kw.arg in {"callback", "errback"} and isinstance(kw.value, ast.Lambda):
                 yield (kw.value.lineno, kw.value.col_offset, self.message)
+
+    def _find_issues_in_assign(
+        self, node: Assign
+    ) -> Generator[tuple[int, int, str], None, None]:
+        # Check for assignments like obj.callback = lambda x: x or obj.errback = lambda x: x
+        if not isinstance(node.value, ast.Lambda):
+            return
+
+        # Check if any target is a callback/errback attribute assignment
+        has_callback_errback_target = any(
+            isinstance(target, Attribute) and target.attr in {"callback", "errback"}
+            for target in node.targets
+        )
+
+        if has_callback_errback_target:
+            yield (node.value.lineno, node.value.col_offset, self.message)

@@ -147,6 +147,39 @@ CASES = (
             # are ignored.
             ("a[0].Request(url, callback=lambda x: x)", NO_ISSUE),
             ("a[0].b.Request(url, callback=lambda x: x)", NO_ISSUE),
+            # Lambda assignments to callback/errback attributes
+            (
+                "a.callback = lambda x: x",
+                Issue("SCP05 lambda callback", column=13, path=path),
+            ),
+            (
+                "a.errback = lambda x: x",
+                Issue("SCP05 lambda callback", column=12, path=path),
+            ),
+            (
+                "request.callback = lambda x: x",
+                Issue("SCP05 lambda callback", column=19, path=path),
+            ),
+            (
+                "request.errback = lambda x: x",
+                Issue("SCP05 lambda callback", column=18, path=path),
+            ),
+            # Multiple targets in assignment (though rare, should still be detected)
+            (
+                "obj.callback = other.callback = lambda x: x",
+                Issue("SCP05 lambda callback", column=32, path=path),
+            ),
+            # Non-lambda assignments to callback/errback attributes (should not trigger)
+            ("obj.callback = some_function", NO_ISSUE),
+            ("obj.errback = self.handle_error", NO_ISSUE),
+            ("request.callback = None", NO_ISSUE),
+            ("request.errback = 'error_handler'", NO_ISSUE),
+            # Lambda assignments to other attributes (should not trigger)
+            ("obj.other_attr = lambda x: x", NO_ISSUE),
+            ("request.parser = lambda x: x", NO_ISSUE),
+            # Non-attribute assignments with lambda (should not trigger)
+            ("callback = lambda x: x", NO_ISSUE),
+            ("errback = lambda x: x", NO_ISSUE),
         )
     ),
 )
