@@ -132,7 +132,7 @@ class ScrapyStyleChecker:
     def is_settings_module(self) -> bool:
         if not self.filename:
             return False
-        root = self.get_project_root()
+        root = self.config.project_root
         if not root:
             return False
         config_file = root / "scrapy.cfg"
@@ -150,15 +150,6 @@ class ScrapyStyleChecker:
                 if module_path == file_path:
                     return True
         return False
-
-    def get_project_root(self):
-        if not self.filename:
-            return None
-        path = Path(self.filename).resolve()
-        for parent in [path, *list(path.parents)]:
-            if (parent / "scrapy.cfg").exists():
-                return parent
-        return None
 
     def check_settings_module(self) -> Generator[Issue, None, None]:
         finder = SettingsModuleIssueFinder(self.config)
