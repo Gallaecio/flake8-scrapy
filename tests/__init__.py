@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from flake8_scrapy import Plugin
+from flake8_scrapy import ScrapyStyleChecker
 
 pytest.register_assert_rewrite("tests.helpers")
 
@@ -53,9 +53,9 @@ def run_checker(
     if allowed_settings is not None:
         options = Namespace()
         options.known_scrapy_settings = ",".join(allowed_settings)
-        Plugin.parse_options(options)
+        ScrapyStyleChecker.parse_options(options)
     else:
-        Plugin.user_known_settings = []
+        ScrapyStyleChecker.user_known_settings = []
     temp_dir = None
     if requirements is not None:
         if filename is None:
@@ -68,7 +68,7 @@ def run_checker(
         filename = str(file)
     if filename is None:
         filename = "a.py"
-    checker = Plugin(
+    checker = ScrapyStyleChecker(
         tree,
         filename,
         lines=code.splitlines(keepends=True),
