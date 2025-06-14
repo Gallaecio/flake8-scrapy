@@ -37,32 +37,21 @@ def extend_sys_path(path):
 
 
 class ScrapyStyleIssueFinder(ast.NodeVisitor):
-    def __init__(
-        self,
-        filename=None,
-        allowed_settings=None,
-    ):
+    def __init__(self, config: Config):
         super().__init__()
         self.issues = []
-        self.config = Config(
-            file_path=filename or "",
-            user_known_settings=allowed_settings or set(),
-        )
-        self.settings_finder = SettingsIssueFinder(
-            self.config,
-            filename=filename,
-            allowed_settings=allowed_settings,
-        )
-
-        node_specificfinders = {
+        self.config = config
+        self.settings_finder = SettingsIssueFinder(self.config)
+        self.node_specificfinders = {
             "Assign": [
                 UnreachableDomainIssueFinder(),
                 UrlInAllowedDomainsIssueFinder(),
                 OldSelectorIssueFinder(),
             ],
-            "Call": [UrlJoinIssueFinder()],
+            "Call": [
+                UrlJoinIssueFinder(),
+            ],
         }
-        self.node_specificfinders = node_specificfinders
 
     def visit(self, node):
         # Let the settings finder visit the node
@@ -83,7 +72,7 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
         return self.settings_finder.issues + self.issues
 
 
-class Plugin:
+class ScrapyStyleChecker:
     options = None
     name = "flake8-scrapy"
     version = __version__
@@ -130,7 +119,7 @@ class Plugin:
 
     def run(self):
         for issue in self.run_checks():
-            yield (*issue, Plugin)
+            yield (*issue, self.__class__)
 
     def run_checks(self):
         if self.is_settings_module():
@@ -179,8 +168,7 @@ class Plugin:
 
     def check_code(self) -> Generator[Issue, None, None]:
         finder = ScrapyStyleIssueFinder(
-            self.filename,
-            allowed_settings=self.user_known_settings,
+            self.config,
         )
         assert self.tree is not None
         finder.visit(self.tree)

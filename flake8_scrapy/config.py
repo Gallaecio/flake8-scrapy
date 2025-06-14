@@ -25,10 +25,14 @@ if TYPE_CHECKING:
 class Config:
     def __init__(self, *, file_path: str, user_known_settings: set[str] | None = None):
         user_known_settings = user_known_settings or set()
+        self.user_known_settings = user_known_settings
         self.known_settings = set(SETTINGS) | user_known_settings
         self.init_project_root(file_path)
         self.package_versions = build_package_versions_dict(self.project_root)
         self.init_deprecated_settings()
+        self.init_future_settings()
+        self.init_removed_settings()
+        self.init_missing_package_settings()
 
     def get_package_version(self, package_name) -> Version | None:
         return self.package_versions.get(canonicalize_name(package_name), None)
@@ -62,6 +66,40 @@ class Config:
             ):
                 deprecated.add(name)
         self.deprecated_settings = deprecated
+
+    def init_future_settings(self):
+        future = set()
+        for name, info in SETTINGS.items():
+            if not info.added_version:
+                continue
+            package_version = self.get_package_version(info.package)
+            if package_version is not None and is_version_greater_than(
+                info.added_version, package_version
+            ):
+                future.add(name)
+        self.future_settings = future
+
+    def init_removed_settings(self):
+        removed = set()
+        for name, info in SETTINGS.items():
+            if not info.removed_version:
+                continue
+            package_version = self.get_package_version(info.package)
+            if package_version is not None and is_version_less_than_or_equal(
+                info.removed_version, package_version
+            ):
+                removed.add(name)
+        self.removed_settings = removed
+
+    def init_missing_package_settings(self):
+        missing = set()
+        for name, info in SETTINGS.items():
+            if (
+                info.package != "scrapy"
+                and self.get_package_version(info.package) is None
+            ):
+                missing.add(name)
+        self.missing_package_settings = missing
 
     def is_known_setting(self, name: str) -> bool:
         return name in self.known_settings

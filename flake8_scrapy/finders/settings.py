@@ -4,7 +4,6 @@ import ast
 import json
 import re
 from difflib import get_close_matches
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -27,16 +26,9 @@ from .validation import (
     validate_feeds_config,
     validate_periodic_log_config_ast,
 )
-from .versions import (
-    build_package_versions_dict,
-    is_version_greater_than,
-    is_version_less_than_or_equal,
-)
 
 if TYPE_CHECKING:
     from packaging.version import Version
-
-from packaging.utils import canonicalize_name
 
 
 def get_setting_suggestions(
@@ -485,29 +477,21 @@ TYPE_TO_METHOD: dict[SettingType, str] = {
 
 
 class SettingsIssueFinder(ast.NodeVisitor):
-    def __init__(
-        self, config, filename=None, allowed_settings=None, exclude_settings=None
-    ):
+    def __init__(self, config):
         super().__init__()
         self.config = config
-        self.filename = filename
         self.issues = []
         self.found_settings = set()
 
         # Initialize allowed and exclude settings
-        self.allowed_settings = set(allowed_settings) if allowed_settings else set()
-        self.exclude_settings = set(exclude_settings) if exclude_settings else set()
-
-        # Initialize known settings
-        self.known_settings = set(SETTINGS)
-        if allowed_settings:
-            self.known_settings.update(allowed_settings)
+        self.allowed_settings = config.user_known_settings
+        self.exclude_settings = set()
 
         # Initialize setting type mappings
-        self.deprecated_settings = self._get_deprecated_settings()
-        self.future_settings = self._get_future_settings()
-        self.removed_settings = self._get_removed_settings()
-        self.missing_package_settings = self._get_missing_package_settings()
+        self.deprecated_settings = config.deprecated_settings
+        self.future_settings = config.future_settings
+        self.removed_settings = config.removed_settings
+        self.missing_package_settings = config.missing_package_settings
         self.typed_settings = {
             name: info.type for name, info in SETTINGS.items() if info.type is not None
         }
@@ -529,78 +513,8 @@ class SettingsIssueFinder(ast.NodeVisitor):
             "pop": "name",
         }
 
-    def _get_deprecated_settings(self) -> set[str]:
-        deprecated = set()
-        for name, info in SETTINGS.items():
-            package_version = self.get_package_version(info.package)
-            if package_version is None:
-                continue
-            if info.removed_version and is_version_less_than_or_equal(
-                info.removed_version, package_version
-            ):
-                continue
-            if info.added_version and is_version_greater_than(
-                info.added_version, package_version
-            ):
-                continue
-            if info.deprecated_version and is_version_less_than_or_equal(
-                info.deprecated_version, package_version
-            ):
-                deprecated.add(name)
-        return deprecated
-
-    def _get_future_settings(self) -> set[str]:
-        future = set()
-        for name, info in SETTINGS.items():
-            if not info.added_version:
-                continue
-            package_version = self.get_package_version(info.package)
-            if package_version is not None and is_version_greater_than(
-                info.added_version, package_version
-            ):
-                future.add(name)
-        return future
-
-    def _get_removed_settings(self) -> set[str]:
-        removed = set()
-        for name, info in SETTINGS.items():
-            if not info.removed_version:
-                continue
-            package_version = self.get_package_version(info.package)
-            if package_version is not None and is_version_less_than_or_equal(
-                info.removed_version, package_version
-            ):
-                removed.add(name)
-        return removed
-
-    def _get_missing_package_settings(self) -> set[str]:
-        missing = set()
-        for name, info in SETTINGS.items():
-            if (
-                info.package != "scrapy"
-                and self.get_package_version(info.package) is None
-            ):
-                missing.add(name)
-        return missing
-
     def get_package_version(self, package_name) -> Version | None:
-        return self.package_versions.get(canonicalize_name(package_name), None)
-
-    @property
-    def package_versions(self) -> dict[str, Version]:
-        if hasattr(self, "_package_versions"):
-            return self._package_versions
-        self._package_versions = build_package_versions_dict(self.get_project_root())
-        return self._package_versions
-
-    def get_project_root(self):
-        if not self.filename:
-            return None
-        path = Path(self.filename).resolve()
-        for parent in [path, *list(path.parents)]:
-            if (parent / "scrapy.cfg").exists():
-                return parent
-        return None
+        return self.config.get_package_version(package_name)
 
     def visit_Assign(self, node: ast.Assign) -> None:
         self._check_assignment(node)
@@ -788,7 +702,9 @@ class SettingsIssueFinder(ast.NodeVisitor):
             issue_key = f"SCP07:{issue_key_base}"
             if issue_key not in self.found_settings:
                 self.found_settings.add(issue_key)
-                suggestions = get_setting_suggestions(setting_name, self.known_settings)
+                suggestions = get_setting_suggestions(
+                    setting_name, self.config.known_settings
+                )
                 message = "unknown setting"
                 detail = None
                 if suggestions:
@@ -851,7 +767,7 @@ class SettingsIssueFinder(ast.NodeVisitor):
 
     def _should_report_unknown_setting(self, setting_name: str) -> bool:
         return (
-            setting_name not in self.known_settings
+            setting_name not in self.config.known_settings
             and setting_name not in self.exclude_settings
         )
 
