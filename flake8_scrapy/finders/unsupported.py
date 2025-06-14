@@ -85,6 +85,10 @@ class LambdaCallbackIssueFinder(IssueFinder):
             in VALID_REQUEST_IMPORT_PATHS[func.attr]
         )
 
+    def looks_like_request_replace(self, func: expr):
+        """Check if this looks like a Request.replace() call."""
+        return isinstance(func, Attribute) and func.attr == "replace"
+
     def find_issues(
         self, node: Call | Assign
     ) -> Generator[tuple[int, int, str], None, None]:
@@ -93,11 +97,10 @@ class LambdaCallbackIssueFinder(IssueFinder):
         elif isinstance(node, Assign):
             yield from self._find_issues_in_assign(node)
 
-    def _find_issues_in_call(
+    def _check_lambda_callbacks_in_call(
         self, node: Call
     ) -> Generator[tuple[int, int, str], None, None]:
-        if not self.looks_like_request(node.func):
-            return
+        """Check for lambda callbacks in call arguments (both positional and keyword)."""
         for position in (
             1,  # callback
             10,  # errback
@@ -109,6 +112,14 @@ class LambdaCallbackIssueFinder(IssueFinder):
         for kw in node.keywords:
             if kw.arg in {"callback", "errback"} and isinstance(kw.value, ast.Lambda):
                 yield (kw.value.lineno, kw.value.col_offset, self.message)
+
+    def _find_issues_in_call(
+        self, node: Call
+    ) -> Generator[tuple[int, int, str], None, None]:
+        if self.looks_like_request(node.func) or self.looks_like_request_replace(
+            node.func
+        ):
+            yield from self._check_lambda_callbacks_in_call(node)
 
     def _find_issues_in_assign(
         self, node: Assign

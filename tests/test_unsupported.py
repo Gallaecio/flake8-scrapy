@@ -180,6 +180,54 @@ CASES = (
             # Non-attribute assignments with lambda (should not trigger)
             ("callback = lambda x: x", NO_ISSUE),
             ("errback = lambda x: x", NO_ISSUE),
+            # Request.replace() calls with lambda callbacks/errbacks
+            (
+                "request.replace(callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=25, path=path),
+            ),
+            (
+                "request.replace(errback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=24, path=path),
+            ),
+            (
+                "req.replace(callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=21, path=path),
+            ),
+            (
+                "self.request.replace(callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=30, path=path),
+            ),
+            # replace() with positional lambda arguments
+            (
+                "request.replace(url, lambda x: x)",
+                Issue("SCP05 lambda callback", column=21, path=path),
+            ),
+            # replace() with both callback and errback lambdas
+            (
+                "request.replace(callback=lambda x: x, errback=lambda y: y)",
+                [
+                    Issue("SCP05 lambda callback", column=25, path=path),
+                    Issue("SCP05 lambda callback", column=46, path=path),
+                ],
+            ),
+            # replace() with non-lambda callbacks (should not trigger)
+            ("request.replace(callback=self.parse)", NO_ISSUE),
+            ("request.replace(errback=self.error_handler)", NO_ISSUE),
+            ("request.replace(callback=None)", NO_ISSUE),
+            # replace() on other objects with lambda (pragmatic approach - should trigger)
+            (
+                "obj.replace(callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=21, path=path),
+            ),
+            (
+                "string_obj.replace(callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=28, path=path),
+            ),
+            # replace() with other parameters and lambda
+            (
+                "request.replace(url='new_url', callback=lambda x: x)",
+                Issue("SCP05 lambda callback", column=40, path=path),
+            ),
         )
     ),
 )
