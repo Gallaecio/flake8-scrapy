@@ -63,25 +63,25 @@ flake8-scrapy in `additional_dependencies`. For example:
 | SCP04 | Use of `Selector(response)` in callback |
 | SCP07 | Unknown setting |
 | SCP08 | Deprecated setting |
-| SCP09 | Setting requires upgrading a requirement |
+| SCP09 | Setting requires upgrade |
 | SCP10 | Removed setting |
 | SCP11 | Duplicate requirement |
 | SCP12 | Non-frozen requirement |
 | SCP13 | Ancient Scrapy version |
 | SCP14 | Insecure Scrapy version |
-| SCP15 | Setting of missing requirement |
+| SCP15 | Missing setting requirement |
 | SCP16 | Obsolete requirement |
 | SCP17 | Wrong setting getter |
 | SCP18 | Invalid setting value |
 | SCP19 | No project USER_AGENT |
 | SCP20 | Project ROBOTSTXT_OBEY not enabled |
 | SCP21 | Project throttling not set |
-| SCP22 | USER_AGENT wihtout contact info |
+| SCP22 | No contact info |
 | SCP23 | Redefined setting |
 | SCP24 | Use of BASE setting |
 | SCP25 | Unneeded setting get |
 | SCP26 | Ignored getter default |
-| SCP27 | Unneeded import path strings |
+| SCP27 | Unneeded import path string |
 | SCP28 | Unneeded filesystem path strings |
 | SCP29 | Redefined setting default |
 | SCP30 | Unpickleable setting value |

@@ -2,6 +2,9 @@ import ast
 import json
 from pathlib import Path
 
+from flake8_scrapy.config import Config
+from flake8_scrapy.finders.data import FEEDS_KEY_VERSIONS
+
 from .versions import is_version_greater_than
 
 
@@ -42,9 +45,7 @@ def looks_like_class_import_path(value: str) -> bool:
     return parts[-1][0].isupper()
 
 
-def validate_feeds_dict(
-    feeds_dict: dict, feeds_key_versions: dict[str, str], get_package_version_func
-) -> str:
+def validate_feeds_dict(feeds_dict: dict, get_package_version_func) -> str:
     """Get validation error for a FEEDS dict value at runtime."""
     for key, feed_config in feeds_dict.items():
         # Root keys may be strings or Path objects
@@ -56,9 +57,7 @@ def validate_feeds_dict(
             return f"feed config for {key!r} must be a dict"
 
         # Validate feed config keys and values
-        error = validate_feed_config(
-            key, feed_config, feeds_key_versions, get_package_version_func
-        )
+        error = validate_feed_config(key, feed_config, get_package_version_func)
         if error:
             return error
 
@@ -68,7 +67,6 @@ def validate_feeds_dict(
 def validate_feed_config(  # noqa: PLR0911,PLR0912
     feed_key: str,
     feed_config: dict,
-    feeds_key_versions: dict[str, str],
     get_package_version_func,
 ) -> str:
     """Get validation error for a feed config dict value."""
@@ -78,8 +76,8 @@ def validate_feed_config(  # noqa: PLR0911,PLR0912
             return f"feed config key {key!r} in {feed_key!r} must be a string"
 
         # Check if this is a future key for the current Scrapy version
-        if key in feeds_key_versions:
-            required_version = feeds_key_versions[key]
+        if key in FEEDS_KEY_VERSIONS:
+            required_version = FEEDS_KEY_VERSIONS[key]
             scrapy_version = get_package_version_func("scrapy")
             if scrapy_version is not None and is_version_greater_than(
                 required_version, scrapy_version
@@ -141,41 +139,33 @@ def validate_feed_config(  # noqa: PLR0911,PLR0912
 
 
 def validate_feeds_config(  # noqa: PLR0911
-    value_node: ast.AST, feeds_key_versions: dict[str, str], get_package_version_func
+    value_node: ast.expr, config: Config
 ) -> str:
     """Get specific validation error for FEEDS setting, or empty string if valid."""
     # FEEDS must be a dict
     if isinstance(value_node, ast.Constant):
         value = value_node.value
         if isinstance(value, dict):
-            return validate_feeds_dict(
-                value, feeds_key_versions, get_package_version_func
-            )
+            return validate_feeds_dict(value, config)
         if isinstance(value, str):
             try:
                 parsed_value = json.loads(value)
                 if not isinstance(parsed_value, dict):
                     return "must be a dict"
-                return validate_feeds_dict(
-                    parsed_value, feeds_key_versions, get_package_version_func
-                )
+                return validate_feeds_dict(parsed_value, config)
             except (json.JSONDecodeError, TypeError):
                 return "must be a dict"
         else:
             return "must be a dict"
 
     if isinstance(value_node, ast.Dict):
-        return validate_feeds_dict_ast(
-            value_node, feeds_key_versions, get_package_version_func
-        )
+        return validate_feeds_dict_ast(value_node, config)
 
     # Any other AST node type is invalid for FEEDS
     return "must be a dict"
 
 
-def validate_feeds_dict_ast(
-    dict_node: ast.Dict, feeds_key_versions: dict[str, str], get_package_version_func
-) -> str:
+def validate_feeds_dict_ast(dict_node: ast.Dict, config: Config) -> str:
     """Get validation error for a FEEDS dict AST node."""
     for key_node, value_node in zip(dict_node.keys, dict_node.values):
         # Root keys may be strings or Path objects
@@ -215,9 +205,7 @@ def validate_feeds_dict_ast(
             return f"feed config for {key_repr} must be a dict"
 
         # Validate feed config AST
-        error = validate_feed_config_ast(
-            key_repr, value_node, feeds_key_versions, get_package_version_func
-        )
+        error = validate_feed_config_ast(key_repr, value_node, config)
         if error:
             return error
 
@@ -227,8 +215,7 @@ def validate_feeds_dict_ast(
 def validate_feed_config_ast(  # noqa: PLR0911,PLR0912
     feed_key: str,
     dict_node: ast.Dict,
-    feeds_key_versions: dict[str, str],
-    get_package_version_func,
+    config: Config,
 ) -> str:
     """Get validation error for a feed config dict AST node."""
     for key_node, value_node in zip(dict_node.keys, dict_node.values):
@@ -240,9 +227,9 @@ def validate_feed_config_ast(  # noqa: PLR0911,PLR0912
         key = key_node.value
 
         # Check if this is a future key for the current Scrapy version
-        if key in feeds_key_versions:
-            required_version = feeds_key_versions[key]
-            scrapy_version = get_package_version_func("scrapy")
+        if key in FEEDS_KEY_VERSIONS:
+            required_version = FEEDS_KEY_VERSIONS[key]
+            scrapy_version = config.package_versions.get("scrapy", None)
             if scrapy_version is not None and is_version_greater_than(
                 required_version, scrapy_version
             ):
@@ -348,7 +335,8 @@ def validate_feed_config_ast(  # noqa: PLR0911,PLR0912
 
 
 def validate_periodic_log_config(value) -> bool:  # noqa: PLR0911
-    """Check if a value is valid for PERIODIC_LOG_DELTA or PERIODIC_LOG_STATS."""
+    """Return True if *value* is valid for PERIODIC_LOG_DELTA or
+    PERIODIC_LOG_STATS."""
     # Allow None
     if value is None:
         return True
@@ -376,11 +364,12 @@ def validate_periodic_log_config(value) -> bool:  # noqa: PLR0911
     return False
 
 
-def validate_periodic_log_config_ast(value_node: ast.AST) -> bool:  # noqa: PLR0911
-    """Check if an AST node is invalid for PERIODIC_LOG_DELTA or PERIODIC_LOG_STATS."""
+def validate_periodic_log_config_ast(value_node: ast.expr) -> bool:  # noqa: PLR0911
+    """Return True if *value_node* is valid for PERIODIC_LOG_DELTA or
+    PERIODIC_LOG_STATS."""
     # Handle constants (None, True, False, strings, etc.)
     if isinstance(value_node, ast.Constant):
-        return not validate_periodic_log_config(value_node.value)
+        return validate_periodic_log_config(value_node.value)
 
     # Handle dictionaries
     if isinstance(value_node, ast.Dict):
@@ -390,25 +379,25 @@ def validate_periodic_log_config_ast(value_node: ast.AST) -> bool:  # noqa: PLR0
             if not isinstance(key_node, ast.Constant) or not isinstance(
                 key_node.value, str
             ):
-                return True  # Invalid key type
+                return False  # Invalid key type
             if key_node.value not in allowed_keys:
-                return True  # Invalid key name
+                return False  # Invalid key name
 
         # Check that values are lists
         for value_node_item in value_node.values:
             if not isinstance(value_node_item, ast.List):
-                return True  # Value is not a list
+                return False  # Value is not a list
 
             # Check that list items are strings
             for list_item in value_node_item.elts:
                 if not isinstance(list_item, ast.Constant) or not isinstance(
                     list_item.value, str
                 ):
-                    return True  # List item is not a string
+                    return False  # List item is not a string
 
-        return False  # Valid dict
+        return True  # Valid dict
 
-    # All other types are invalid
+    # Other AST nodes cannot be validated, so we assume they are valid.
     return True
 
 

@@ -2,8 +2,9 @@ import ast
 from ast import Assign, Constant, Module, Name, NodeVisitor
 from contextlib import suppress
 
-from flake8_scrapy.finders.data import getbool
-from flake8_scrapy.finders.messaging import Issue
+from .data import getbool, is_likely_setting
+from .messaging import Issue
+from .settings import get_setting_value_issues
 
 
 class SettingsModuleIssueFinder(NodeVisitor):
@@ -49,6 +50,8 @@ class SettingsModuleIssueFinder(NodeVisitor):
                 if not (isinstance(target, Name) and target.id.isupper()):
                     continue
                 name = target.id
+                if not is_likely_setting(name):
+                    continue
                 all_seen.add(name)
                 if name == "AUTOTHROTTLE_ENABLED":
                     if not isinstance(child.value, Constant):
@@ -72,10 +75,10 @@ class SettingsModuleIssueFinder(NodeVisitor):
                     detail = None
                     if suggestions := self.config.get_setting_suggestions(name):
                         if len(suggestions) == 1:
-                            detail = f"Did you mean {suggestions[0]}?"
+                            detail = f"did you mean {suggestions[0]}?"
                         else:
                             suggestion_list = ", ".join(suggestions)
-                            detail = f"Did you mean one of: {suggestion_list}?"
+                            detail = f"did you mean one of: {suggestion_list}?"
                     self.issues.append(
                         Issue(
                             7,
@@ -94,8 +97,8 @@ class SettingsModuleIssueFinder(NodeVisitor):
                             column=child.col_offset,
                         )
                     )
-                # elif issue := get_setting_value_issue(name, child.value):
-                #     self.issues.append(issue)
+                issues = get_setting_value_issues(name, child.value, self.config)
+                self.issues.extend(issues)
 
         if "USER_AGENT" not in all_seen:
             self.issues.append(Issue(19, "no USER_AGENT"))

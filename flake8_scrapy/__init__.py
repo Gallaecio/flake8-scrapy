@@ -14,19 +14,7 @@ from .finders.domains import (
     UrlInAllowedDomainsIssueFinder,
 )
 from .finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
-from .finders.settings import (
-    BaseSettingNameIssueFinder,
-    DeprecatedSettingsIssueFinder,
-    FutureSettingsIssueFinder,
-    IgnoredGetDefaultIssueFinder,
-    ImportPathStringIssueFinder,
-    InvalidValueSettingsIssueFinder,
-    MissingPackageSettingsIssueFinder,
-    RemovedSettingsIssueFinder,
-    TypeMismatchSettingsIssueFinder,
-    UnknownSettingsIssueFinder,
-    UnnecessaryGetIssueFinder,
-)
+from .finders.settings import SettingsIssueFinder
 from .finders.settings_module import SettingsModuleIssueFinder
 from .requirements import check_requirements
 
@@ -57,51 +45,16 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
     ):
         super().__init__()
         self.issues = []
-        # MissingPackageSettingsIssueFinder must be first to have priority
-        missing_package_finder = MissingPackageSettingsIssueFinder(
-            filename, allowed_settings=allowed_settings
+        self.config = Config(
+            file_path=filename or "",
+            user_known_settings=allowed_settings or set(),
+        )
+        self.settings_finder = SettingsIssueFinder(
+            self.config,
+            filename=filename,
+            allowed_settings=allowed_settings,
         )
 
-        # Get settings that are missing packages to exclude from other checks
-        missing_package_settings = missing_package_finder.missing_package_settings
-
-        settingfinders = [
-            missing_package_finder,
-            DeprecatedSettingsIssueFinder(
-                filename,
-                allowed_settings=allowed_settings,
-                exclude_settings=missing_package_settings,
-            ),
-            FutureSettingsIssueFinder(
-                filename,
-                allowed_settings=allowed_settings,
-                exclude_settings=missing_package_settings,
-            ),
-            RemovedSettingsIssueFinder(
-                filename,
-                allowed_settings=allowed_settings,
-                exclude_settings=missing_package_settings,
-            ),
-            UnknownSettingsIssueFinder(
-                filename,
-                allowed_settings=allowed_settings,
-                exclude_settings=missing_package_settings,
-            ),
-            TypeMismatchSettingsIssueFinder(
-                filename,
-                allowed_settings=allowed_settings,
-                exclude_settings=missing_package_settings,
-            ),
-            InvalidValueSettingsIssueFinder(
-                filename,
-                allowed_settings=allowed_settings,
-                exclude_settings=missing_package_settings,
-            ),
-            BaseSettingNameIssueFinder(filename),
-            ImportPathStringIssueFinder(filename),
-            UnnecessaryGetIssueFinder(filename),
-            IgnoredGetDefaultIssueFinder(filename),
-        ]
         node_specificfinders = {
             "Assign": [
                 UnreachableDomainIssueFinder(),
@@ -110,33 +63,25 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
             ],
             "Call": [UrlJoinIssueFinder()],
         }
-        self.finders = {}
-        for node_type in [
-            "Assign",
-            "Call",
-            "Subscript",
-            "ClassDef",
-            "Delete",
-            "Module",
-        ]:
-            specificfinders = node_specificfinders.get(node_type, [])
-            self.finders[node_type] = specificfinders + settingfinders
+        self.node_specificfinders = node_specificfinders
 
-    def find_issues_visitor(self, visitor, node):
-        """Find issues for the provided visitor"""
-        for finder in self.finders[visitor]:
-            issues = finder.find_issues(node)
-            if issues:
-                self.issues.extend(list(issues))
+    def visit(self, node):
+        # Let the settings finder visit the node
+        self.settings_finder.visit(node)
+
+        # Handle node-specific finders
+        node_type = type(node).__name__
+        if node_type in self.node_specificfinders:
+            for finder in self.node_specificfinders[node_type]:
+                issues = finder.find_issues(node)
+                if issues:
+                    self.issues.extend(list(issues))
+
+        # Continue visiting child nodes
         self.generic_visit(node)
 
-    def __getattr__(self, name):
-        if name.startswith("visit_") and name[6:] in self.finders:
-            node_type = name[6:]
-            return lambda node: self.find_issues_visitor(node_type, node)
-        raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute '{name}'"
-        )
+    def get_issues(self):
+        return self.settings_finder.issues + self.issues
 
 
 class Plugin:
@@ -243,7 +188,7 @@ class Plugin:
         )
         assert self.tree is not None
         finder.visit(self.tree)
-        yield from finder.issues
+        yield from finder.get_issues()
 
     def check_requirements(self) -> Generator[Issue, None, None]:
         yield from check_requirements(self.filename, self.lines)

@@ -5,34 +5,38 @@ import json
 import re
 from difflib import get_close_matches
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from flake8_scrapy.config import Config
 
 from .data import (
+    DEFAULT_SETTINGS,
     HARDCODED_SUGGESTIONS,
     MIN_SUGGESTION_SCORE,
     SETTINGS,
     SettingType,
 )
 from .messaging import (
-    get_enum_validation_error,
+    Issue,
 )
-from .settings_base import AllowedExcludeSettingsMixin, BaseSettingsIssueFinder
 from .validation import (
-    is_valid_log_level,
     looks_like_callable_import_path,
     looks_like_class_import_path,
     validate_download_slots_config,
     validate_feeds_config,
-    validate_periodic_log_config,
     validate_periodic_log_config_ast,
 )
 from .versions import (
+    build_package_versions_dict,
     is_version_greater_than,
     is_version_less_than_or_equal,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from packaging.version import Version
+
+from packaging.utils import canonicalize_name
 
 
 def get_setting_suggestions(
@@ -50,395 +54,917 @@ def get_setting_suggestions(
     )
 
 
-class InvalidValueSettingsIssueFinder(
-    BaseSettingsIssueFinder, AllowedExcludeSettingsMixin
-):
-    msg_code = "SCP18"
-    msg_info = "invalid setting value"
+def get_setting_value_issues(  # noqa: PLR0912, PLR0915
+    setting: str, value: ast.expr, config: Config
+) -> list[Issue]:
+    """Report issues based on setting name and value AST node.
 
-    # Valid literal values for bool settings
-    VALID_BOOL_LITERALS = (
-        True,
-        False,
-        0,
-        1,
-        "True",
-        "False",
-        "true",
-        "false",
-        "0",
-        "1",
-    )
+    This function checks for:
+    - SCP18: Invalid setting value
+    - SCP27: Unneeded import path string
+    """
+    issues = []
 
-    # Valid types for bool settings when literal value cannot be determined
-    VALID_BOOL_TYPES: ClassVar[set[type]] = {str, int, bool}
+    if setting not in SETTINGS:
+        return issues
 
-    # Valid literal values for log level settings
-    VALID_LOG_LEVEL_LITERALS = (
-        # String levels (case-insensitive)
-        "CRITICAL",
-        "FATAL",
-        "ERROR",
-        "WARNING",
-        "WARN",
-        "INFO",
-        "DEBUG",
-        "NOTSET",
-        "critical",
-        "fatal",
-        "error",
-        "warning",
-        "warn",
-        "info",
-        "debug",
-        "notset",
-        # Standard numeric levels
-        50,
-        40,
-        30,
-        20,
-        10,
-        0,
-    )
+    setting_info = SETTINGS[setting]
+    setting_type = setting_info.type
 
-    def __init__(
-        self,
-        filename=None,
-        allowed_settings=None,
-        exclude_settings=None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(filename, *args, **kwargs)
-        self.typed_settings = {}
-        self.enum_settings = {}
-        self._feeds_error_message = ""
-        for name, info in SETTINGS.items():
-            if info.type in (
-                SettingType.BOOL,
-                SettingType.INT,
-                SettingType.FLOAT,
-                SettingType.LIST,
-                SettingType.DICT,
-                SettingType.DICT_OR_LIST,
-                SettingType.BASED_DICT,
-                SettingType.OPT_STR,
-                SettingType.STR,
-                SettingType.CLS,
-                SettingType.PATH,
-                SettingType.OPT_PATH,
-                SettingType.LOG_LEVEL,
-                SettingType.ENUM_STR,
-                SettingType.PERIODIC_LOG_CONFIG,
-                SettingType.OPT_CALLABLE,
-                SettingType.OPT_INT,
-            ):
-                self.typed_settings[name] = info.type
-                if info.type == SettingType.ENUM_STR and info.allowed_values:
-                    self.enum_settings[name] = info.allowed_values
-        self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
-        self.validators = {
-            SettingType.BOOL: lambda v: v in self.VALID_BOOL_LITERALS,
-            SettingType.INT: self._can_convert_to_int,
-            SettingType.FLOAT: self._can_convert_to_float,
-            SettingType.LIST: self._can_convert_to_list,
-            SettingType.DICT: self._can_convert_to_dict,
-            SettingType.BASED_DICT: self._can_convert_to_dict,
-            SettingType.DICT_OR_LIST: self._is_valid_dict_or_list_value,
-            SettingType.OPT_STR: self._is_valid_optional_string,
-            SettingType.STR: self._is_valid_string,
-            SettingType.CLS: self._is_valid_class,
-            SettingType.PATH: self._is_valid_path,
-            SettingType.OPT_PATH: self._is_valid_optional_path,
-            SettingType.LOG_LEVEL: is_valid_log_level,
-            SettingType.ENUM_STR: self._is_valid_enum_string,
-            SettingType.PERIODIC_LOG_CONFIG: validate_periodic_log_config,
-            SettingType.OPT_CALLABLE: self._is_valid_optional_callable,
-            SettingType.OPT_INT: self._is_valid_optional_int,
-        }
+    # Check for invalid values (SCP18)
+    is_invalid = False
+    if setting == "FEEDS":
+        is_invalid = bool(validate_feeds_config(value, config))
+    elif setting == "DOWNLOAD_SLOTS":
+        is_invalid = bool(validate_download_slots_config(value))
+    elif setting_type == SettingType.BOOL:
+        is_invalid = _is_invalid_bool_value_standalone(value)
+    elif setting_type == SettingType.INT:
+        is_invalid = _is_invalid_int_value_standalone(value)
+    elif setting_type == SettingType.FLOAT:
+        is_invalid = _is_invalid_float_value_standalone(value)
+    elif setting_type == SettingType.LIST:
+        is_invalid = _is_invalid_list_value_standalone(value)
+    elif setting_type in {SettingType.DICT, SettingType.BASED_DICT}:
+        is_invalid = _is_invalid_dict_value_standalone(value)
+    elif setting_type == SettingType.DICT_OR_LIST:
+        is_invalid = _is_invalid_dict_or_list_value_standalone(value)
+    elif setting_type == SettingType.ENUM_STR:
+        is_invalid = _is_invalid_enum_str_value_standalone(setting, value)
+    elif setting_type == SettingType.PERIODIC_LOG_CONFIG:
+        is_invalid = _is_invalid_periodic_log_config_value_standalone(value)
+    elif setting_type == SettingType.LOG_LEVEL:
+        is_invalid = _is_invalid_log_level_value_standalone(value)
+    elif setting_type == SettingType.PATH:
+        is_invalid = _is_invalid_path_value_standalone(value)
+    elif setting_type == SettingType.OPT_PATH:
+        is_invalid = _is_invalid_optional_path_value_standalone(value)
+    elif setting_type == SettingType.OPT_STR:
+        is_invalid = _is_invalid_optional_string_value_standalone(value)
+    elif setting_type == SettingType.STR:
+        is_invalid = _is_invalid_string_value_standalone(value)
+    elif setting_type == SettingType.CLS:
+        is_invalid = _is_invalid_class_value_standalone(value)
+    elif setting_type == SettingType.OPT_CALLABLE:
+        is_invalid = _is_invalid_optional_callable_value_standalone(value)
+    elif setting_type == SettingType.OPT_INT:
+        is_invalid = _is_invalid_optional_int_value_standalone(value)
 
-        self.feeds_key_versions = {
-            "batch_item_count": "2.3.0",
-            "item_classes": "2.6.0",
-            "item_filter": "2.6.0",
-            "item_export_kwargs": "2.4.0",
-            "overwrite": "2.4.0",
-            "postprocessing": "2.6.0",
-        }
-
-    def should_report_setting(self, setting_name: str) -> bool:
-        return (
-            (
-                setting_name in self.typed_settings
-                or setting_name in ("USER_AGENT", "FEEDS", "DOWNLOAD_SLOTS")
-            )
-            and setting_name not in self.allowed_settings
-            and setting_name not in self.exclude_settings
+    if is_invalid:
+        value_col = getattr(value, "col_offset", 0)
+        value_line = getattr(value, "lineno", 1)
+        issues.append(
+            Issue(18, "invalid setting value", line=value_line, column=value_col)
         )
 
-    def get_setting_message(self, setting_name: str) -> str:
-        if setting_name == "USER_AGENT":
-            return (
-                "SCP22: USER_AGENT does not seem to provide contact "
-                "information. Put an URL, email address or phone number in it "
-                "so that web masters of target websites may contact you."
+    # Check for USER_AGENT without contact info (SCP22)
+    if setting == "USER_AGENT" and _is_invalid_user_agent_standalone(value):
+        value_col = getattr(value, "col_offset", 0)
+        value_line = getattr(value, "lineno", 1)
+        issues.append(Issue(22, "no contact info", line=value_line, column=value_col))
+
+    # Check for import path strings (SCP27)
+    if (
+        setting_type == SettingType.CLS
+        and isinstance(value, ast.Constant)
+        and isinstance(value.value, str)
+        and looks_like_class_import_path(value.value)
+    ):
+        issues.append(
+            Issue(
+                27,
+                "unneeded import path string",
+                column=value.col_offset,
+                line=value.lineno,
             )
+        )
 
-        if setting_name == "FEEDS":
-            # This will be overridden by specific FEEDS error messages
-            return (
-                f"{self.msg_code}: {self.msg_info}: FEEDS {self._feeds_error_message}"
-            )
+    return issues
 
-        if setting_name == "DOWNLOAD_SLOTS":
-            return f"{self.msg_code}: {self.msg_info}: DOWNLOAD_SLOTS {self._feeds_error_message}"
 
-        setting_type = self.typed_settings[setting_name]
+def _can_convert_to_int_standalone(value) -> bool:
+    try:
+        int(value)
+        return True
+    except (ValueError, TypeError):
+        return False
 
-        type_messages = {
-            SettingType.BOOL: f"only supports the following values: {', '.join(map(repr, self.VALID_BOOL_LITERALS))}.",
-            SettingType.INT: "only supports values that can be passed to int()",
-            SettingType.FLOAT: "only supports values that can be passed to float()",
-            SettingType.LIST: "only supports values that can be passed to list()",
-            SettingType.DICT: "only supports values that can be passed to dict() or strings defining a JSON object",
-            SettingType.BASED_DICT: "only supports values that can be passed to dict() or strings defining a JSON object",
-            SettingType.DICT_OR_LIST: "only supports None, str, tuple, dict, or list values",
-            SettingType.OPT_STR: "only supports None or string values",
-            SettingType.STR: "only supports string values",
-            SettingType.CLS: "only supports class objects or strings containing class import paths",
-            SettingType.PATH: "only supports Path objects or strings",
-            SettingType.OPT_PATH: "only supports None, Path objects, or strings",
-            SettingType.LOG_LEVEL: f"only supports valid logging levels: {', '.join(map(repr, self.VALID_LOG_LEVEL_LITERALS))} or any integer",
-            SettingType.ENUM_STR: get_enum_validation_error(
-                setting_name, self.enum_settings
-            ),
-            SettingType.PERIODIC_LOG_CONFIG: "only supports None, True, or a dict with 'include' and/or 'exclude' keys containing lists of strings",
-            SettingType.OPT_CALLABLE: "only supports None, callable objects, or strings containing callable import paths",
-            SettingType.OPT_INT: "only supports None or values that can be passed to int()",
+
+def _can_convert_to_float_standalone(value) -> bool:
+    try:
+        float(value)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def _can_convert_to_list_standalone(value) -> bool:
+    try:
+        list(value)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def _can_convert_to_dict_standalone(value) -> bool:
+    if isinstance(value, dict):
+        return True
+    if isinstance(value, str):
+        try:
+            json.loads(value)
+            return True
+        except (ValueError, TypeError):
+            return False
+    return False
+
+
+def _is_valid_optional_string_standalone(value: ast.AST) -> bool:
+    return isinstance(value, ast.Constant) and (
+        value.value is None or isinstance(value.value, str)
+    )
+
+
+def _is_valid_string_standalone(value: ast.AST) -> bool:
+    return isinstance(value, ast.Constant) and isinstance(value.value, str)
+
+
+def _is_valid_class_standalone(value: ast.AST) -> bool:
+    return isinstance(value, (ast.Name, ast.Attribute)) or (
+        isinstance(value, ast.Constant) and isinstance(value.value, str)
+    )
+
+
+def _is_pathlib_path_call(value: ast.AST) -> bool:
+    """Check if the AST node represents a pathlib.Path() constructor call."""
+    if not isinstance(value, ast.Call):
+        return False
+
+    # All pathlib Path classes
+    path_classes = {
+        "Path",
+        "PosixPath",
+        "WindowsPath",
+        "PurePath",
+        "PurePosixPath",
+        "PureWindowsPath",
+    }
+
+    # Handle Path() - direct name
+    if isinstance(value.func, ast.Name) and value.func.id in path_classes:
+        return True
+
+    # Handle pathlib.Path() - attribute access
+    return (
+        isinstance(value.func, ast.Attribute)
+        and value.func.attr in path_classes
+        and isinstance(value.func.value, ast.Name)
+        and value.func.value.id == "pathlib"
+    )
+
+
+def _is_valid_path_standalone(value: ast.AST) -> bool:
+    return (
+        isinstance(value, ast.Constant) and isinstance(value.value, str)
+    ) or _is_pathlib_path_call(value)
+
+
+def _is_valid_optional_path_standalone(value: ast.AST) -> bool:
+    return (
+        isinstance(value, ast.Constant)
+        and (value.value is None or isinstance(value.value, str))
+    ) or _is_pathlib_path_call(value)
+
+
+def _is_valid_optional_callable_standalone(value: ast.AST) -> bool:
+    if not isinstance(value, ast.Constant):
+        return isinstance(value, (ast.Name, ast.Attribute, ast.Lambda))
+    if value.value is None:
+        return True
+    if not isinstance(value.value, str):
+        return False
+    return looks_like_callable_import_path(value.value)
+
+
+def _is_valid_optional_int_standalone(value: ast.AST) -> bool:
+    return (isinstance(value, ast.Constant) and value.value is None) or (
+        isinstance(value, ast.Constant) and _can_convert_to_int_standalone(value.value)
+    )
+
+
+def _is_invalid_bool_value_standalone(value: ast.AST) -> bool:
+    if isinstance(value, ast.Constant):
+        return value.value not in VALID_BOOL_LITERALS
+    return not isinstance(value, ast.Constant)
+
+
+def _is_invalid_int_value_standalone(value: ast.AST) -> bool:
+    if isinstance(value, ast.Constant):
+        return not _can_convert_to_int_standalone(value.value)
+    return not isinstance(value, (ast.Num, ast.Constant))
+
+
+def _is_invalid_float_value_standalone(value: ast.AST) -> bool:
+    if isinstance(value, ast.Constant):
+        return not _can_convert_to_float_standalone(value.value)
+    return not isinstance(value, (ast.Num, ast.Constant))
+
+
+def _is_invalid_list_value_standalone(value: ast.AST) -> bool:
+    if isinstance(value, ast.Constant):
+        return not _can_convert_to_list_standalone(value.value)
+    if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
+        return value.func.id not in ("list", "tuple", "set", "range")
+    return not isinstance(value, (ast.List, ast.Tuple, ast.Set, ast.Dict))
+
+
+def _is_invalid_dict_value_standalone(value: ast.AST) -> bool:
+    if isinstance(value, ast.Constant):
+        return not _can_convert_to_dict_standalone(value.value)
+    return not isinstance(value, (ast.Dict, ast.Constant))
+
+
+def _is_invalid_log_level_value_standalone(value: ast.AST) -> bool:
+    if isinstance(value, ast.Constant):
+        return (
+            not isinstance(value.value, int)
+            and value.value not in VALID_LOG_LEVEL_LITERALS
+        )
+    return type(value) not in {ast.Num, ast.Str, ast.Constant}
+
+
+def _is_invalid_path_value_standalone(value: ast.AST) -> bool:
+    return not _is_valid_path_standalone(value)
+
+
+def _is_invalid_optional_path_value_standalone(value: ast.AST) -> bool:
+    return not _is_valid_optional_path_standalone(value)
+
+
+def _is_invalid_optional_string_value_standalone(value: ast.AST) -> bool:
+    return not _is_valid_optional_string_standalone(value)
+
+
+def _is_invalid_string_value_standalone(value: ast.AST) -> bool:
+    return not _is_valid_string_standalone(value)
+
+
+def _is_invalid_class_value_standalone(value: ast.AST) -> bool:
+    return not _is_valid_class_standalone(value)
+
+
+def _is_invalid_optional_callable_value_standalone(value: ast.AST) -> bool:
+    return not _is_valid_optional_callable_standalone(value)
+
+
+def _is_invalid_optional_int_value_standalone(value: ast.AST) -> bool:
+    return not _is_valid_optional_int_standalone(value)
+
+
+def _is_invalid_dict_or_list_value_standalone(value: ast.AST) -> bool:
+    return not _is_valid_dict_or_list_standalone(value)
+
+
+def _is_invalid_user_agent_standalone(value: ast.AST) -> bool:
+    """Check if USER_AGENT value lacks contact information (SCP22)."""
+    if not isinstance(value, ast.Constant):
+        return isinstance(value, (ast.Num, ast.List, ast.Dict, ast.Set, ast.Tuple))
+
+    if not isinstance(value.value, str):
+        return True
+
+    user_agent = value.value
+    if not user_agent:
+        return True
+
+    # Check for placeholder text that should be replaced
+    if (
+        "(+http://www.yourdomain.com)" in user_agent
+        or "(+https://scrapy.org)" in user_agent
+    ):
+        return True
+
+    # Check for browser user agent patterns (these lack contact info)
+    browser_patterns = [
+        r"Mozilla/\d+\.\d+",
+        r"Chrome/\d+\.\d+",
+        r"Safari/\d+\.\d+",
+        r"Firefox/\d+\.\d+",
+        r"AppleWebKit/\d+\.\d+",
+        r"Gecko/\d+",
+    ]
+    for pattern in browser_patterns:
+        if re.search(pattern, user_agent):
+            return True
+
+    # Check for contact information patterns
+    url_pattern = (
+        r"https?://[a-zA-Z0-9.-]+|www\.[a-zA-Z0-9.-]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+    )
+    email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+    phone_pattern = r"\b\d{3}[-.]\d{4}\b|\b\d{10,}\b|\b\(\d{3}\)\s?\d{3}[-.]\d{4}\b"
+
+    return not (
+        re.search(url_pattern, user_agent)
+        or re.search(email_pattern, user_agent)
+        or re.search(phone_pattern, user_agent)
+    )
+
+
+def _is_valid_dict_or_list_standalone(value: ast.AST) -> bool:
+    # Allow None, strings, tuples, dicts, or lists
+    if isinstance(value, ast.Constant) and value.value is None:
+        return True
+    if isinstance(value, ast.Constant):
+        return isinstance(value.value, (str, tuple, dict, list))
+    return isinstance(value, (ast.Tuple, ast.Dict, ast.List))
+
+
+def _is_invalid_enum_str_value_standalone(setting: str, value: ast.AST) -> bool:
+    if setting not in SETTINGS:
+        return False
+    setting_info = SETTINGS[setting]
+    if not setting_info.allowed_values:
+        return False
+
+    if isinstance(value, ast.Constant):
+        if value.value is None:
+            return True  # None is not allowed for ENUM_STR
+        if not isinstance(value.value, str):
+            return True  # Must be a string
+        return value.value not in setting_info.allowed_values
+
+    # If it's not a constant, it's invalid for ENUM_STR
+    return True
+
+
+def _is_invalid_periodic_log_config_value_standalone(value: ast.AST) -> bool:
+    return not validate_periodic_log_config_ast(value)
+
+
+# Valid literal values for bool settings
+VALID_BOOL_LITERALS = (
+    True,
+    False,
+    0,
+    1,
+    "True",
+    "False",
+    "true",
+    "false",
+    "0",
+    "1",
+)
+
+# Valid types for bool settings when literal value cannot be determined
+VALID_BOOL_TYPES: set[type] = {str, int, bool}
+
+# Known valid literal values for log level settings
+# (additional, arbitrary int values are also supported)
+VALID_LOG_LEVEL_LITERALS = (
+    # String levels (case-insensitive)
+    "CRITICAL",
+    "FATAL",
+    "ERROR",
+    "WARNING",
+    "WARN",
+    "INFO",
+    "DEBUG",
+    "NOTSET",
+    "critical",
+    "fatal",
+    "error",
+    "warning",
+    "warn",
+    "info",
+    "debug",
+    "notset",
+    # Standard numeric levels
+    50,
+    40,
+    30,
+    20,
+    10,
+    0,
+)
+
+# Valid types for log level settings when literal value cannot be determined
+VALID_LOG_LEVEL_TYPES: set[type] = {str, int}
+
+# Valid literal values for int settings that are unbounded
+# (i.e., no max value validation required)
+VALID_INT_LITERALS = (int,)
+
+# Valid literal values for float settings
+VALID_FLOAT_LITERALS = (float, int)
+
+# Default settings that are allowed to be None
+DEFAULT_SETTINGS_WITH_NONE = {
+    "FEED_EXPORT_ENCODING",
+    "FEED_EXPORT_FIELDS",
+    "FEED_TEMPDIR",
+    "FEED_URI_PARAMS",
+    "JOBDIR",
+    "LOG_FILE",
+    "MAIL_USER",
+    "MAIL_PASS",
+    "PERIODIC_LOG_DELTA",
+    "PERIODIC_LOG_STATS",
+    "ROBOTSTXT_USER_AGENT",
+    "TELNETCONSOLE_PASSWORD",
+}
+
+TYPE_TO_METHOD: dict[SettingType, str] = {
+    SettingType.BOOL: "getbool",
+    SettingType.INT: "getint",
+    SettingType.FLOAT: "getfloat",
+    SettingType.LIST: "getlist",
+    SettingType.DICT: "getdict",
+    SettingType.DICT_OR_LIST: "getdictorlist",
+    SettingType.BASED_DICT: "getwithbase",
+}
+
+
+class SettingsIssueFinder(ast.NodeVisitor):
+    def __init__(
+        self, config, filename=None, allowed_settings=None, exclude_settings=None
+    ):
+        super().__init__()
+        self.config = config
+        self.filename = filename
+        self.issues = []
+        self.found_settings = set()
+
+        # Initialize allowed and exclude settings
+        self.allowed_settings = set(allowed_settings) if allowed_settings else set()
+        self.exclude_settings = set(exclude_settings) if exclude_settings else set()
+
+        # Initialize known settings
+        self.known_settings = set(SETTINGS)
+        if allowed_settings:
+            self.known_settings.update(allowed_settings)
+
+        # Initialize setting type mappings
+        self.deprecated_settings = self._get_deprecated_settings()
+        self.future_settings = self._get_future_settings()
+        self.removed_settings = self._get_removed_settings()
+        self.missing_package_settings = self._get_missing_package_settings()
+        self.typed_settings = {
+            name: info.type for name, info in SETTINGS.items() if info.type is not None
         }
 
-        message_suffix = type_messages.get(setting_type, "has an invalid value")
-        return f"{self.msg_code}: {self.msg_info}: {setting_name} {message_suffix}"
+        # Settings methods for checking
+        self.settings_methods = {
+            "get": "name",
+            "set": "name",
+            "getbool": "name",
+            "getint": "name",
+            "getfloat": "name",
+            "getlist": "name",
+            "getdict": "name",
+            "getdictorlist": "name",
+            "getwithbase": "name",
+            "getpriority": "name",
+            "setdefault": "name",
+            "delete": "name",
+            "pop": "name",
+        }
 
-    def check_assignment(
-        self, node: ast.Assign
-    ) -> Generator[tuple[int, int, str], None, None]:
-        # Check direct assignments in settings.py
-        file_name = Path(self.filename).name if self.filename else None
-        if file_name == "settings.py":
-            for target in node.targets:
-                if not isinstance(target, ast.Name) or not target.id.isupper():
-                    continue
-                setting_name = target.id
-                if self.should_report_setting(setting_name) and self._is_invalid_value(
-                    node.value, setting_name
-                ):
-                    yield from self.report_setting_issue(
-                        node.value.lineno, node.value.col_offset, setting_name
-                    )
+    def _get_deprecated_settings(self) -> set[str]:
+        deprecated = set()
+        for name, info in SETTINGS.items():
+            package_version = self.get_package_version(info.package)
+            if package_version is None:
+                continue
+            if info.removed_version and is_version_less_than_or_equal(
+                info.removed_version, package_version
+            ):
+                continue
+            if info.added_version and is_version_greater_than(
+                info.added_version, package_version
+            ):
+                continue
+            if info.deprecated_version and is_version_less_than_or_equal(
+                info.deprecated_version, package_version
+            ):
+                deprecated.add(name)
+        return deprecated
 
-        # Check for custom_settings assignments in any class
-        if isinstance(node.value, ast.Dict):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "custom_settings":
-                    yield from self._check_dict_values(
-                        node.value, node.lineno, node.col_offset
-                    )
+    def _get_future_settings(self) -> set[str]:
+        future = set()
+        for name, info in SETTINGS.items():
+            if not info.added_version:
+                continue
+            package_version = self.get_package_version(info.package)
+            if package_version is not None and is_version_greater_than(
+                info.added_version, package_version
+            ):
+                future.add(name)
+        return future
 
-        # Check settings subscript assignments
-        for target in node.targets:
+    def _get_removed_settings(self) -> set[str]:
+        removed = set()
+        for name, info in SETTINGS.items():
+            if not info.removed_version:
+                continue
+            package_version = self.get_package_version(info.package)
+            if package_version is not None and is_version_less_than_or_equal(
+                info.removed_version, package_version
+            ):
+                removed.add(name)
+        return removed
+
+    def _get_missing_package_settings(self) -> set[str]:
+        missing = set()
+        for name, info in SETTINGS.items():
             if (
+                info.package != "scrapy"
+                and self.get_package_version(info.package) is None
+            ):
+                missing.add(name)
+        return missing
+
+    def get_package_version(self, package_name) -> Version | None:
+        return self.package_versions.get(canonicalize_name(package_name), None)
+
+    @property
+    def package_versions(self) -> dict[str, Version]:
+        if hasattr(self, "_package_versions"):
+            return self._package_versions
+        self._package_versions = build_package_versions_dict(self.get_project_root())
+        return self._package_versions
+
+    def get_project_root(self):
+        if not self.filename:
+            return None
+        path = Path(self.filename).resolve()
+        for parent in [path, *list(path.parents)]:
+            if (parent / "scrapy.cfg").exists():
+                return parent
+        return None
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        self._check_assignment(node)
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        self._check_call(node)
+        self.generic_visit(node)
+
+    def visit_Subscript(self, node: ast.Subscript) -> None:
+        self._check_subscript(node)
+        self.generic_visit(node)
+
+    def visit_Delete(self, node: ast.Delete) -> None:
+        self._check_delete(node)
+        self.generic_visit(node)
+
+    def _check_assignment(self, node: ast.Assign) -> None:
+        for target in node.targets:
+            # Check custom_settings assignments
+            if isinstance(target, ast.Name) and target.id == "custom_settings":
+                if isinstance(node.value, ast.Dict):
+                    self._check_dict_keys(
+                        node.value,
+                        node.lineno,
+                        node.col_offset,
+                        node.value,
+                        "assignment",
+                    )
+                elif (
+                    isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Name)
+                    and node.value.func.id == "dict"
+                ):
+                    self._check_dict_constructor_keywords(node.value, "assignment")
+
+            # Handle subscript assignment: settings["SETTING"] = "value"
+            elif (
                 isinstance(target, ast.Subscript)
-                and isinstance(target.ctx, ast.Store)
-                and self.is_settings_subscript(target)
+                and self._is_settings_subscript(target)
                 and isinstance(target.slice, ast.Constant)
                 and isinstance(target.slice.value, str)
             ):
                 setting_name = target.slice.value
-                if self.should_report_setting(setting_name) and self._is_invalid_value(
-                    node.value, setting_name
-                ):
-                    yield from self.report_setting_issue(
-                        node.value.lineno,
-                        node.value.col_offset,
-                        setting_name,
-                    )
+                self._check_setting_issues(
+                    setting_name,
+                    target.slice.lineno,
+                    target.slice.col_offset,
+                    node.value,
+                    "assignment",
+                )
 
-    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:  # noqa: PLR0912
-        if not isinstance(node.func, ast.Attribute):
-            return
-        if not self.is_settings_object(node.func.value):
-            return
-        method_name = node.func.attr
-
-        # Check settings.set() calls
-        min_args_for_set = 2
-        if method_name == "set":
-            if (
-                len(node.args) >= min_args_for_set
-                and isinstance(node.args[0], ast.Constant)
-                and isinstance(node.args[0].value, str)
-            ):
-                setting_name = node.args[0].value
-                if self.should_report_setting(setting_name) and self._is_invalid_value(
-                    node.args[1], setting_name
-                ):
-                    yield from self.report_setting_issue(
-                        node.args[1].lineno,
-                        node.args[1].col_offset,
-                        setting_name,
-                    )
-
-            # Check keyword arguments
-            for keyword in node.keywords:
+    def _check_call(self, node: ast.Call) -> None:
+        if isinstance(node.func, ast.Attribute):
+            if self._is_settings_method_call(node):
+                self._check_settings_method_args(node)
+                return
+            if self._is_settings_dict_method_call(node):
+                self._check_settings_dict_method_args(node)
+                return
+            if self._is_settings_constructor_call(node):
+                self._check_settings_constructor_args(node)
+                return
+            if node.func.attr == "overridden_settings":
                 if (
-                    keyword.arg == "name"
-                    and isinstance(keyword.value, ast.Constant)
-                    and self.should_report_setting(keyword.value.value)
-                    and len(node.args) >= 1
-                    and self._is_invalid_value(node.args[0], keyword.value.value)
+                    isinstance(node.func.value, ast.Attribute)
+                    and node.func.value.attr == "settings"
+                    and isinstance(node.func.value.value, ast.Name)
+                    and node.func.value.value.id == "scrapy"
                 ):
-                    setting_name = keyword.value.value
-                    yield from self.report_setting_issue(
-                        node.args[0].lineno,
-                        node.args[0].col_offset,
-                        setting_name,
-                    )
-
-        # Check settings.setdefault() calls
-        elif method_name == "setdefault":
-            if (
-                len(node.args) >= min_args_for_set
-                and isinstance(node.args[0], ast.Constant)
-                and isinstance(node.args[0].value, str)
-            ):
-                setting_name = node.args[0].value
-                if self.should_report_setting(setting_name) and self._is_invalid_value(
-                    node.args[1], setting_name
+                    self._check_overridden_settings_args(node)
+                    return
+                if (
+                    isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "settings"
                 ):
-                    yield from self.report_setting_issue(
-                        node.args[1].lineno,
-                        node.args[1].col_offset,
-                        setting_name,
-                    )
+                    self._check_overridden_settings_args(node)
+                return
 
-        # Check settings.setdict() calls
-        elif method_name == "setdict":
-            if node.args and isinstance(node.args[0], ast.Dict):
-                yield from self._check_dict_values(
-                    node.args[0], node.args[0].lineno, node.args[0].col_offset
-                )
+        if self._is_settings_constructor_call(node):
+            self._check_settings_constructor_args(node)
+            return
+        if isinstance(node.func, ast.Name) and node.func.id == "overridden_settings":
+            self._check_overridden_settings_args(node)
 
-        # Check settings.update() calls
-        elif method_name == "update":
-            # Check dictionary argument
-            if node.args and isinstance(node.args[0], ast.Dict):
-                yield from self._check_dict_values(
-                    node.args[0], node.args[0].lineno, node.args[0].col_offset
-                )
-
-            # Check keyword argument with dict value
-            for keyword in node.keywords:
-                if keyword.arg == "values" and isinstance(keyword.value, ast.Dict):
-                    yield from self._check_dict_values(
-                        keyword.value, keyword.value.lineno, keyword.value.col_offset
-                    )
-
-    def _check_dict_values(
-        self, dict_node: ast.Dict, line: int, col: int
-    ) -> Generator[tuple[int, int, str], None, None]:
-        for key, value in zip(dict_node.keys, dict_node.values):
-            if (
-                isinstance(key, ast.Constant)
-                and isinstance(key.value, str)
-                and self.should_report_setting(key.value)
-                and self._is_invalid_value(value, key.value)
-            ):
-                setting_name = key.value
-                yield from self.report_setting_issue(
-                    value.lineno, value.col_offset, setting_name
-                )
-
-    def _is_invalid_value(self, value_node: ast.AST, setting_name: str) -> bool:  # noqa: PLR0911
-        if setting_name == "USER_AGENT":
-            return self._is_invalid_user_agent(value_node)
-
-        if setting_name == "FEEDS":
-            feeds_error = validate_feeds_config(
-                value_node, self.feeds_key_versions, self.get_package_version
-            )
-            if feeds_error:
-                self._feeds_error_message = feeds_error
-                return True
-            return False
-
-        if setting_name == "DOWNLOAD_SLOTS":
-            download_slots_error = validate_download_slots_config(value_node)
-            if download_slots_error:
-                self._feeds_error_message = download_slots_error
-                return True
-            return False
-
-        setting_type = self.typed_settings[setting_name]
-
-        # Special handling for enum string settings
-        if setting_type == SettingType.ENUM_STR:
-            return self._is_invalid_enum_value(value_node, setting_name)
-
-        # Special handling for periodic log config settings
-        if setting_type == SettingType.PERIODIC_LOG_CONFIG:
-            return validate_periodic_log_config_ast(value_node)
-
-        # If we can identify the literal value
-        if isinstance(value_node, ast.Constant):
-            return self._is_invalid_constant_value(value_node.value, setting_type)
-
-        # If we can identify the type but not the literal value
-        if hasattr(value_node, "__class__"):
-            return self._is_invalid_ast_node_type(value_node, setting_type)
-
-        return False
-
-    def _is_invalid_enum_value(self, value_node: ast.AST, setting_name: str) -> bool:
-        if setting_name not in self.enum_settings:
-            return False
-        allowed_values = self.enum_settings[setting_name]
-        if isinstance(value_node, ast.Constant):
-            value = value_node.value
-            if value is None:
-                return True
-            if not isinstance(value, str):
-                return True
-            return value not in allowed_values
-        return isinstance(value_node, (ast.List, ast.Dict, ast.Set, ast.Tuple))
-
-    def _is_invalid_constant_value(self, value, setting_type: SettingType) -> bool:
-        if setting_type in self.validators:
-            return not self.validators[setting_type](value)
-        return False
-
-    def _is_invalid_ast_node_type(
-        self, value_node: ast.AST, setting_type: SettingType
-    ) -> bool:
-        complex_types = (ast.List, ast.Tuple, ast.Set, ast.Dict)
-        if setting_type == SettingType.LIST:
-            return False
-        if setting_type in (SettingType.DICT, SettingType.BASED_DICT):
-            return isinstance(value_node, (ast.List, ast.Tuple, ast.Set))
-        if setting_type == SettingType.DICT_OR_LIST:
-            return isinstance(value_node, ast.Set)
-        if setting_type in (
-            SettingType.STR,
-            SettingType.OPT_STR,
-            SettingType.CLS,
-            SettingType.PATH,
-            SettingType.OPT_PATH,
-            SettingType.ENUM_STR,
-            SettingType.OPT_CALLABLE,
-            SettingType.OPT_INT,
+    def _check_subscript(self, node: ast.Subscript) -> None:
+        if not self._is_settings_subscript(node):
+            return
+        if not isinstance(node.slice, ast.Constant) or not isinstance(
+            node.slice.value, str
         ):
-            return isinstance(value_node, complex_types)
-        return isinstance(value_node, complex_types)
+            return
+        setting_name = node.slice.value
+
+        # Check for type mismatch (SCP17) only for read operations (Load context), not write operations (Store context)
+        if isinstance(node.ctx, ast.Load) and self._should_report_type_mismatch(
+            setting_name, "get"
+        ):  # Treat subscript like get()
+            issue_key_base = (
+                f"{setting_name}:{node.slice.lineno}:{node.slice.col_offset}"
+            )
+            issue_key = f"SCP17:{issue_key_base}"
+            if issue_key not in self.found_settings:
+                self.found_settings.add(issue_key)
+                message = "wrong setting getter"
+                self.issues.append(
+                    Issue(
+                        17,
+                        message,
+                        line=node.slice.lineno,
+                        column=node.slice.col_offset,
+                    )
+                )
+
+        self._check_setting_issues(
+            setting_name, node.slice.lineno, node.slice.col_offset, None, "subscript"
+        )
+
+    def _check_delete(self, node: ast.Delete) -> None:
+        for target in node.targets:
+            if not isinstance(target, ast.Subscript):
+                continue
+            if not self._is_settings_object(target.value):
+                continue
+            if not isinstance(target.slice, ast.Constant) or not isinstance(
+                target.slice.value, str
+            ):
+                continue
+            setting_name = target.slice.value
+            self._check_setting_issues(
+                setting_name,
+                target.slice.lineno,
+                target.slice.col_offset,
+                None,
+                "delete",
+            )
+
+    def _check_setting_issues(  # noqa: PLR0912, PLR0915
+        self,
+        setting_name: str,
+        line: int,
+        col: int,
+        value: ast.AST | None = None,
+        context: str = "general",
+    ) -> None:
+        # Track each issue type separately to avoid duplicates
+        issue_key_base = f"{setting_name}:{line}:{col}"
+
+        # Check for missing package settings first (SCP15)
+        if self._should_report_missing_package_setting(setting_name):
+            issue_key = f"SCP15:{issue_key_base}"
+            if issue_key not in self.found_settings:
+                self.found_settings.add(issue_key)
+                message = "missing setting requirement"
+                self.issues.append(Issue(15, message, line=line, column=col))
+                return
+
+        # Check for deprecated settings (SCP08)
+        if self._should_report_deprecated_setting(setting_name):
+            issue_key = f"SCP08:{issue_key_base}"
+            if issue_key not in self.found_settings:
+                self.found_settings.add(issue_key)
+                message = "deprecated setting"
+                self.issues.append(Issue(8, message, line=line, column=col))
+
+        # Check for future settings (SCP09)
+        if self._should_report_future_setting(setting_name):
+            issue_key = f"SCP09:{issue_key_base}"
+            if issue_key not in self.found_settings:
+                self.found_settings.add(issue_key)
+                self.issues.append(
+                    Issue(9, "setting requires upgrade", line=line, column=col)
+                )
+
+        # Check for removed settings (SCP10)
+        if self._should_report_removed_setting(setting_name):
+            issue_key = f"SCP10:{issue_key_base}"
+            if issue_key not in self.found_settings:
+                self.found_settings.add(issue_key)
+                message = "removed setting"
+                self.issues.append(Issue(10, message, line=line, column=col))
+
+        # Check for unknown settings (SCP07)
+        if self._should_report_unknown_setting(setting_name):
+            issue_key = f"SCP07:{issue_key_base}"
+            if issue_key not in self.found_settings:
+                self.found_settings.add(issue_key)
+                suggestions = get_setting_suggestions(setting_name, self.known_settings)
+                message = "unknown setting"
+                detail = None
+                if suggestions:
+                    if len(suggestions) == 1:
+                        detail = f"did you mean {suggestions[0]}?"
+                    else:
+                        suggestion_list = ", ".join(suggestions)
+                        detail = f"did you mean one of: {suggestion_list}?"
+                self.issues.append(
+                    Issue(7, message, detail=detail, line=line, column=col)
+                )
+
+        # Check for base setting name issues (SCP24)
+        if self._should_report_base_setting_name(setting_name):
+            issue_key = f"SCP24:{issue_key_base}"
+            if issue_key not in self.found_settings:
+                self.found_settings.add(issue_key)
+                message = "use of BASE setting"
+                self.issues.append(Issue(24, message, line=line, column=col))
+
+        # Only check these for assignments and set() method calls, not other method calls
+        if context in ("assignment", "method_call_set") and value:
+            value_issues = get_setting_value_issues(setting_name, value, self.config)
+            for issue in value_issues:
+                issue_key = f"SCP{issue.code:02}:{issue_key_base}"
+                if issue_key not in self.found_settings:
+                    self.found_settings.add(issue_key)
+                    # Use the issue's column if available, otherwise fall back to provided column
+                    issue_col = issue.column if issue.column != 0 else col
+                    self.issues.append(
+                        Issue(issue.code, issue.summary, line=line, column=issue_col)
+                    )
+
+    def _should_report_missing_package_setting(self, setting_name: str) -> bool:
+        return (
+            setting_name in self.missing_package_settings
+            and setting_name not in self.allowed_settings
+        )
+
+    def _should_report_deprecated_setting(self, setting_name: str) -> bool:
+        return (
+            setting_name in self.deprecated_settings
+            and setting_name not in self.allowed_settings
+            and setting_name not in self.exclude_settings
+        )
+
+    def _should_report_future_setting(self, setting_name: str) -> bool:
+        return (
+            setting_name in self.future_settings
+            and setting_name not in self.allowed_settings
+            and setting_name not in self.exclude_settings
+        )
+
+    def _should_report_removed_setting(self, setting_name: str) -> bool:
+        return (
+            setting_name in self.removed_settings
+            and setting_name not in self.allowed_settings
+            and setting_name not in self.exclude_settings
+        )
+
+    def _should_report_unknown_setting(self, setting_name: str) -> bool:
+        return (
+            setting_name not in self.known_settings
+            and setting_name not in self.exclude_settings
+        )
+
+    def _should_report_base_setting_name(self, setting_name: str) -> bool:
+        return setting_name.endswith("_BASE") and setting_name in SETTINGS
+
+    def _should_report_invalid_value(self, setting_name: str, value: ast.AST) -> bool:
+        if setting_name not in SETTINGS:
+            return False
+        if (
+            setting_name in self.allowed_settings
+            or setting_name in self.exclude_settings
+        ):
+            return False
+        return self._is_invalid_value(setting_name, value)
+
+    def _should_report_import_path_string(
+        self, setting_name: str, value: ast.AST
+    ) -> bool:
+        return (
+            setting_name in SETTINGS
+            and SETTINGS[setting_name].type == SettingType.CLS
+            and self._is_import_path_string_value(value)
+        )
+
+    def _is_invalid_value(self, setting_name: str, value: ast.AST) -> bool:  # noqa: PLR0911, PLR0912
+        setting_info = SETTINGS[setting_name]
+        setting_type = setting_info.type
+
+        if setting_type == SettingType.BOOL:
+            return self._is_invalid_bool_value(value)
+        if setting_type == SettingType.INT:
+            return self._is_invalid_int_value(value)
+        if setting_type == SettingType.FLOAT:
+            return self._is_invalid_float_value(value)
+        if setting_type == SettingType.LIST:
+            return self._is_invalid_list_value(value)
+        if setting_type == SettingType.DICT:
+            return self._is_invalid_dict_value(value)
+        if setting_type == SettingType.LOG_LEVEL:
+            return self._is_invalid_log_level_value(value)
+        if setting_type == SettingType.PATH:
+            return self._is_invalid_path_value(value)
+        if setting_type == SettingType.OPT_PATH:
+            return self._is_invalid_optional_path_value(value)
+        if setting_type == SettingType.OPT_STR:
+            return self._is_invalid_optional_string_value(value)
+        if setting_type == SettingType.STR:
+            return self._is_invalid_string_value(value)
+        if setting_type == SettingType.CLS:
+            return self._is_invalid_class_value(value)
+        if setting_type == SettingType.OPT_CALLABLE:
+            return self._is_invalid_optional_callable_value(value)
+        if setting_type == SettingType.OPT_INT:
+            return self._is_invalid_optional_int_value(value)
+
+        return False
+
+    def _is_invalid_bool_value(self, value: ast.AST) -> bool:
+        if isinstance(value, ast.Constant):
+            return value.value not in VALID_BOOL_LITERALS
+        return not isinstance(value, ast.Constant)
+
+    def _is_invalid_int_value(self, value: ast.AST) -> bool:
+        if isinstance(value, ast.Constant):
+            return not self._can_convert_to_int(value.value)
+        return not isinstance(value, (ast.Num, ast.Constant))
+
+    def _is_invalid_float_value(self, value: ast.AST) -> bool:
+        if isinstance(value, ast.Constant):
+            return not self._can_convert_to_float(value.value)
+        return not isinstance(value, (ast.Num, ast.Constant))
+
+    def _is_invalid_list_value(self, value: ast.AST) -> bool:
+        if isinstance(value, ast.Constant):
+            return not self._can_convert_to_list(value.value)
+        if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
+            return value.func.id not in ("list", "tuple", "set")
+        return not isinstance(value, (ast.List, ast.Tuple, ast.Set, ast.Constant))
+
+    def _is_invalid_dict_value(self, value: ast.AST) -> bool:
+        if isinstance(value, ast.Constant):
+            return not self._can_convert_to_dict(value.value)
+        return not isinstance(value, (ast.Dict, ast.Constant))
+
+    def _is_invalid_log_level_value(self, value: ast.AST) -> bool:
+        if isinstance(value, ast.Constant):
+            return (
+                not isinstance(value.value, int)
+                and value.value not in VALID_LOG_LEVEL_LITERALS
+            )
+        return type(value) not in {ast.Num, ast.Str, ast.Constant}
+
+    def _is_invalid_path_value(self, value: ast.AST) -> bool:
+        return not self._is_valid_path(value)
+
+    def _is_invalid_optional_path_value(self, value: ast.AST) -> bool:
+        return not self._is_valid_optional_path(value)
+
+    def _is_invalid_optional_string_value(self, value: ast.AST) -> bool:
+        return not self._is_valid_optional_string(value)
+
+    def _is_invalid_string_value(self, value: ast.AST) -> bool:
+        return not self._is_valid_string(value)
+
+    def _is_invalid_class_value(self, value: ast.AST) -> bool:
+        return not self._is_valid_class(value)
+
+    def _is_invalid_optional_callable_value(self, value: ast.AST) -> bool:
+        return not self._is_valid_optional_callable(value)
+
+    def _is_invalid_optional_int_value(self, value: ast.AST) -> bool:
+        return not self._is_valid_optional_int(value)
 
     def _can_convert_to_int(self, value) -> bool:
         try:
@@ -462,371 +988,201 @@ class InvalidValueSettingsIssueFinder(
             return False
 
     def _can_convert_to_dict(self, value) -> bool:
-        """Check if a value can be converted to dict or is a valid JSON object string."""
-        # First try to convert to dict directly
-        try:
-            dict(value)
+        if isinstance(value, dict):
             return True
-        except (ValueError, TypeError):
-            pass
-
-        # If it's a string, check if it's a valid JSON object (dict)
         if isinstance(value, str):
             try:
-                parsed = json.loads(value)
-                return isinstance(parsed, dict)
-            except (json.JSONDecodeError, ValueError):
+                json.loads(value)
+                return True
+            except (ValueError, TypeError):
+                return False
+        return False
+
+    def _is_valid_optional_string(self, value: ast.AST) -> bool:
+        return value is None or isinstance(value, ast.Constant)
+
+    def _is_valid_string(self, value: ast.AST) -> bool:
+        return isinstance(value, ast.Constant)
+
+    def _is_valid_class(self, value: ast.AST) -> bool:
+        if not isinstance(value, ast.Constant):
+            return True
+        if not isinstance(value.value, str):
+            return False
+        return looks_like_class_import_path(value.value)
+
+    def _is_valid_path(self, value: ast.AST) -> bool:
+        return (
+            isinstance(value, ast.Constant) and isinstance(value.value, str)
+        ) or _is_pathlib_path_call(value)
+
+    def _is_valid_optional_path(self, value: ast.AST) -> bool:
+        return (
+            isinstance(value, ast.Constant)
+            and (value.value is None or isinstance(value.value, str))
+        ) or _is_pathlib_path_call(value)
+
+    def _is_valid_optional_callable(self, value: ast.AST) -> bool:
+        if not isinstance(value, ast.Constant):
+            return True
+        if value.value is None:
+            return True
+        if not isinstance(value.value, str):
+            return False
+        return looks_like_callable_import_path(value.value)
+
+    def _is_valid_optional_int(self, value: ast.AST) -> bool:
+        if not isinstance(value, ast.Constant):
+            return True
+        return value.value is None or self._can_convert_to_int(value.value)
+
+    def _is_import_path_string_value(self, value: ast.AST) -> bool:
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            return looks_like_class_import_path(value.value)
+        return False
+
+    def _is_settings_method_call(self, node: ast.Call) -> bool:
+        assert isinstance(node.func, ast.Attribute)
+        method_name = node.func.attr
+        if method_name not in self.settings_methods:
+            return False
+        return self._is_settings_object(node.func.value)
+
+    def _is_settings_dict_method_call(self, node: ast.Call) -> bool:
+        assert isinstance(node.func, ast.Attribute)
+        method_name = node.func.attr
+        dict_methods = {"setdict", "update"}
+        if method_name not in dict_methods:
+            return False
+        return self._is_settings_object(node.func.value)
+
+    def _is_settings_subscript(self, node: ast.Subscript) -> bool:
+        return self._is_settings_object(node.value)
+
+    def _is_settings_object(self, node: ast.AST) -> bool:
+        if isinstance(node, ast.Name):
+            return node.id == "settings"
+        if not isinstance(node, ast.Attribute):
+            return False
+        return node.attr == "settings"
+
+    def _is_settings_constructor_call(self, node: ast.Call) -> bool:
+        """Check if the call is a Settings or BaseSettings constructor."""
+        if isinstance(node.func, ast.Name):
+            return node.func.id in ("Settings", "BaseSettings")
+
+        if isinstance(node.func, ast.Attribute):
+            if node.func.attr not in ("Settings", "BaseSettings"):
                 return False
 
-        return False
-
-    def _is_valid_dict_or_list_value(self, value) -> bool:
-        if value is None:
-            return True
-        return isinstance(value, (str, tuple, dict, list))
-
-    def _is_valid_optional_string(self, value) -> bool:
-        return value is None or isinstance(value, str)
-
-    def _is_valid_string(self, value) -> bool:
-        return isinstance(value, str)
-
-    def _is_valid_class(self, value) -> bool:
-        if isinstance(value, type):
-            return True
-        if isinstance(value, str):
-            return looks_like_class_import_path(value)
-        return False
-
-    def _is_valid_path(self, value) -> bool:
-        if isinstance(value, Path):
-            return True
-        return isinstance(value, str)
-
-    def _is_valid_optional_path(self, value) -> bool:
-        if value is None:
-            return True
-        return self._is_valid_path(value)
-
-    def _is_valid_enum_string(self, value) -> bool:
-        return isinstance(value, str)
-
-    def _is_valid_optional_callable(self, value) -> bool:
-        """Check if a value is valid for OPT_CALLABLE type settings."""
-        if value is None:
-            return True
-        if callable(value):
-            return True
-        if isinstance(value, str):
-            return looks_like_callable_import_path(value)
-        return False
-
-    def _is_valid_optional_int(self, value) -> bool:
-        """Check if a value is valid for OPT_INT type settings."""
-        if value is None:
-            return True
-        return self._can_convert_to_int(value)
-
-    def _is_invalid_user_agent(self, value_node: ast.AST) -> bool:
-        if not isinstance(value_node, ast.Constant):
-            return isinstance(
-                value_node, (ast.Num, ast.List, ast.Dict, ast.Set, ast.Tuple)
-            )
-        value = value_node.value
-        if not isinstance(value, str):
-            return True
-        if not value:
-            return True
-        if "(+http://www.yourdomain.com)" in value or "(+https://scrapy.org)" in value:
-            return True
-        browser_patterns = [
-            r"Mozilla/\d+\.\d+",
-            r"Chrome/\d+\.\d+",
-            r"Safari/\d+\.\d+",
-            r"Firefox/\d+\.\d+",
-            r"AppleWebKit/\d+\.\d+",
-            r"Gecko/\d+",
-        ]
-        for pattern in browser_patterns:
-            if re.search(pattern, value):
-                return True
-        url_pattern = (
-            r"https?://[a-zA-Z0-9.-]+|www\.[a-zA-Z0-9.-]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-        )
-        email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-        phone_pattern = r"\b\d{3}[-.]\d{4}\b|\b\d{10,}\b|\b\(\d{3}\)\s?\d{3}[-.]\d{4}\b"
-        return not (
-            re.search(url_pattern, value)
-            or re.search(email_pattern, value)
-            or re.search(phone_pattern, value)
-        )
-
-    def check_subscript(
-        self, node: ast.Subscript
-    ) -> Generator[tuple[int, int, str], None, None]:
-        # SCP18 only cares about assignments, not subscript reads
-        # So we override this method to do nothing for subscript operations
-        return
-        yield  # unreachable, but needed to make this a generator
-
-
-class UnknownSettingsIssueFinder(BaseSettingsIssueFinder):
-    msg_code = "SCP07"
-    msg_info = "unknown setting"
-
-    def __init__(
-        self,
-        filename=None,
-        allowed_settings=None,
-        exclude_settings=None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(*args, filename=filename, **kwargs)
-        self.known_settings = set(SETTINGS)
-        if allowed_settings:
-            self.known_settings.update(allowed_settings)
-        self.exclude_settings = set(exclude_settings) if exclude_settings else set()
-
-    def should_report_setting(self, setting_name: str) -> bool:
-        return (
-            setting_name not in self.known_settings
-            and setting_name not in self.exclude_settings
-        )
-
-    def get_setting_message(self, setting_name: str) -> str:
-        suggestions = get_setting_suggestions(setting_name, self.known_settings)
-        message = f"{self.msg_code} {self.msg_info}"
-
-        if not suggestions:
-            return message
-
-        if len(suggestions) == 1:
-            message += f". Did you mean {suggestions[0]}?"
-        else:
-            suggestion_list = ", ".join(suggestions)
-            message += f". Did you mean one of: {suggestion_list}?"
-
-        return message
-
-
-class DeprecatedSettingsIssueFinder(
-    BaseSettingsIssueFinder, AllowedExcludeSettingsMixin
-):
-    msg_code = "SCP08"
-    msg_info = "deprecated setting"
-
-    def __init__(
-        self,
-        filename=None,
-        allowed_settings=None,
-        exclude_settings=None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(filename, *args, **kwargs)
-        self.deprecated_settings = self.get_deprecated_settings()
-        self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
-
-    def get_deprecated_settings(self) -> set[str]:
-        deprecated = set()
-        for name, info in SETTINGS.items():
-            package_version = self.get_package_version(info.package)
-            if package_version is None:
-                continue
-            if info.removed_version and is_version_less_than_or_equal(
-                info.removed_version, package_version
-            ):
-                continue
-            if info.added_version and is_version_greater_than(
-                info.added_version, package_version
-            ):
-                continue
-            if info.deprecated_version and is_version_less_than_or_equal(
-                info.deprecated_version, package_version
-            ):
-                deprecated.add(name)
-        return deprecated
-
-    def should_report_setting(self, setting_name: str) -> bool:
-        return (
-            setting_name in self.deprecated_settings
-            and setting_name not in self.allowed_settings
-            and setting_name not in self.exclude_settings
-        )
-
-    def get_setting_message(self, setting_name: str) -> str:
-        return f"{self.msg_code} {self.msg_info}"
-
-
-class FutureSettingsIssueFinder(BaseSettingsIssueFinder, AllowedExcludeSettingsMixin):
-    msg_code = "SCP09"
-    msg_info = "future Scrapy setting"
-
-    def __init__(
-        self,
-        filename=None,
-        allowed_settings=None,
-        exclude_settings=None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(filename, *args, **kwargs)
-        self.future_settings = set()
-        for name, info in SETTINGS.items():
-            if not info.added_version:
-                continue
-            package_version = self.get_package_version(info.package)
-            if package_version is not None and is_version_greater_than(
-                info.added_version, package_version
-            ):
-                self.future_settings.add(name)
-        self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
-
-    def should_report_setting(self, setting_name: str) -> bool:
-        return (
-            setting_name in self.future_settings
-            and setting_name not in self.allowed_settings
-            and setting_name not in self.exclude_settings
-        )
-
-    def get_setting_message(self, setting_name: str) -> str:
-        setting_info = SETTINGS[setting_name]
-        version = setting_info.added_version
-        package = setting_info.package
-        package_name = "Scrapy" if package == "scrapy" else package
-        return f"{self.msg_code}: {self.msg_info}: {setting_name} (added in {package_name} {version})"
-
-
-class RemovedSettingsIssueFinder(BaseSettingsIssueFinder, AllowedExcludeSettingsMixin):
-    msg_code = "SCP10"
-    msg_info = "removed Scrapy setting"
-
-    def __init__(
-        self,
-        filename=None,
-        allowed_settings=None,
-        exclude_settings=None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(filename, *args, **kwargs)
-        self.removed_settings = set()
-        for name, info in SETTINGS.items():
-            if not info.removed_version:
-                continue
-            package_version = self.get_package_version(info.package)
-            if package_version is not None and is_version_less_than_or_equal(
-                info.removed_version, package_version
-            ):
-                self.removed_settings.add(name)
-        self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
-
-    def should_report_setting(self, setting_name: str) -> bool:
-        return (
-            setting_name in self.removed_settings
-            and setting_name not in self.allowed_settings
-            and setting_name not in self.exclude_settings
-        )
-
-    def get_setting_message(self, setting_name: str) -> str:
-        setting_info = SETTINGS[setting_name]
-        version = setting_info.removed_version
-        package = setting_info.package
-        package_name = "Scrapy" if package == "scrapy" else package
-        return f"{self.msg_code}: {self.msg_info}: {setting_name} (removed in {package_name} {version})"
-
-
-class MissingPackageSettingsIssueFinder(
-    BaseSettingsIssueFinder, AllowedExcludeSettingsMixin
-):
-    msg_code = "SCP15"
-    msg_info = "setting for package not in requirements.txt"
-
-    def __init__(self, filename=None, allowed_settings=None, *args, **kwargs):
-        super().__init__(filename, *args, **kwargs)
-        self.missing_package_settings = set()
-        for name, info in SETTINGS.items():
+            # Handle settings.BaseSettings
             if (
-                info.package != "scrapy"
-                and self.get_package_version(info.package) is None
+                isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "settings"
             ):
-                self.missing_package_settings.add(name)
-        self._init_allowed_exclude_settings(allowed_settings)
+                return True
 
-    def should_report_setting(self, setting_name: str) -> bool:
-        return (
-            setting_name in self.missing_package_settings
-            and setting_name not in self.allowed_settings
-        )
+            # Handle scrapy.settings.BaseSettings
+            if (
+                isinstance(node.func.value, ast.Attribute)
+                and node.func.value.attr == "settings"
+                and isinstance(node.func.value.value, ast.Name)
+                and node.func.value.value.id == "scrapy"
+            ):
+                return True
 
-    def get_setting_message(self, setting_name: str) -> str:
-        setting_info = SETTINGS[setting_name]
-        package = setting_info.package
-        return f"{self.msg_code}: {self.msg_info}: {setting_name} (package: {package})"
+        return False
 
-
-class TypeMismatchSettingsIssueFinder(
-    BaseSettingsIssueFinder, AllowedExcludeSettingsMixin
-):
-    msg_code = "SCP17"
-    msg_info = "wrong setting getter"
-
-    TYPE_TO_METHOD: ClassVar[dict[SettingType, str]] = {
-        SettingType.BOOL: "getbool",
-        SettingType.INT: "getint",
-        SettingType.FLOAT: "getfloat",
-        SettingType.LIST: "getlist",
-        SettingType.DICT: "getdict",
-        SettingType.DICT_OR_LIST: "getdictorlist",
-        SettingType.BASED_DICT: "getwithbase",
-    }
-
-    def __init__(
-        self,
-        filename=None,
-        allowed_settings=None,
-        exclude_settings=None,
-        *args,
-        **kwargs,
-    ):
-        super().__init__(filename, *args, **kwargs)
-        self.typed_settings = {}
-        for name, info in SETTINGS.items():
-            if info.type is not None:
-                self.typed_settings[name] = info.type
-        self._init_allowed_exclude_settings(allowed_settings, exclude_settings)
-
-    def should_report_setting(self, setting_name: str) -> bool:
-        return (
-            setting_name in self.typed_settings
-            and setting_name not in self.allowed_settings
-            and setting_name not in self.exclude_settings
-        )
-
-    def get_setting_message(self, setting_name: str) -> str:
-        return f"{self.msg_code} {self.msg_info}"
-
-    def check_settings_method_args(
-        self, node: ast.Call
-    ) -> Generator[tuple[int, int, str], None, None]:
+    def _check_settings_method_args(self, node: ast.Call) -> None:  # noqa: PLR0912, PLR0915
         assert isinstance(node.func, ast.Attribute)
         method_name = node.func.attr
         param_name = self.settings_methods[method_name]
+
         if node.args:
             first_arg = node.args[0]
             if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
                 setting_name = first_arg.value
-                if (
-                    self.should_report_setting(setting_name)
-                    and setting_name in self.typed_settings
-                ):
-                    setting_type = self.typed_settings[setting_name]
-                    expected_method = self.TYPE_TO_METHOD.get(setting_type, "get")
-                    if method_name != expected_method:
-                        yield from self.report_setting_issue(
-                            first_arg.lineno, first_arg.col_offset, setting_name
+
+                # Method-specific checks that only apply to getter methods
+                issue_key_base = (
+                    f"{setting_name}:{first_arg.lineno}:{first_arg.col_offset}"
+                )
+
+                # Check for type mismatch (SCP17)
+                if self._should_report_type_mismatch(setting_name, method_name):
+                    issue_key = f"SCP17:{issue_key_base}"
+                    if issue_key not in self.found_settings:
+                        self.found_settings.add(issue_key)
+                        message = "wrong setting getter"
+                        self.issues.append(
+                            Issue(
+                                17,
+                                message,
+                                line=first_arg.lineno,
+                                column=first_arg.col_offset,
+                            )
                         )
+
+                # Check for unnecessary get (SCP25)
+                if self._should_report_unnecessary_get(setting_name, method_name, node):
+                    issue_key = f"SCP25:{issue_key_base}"
+                    if issue_key not in self.found_settings:
+                        self.found_settings.add(issue_key)
+                        message = "unneeded setting get"
+                        self.issues.append(
+                            Issue(
+                                25,
+                                message,
+                                line=first_arg.lineno,
+                                column=first_arg.col_offset,
+                            )
+                        )
+
+                # Check for ignored get default (SCP26)
+                if self._should_report_ignored_get_default(
+                    setting_name, method_name, node
+                ):
+                    issue_key = f"SCP26:{issue_key_base}"
+                    if issue_key not in self.found_settings:
+                        self.found_settings.add(issue_key)
+                        message = "ignored getter default"
+                        # Point to the default value (second argument) instead of setting name
+                        default_arg = node.args[1]
+                        self.issues.append(
+                            Issue(
+                                26,
+                                message,
+                                line=default_arg.lineno,
+                                column=default_arg.col_offset,
+                            )
+                        )
+
+                # Check general setting issues (but not method-specific ones)
+                MIN_ARGS_FOR_VALUE = 2
+                if len(node.args) >= MIN_ARGS_FOR_VALUE:
+                    value = node.args[1]
+                    # Use special context for set() and setdefault() methods to enable SCP18 checking
+                    context = (
+                        "method_call_set"
+                        if method_name in ("set", "setdefault")
+                        else "method_call"
+                    )
+                    self._check_setting_issues(
+                        setting_name,
+                        first_arg.lineno,
+                        first_arg.col_offset,
+                        value,
+                        context,
+                    )
+                else:
+                    self._check_setting_issues(
+                        setting_name,
+                        first_arg.lineno,
+                        first_arg.col_offset,
+                        None,
+                        "method_call",
+                    )
+
         for keyword in node.keywords:
             if keyword.arg != param_name:
                 continue
@@ -835,694 +1191,262 @@ class TypeMismatchSettingsIssueFinder(
             ):
                 continue
             setting_name = keyword.value.value
-            if (
-                self.should_report_setting(setting_name)
-                and setting_name in self.typed_settings
-            ):
-                setting_type = self.typed_settings[setting_name]
-                expected_method = self.TYPE_TO_METHOD.get(setting_type, "get")
-                if method_name != expected_method:
-                    yield from self.report_setting_issue(
-                        keyword.value.lineno, keyword.value.col_offset, setting_name
-                    )
 
-    def check_assignment(
-        self, node: ast.Assign
-    ) -> Generator[tuple[int, int, str], None, None]:
-        # SCP17 only cares about reading settings, not assignments
-        # So we override this method to do nothing for assignment operations
-        return
-        yield  # unreachable, but needed to make this a generator
-
-    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:
-        if not isinstance(node.func, ast.Attribute):
-            return
-        if not self.is_settings_object(node.func.value):
-            return
-
-        method_name = node.func.attr
-
-        # Only check getter methods, not setter methods
-        getter_methods = {
-            "get",
-            "getbool",
-            "getint",
-            "getfloat",
-            "getlist",
-            "getdict",
-            "getdictorlist",
-            "getwithbase",
-            "getpriority",
-        }
-
-        if method_name not in getter_methods:
-            return
-
-        # Use the original settings method checking logic
-        if self.is_settings_method_call(node):
-            yield from self.check_settings_method_args(node)
-
-    def check_subscript(
-        self, node: ast.Subscript
-    ) -> Generator[tuple[int, int, str], None, None]:
-        if not isinstance(node.ctx, ast.Load):
-            return
-        if not self.is_settings_subscript(node):
-            return
-        if not isinstance(node.slice, ast.Constant) or not isinstance(
-            node.slice.value, str
-        ):
-            return
-        setting_name = node.slice.value
-        if self.should_report_setting(setting_name):
-            yield from self.report_setting_issue(
-                node.slice.lineno, node.slice.col_offset, setting_name
+            # Method-specific checks that only apply to getter methods (for keyword args)
+            issue_key_base = (
+                f"{setting_name}:{keyword.value.lineno}:{keyword.value.col_offset}"
             )
 
-
-DEFAULT_SETTINGS = {
-    "ADDONS",
-    "AJAXCRAWL_ENABLED",
-    "ASYNCIO_EVENT_LOOP",
-    "AUTOTHROTTLE_DEBUG",
-    "AUTOTHROTTLE_ENABLED",
-    "AUTOTHROTTLE_MAX_DELAY",
-    "AUTOTHROTTLE_START_DELAY",
-    "AUTOTHROTTLE_TARGET_CONCURRENCY",
-    "BOT_NAME",
-    "CLOSESPIDER_ERRORCOUNT",
-    "CLOSESPIDER_ITEMCOUNT",
-    "CLOSESPIDER_PAGECOUNT",
-    "CLOSESPIDER_TIMEOUT",
-    "COMMANDS_MODULE",
-    "COMPRESSION_ENABLED",
-    "CONCURRENT_ITEMS",
-    "CONCURRENT_REQUESTS",
-    "CONCURRENT_REQUESTS_PER_DOMAIN",
-    "CONCURRENT_REQUESTS_PER_IP",
-    "COOKIES_DEBUG",
-    "COOKIES_ENABLED",
-    "DEFAULT_DROPITEM_LOG_LEVEL",
-    "DEFAULT_ITEM_CLASS",
-    "DEFAULT_REQUEST_HEADERS",
-    "DEPTH_LIMIT",
-    "DEPTH_PRIORITY",
-    "DEPTH_STATS_VERBOSE",
-    "DNSCACHE_ENABLED",
-    "DNSCACHE_SIZE",
-    "DNS_RESOLVER",
-    "DNS_TIMEOUT",
-    "DOWNLOAD_DELAY",
-    "DOWNLOADER",
-    "DOWNLOADER_CLIENTCONTEXTFACTORY",
-    "DOWNLOADER_CLIENT_TLS_CIPHERS",
-    "DOWNLOADER_CLIENT_TLS_METHOD",
-    "DOWNLOADER_CLIENT_TLS_VERBOSE_LOGGING",
-    "DOWNLOADER_HTTPCLIENTFACTORY",
-    "DOWNLOADER_MIDDLEWARES",
-    "DOWNLOADER_MIDDLEWARES_BASE",
-    "DOWNLOADER_STATS",
-    "DOWNLOAD_FAIL_ON_DATALOSS",
-    "DOWNLOAD_HANDLERS",
-    "DOWNLOAD_HANDLERS_BASE",
-    "DOWNLOAD_MAXSIZE",
-    "DOWNLOAD_TIMEOUT",
-    "DOWNLOAD_WARNSIZE",
-    "DUPEFILTER_CLASS",
-    "EDITOR",
-    "EXTENSIONS",
-    "EXTENSIONS_BASE",
-    "FEED_EXPORT_BATCH_ITEM_COUNT",
-    "FEED_EXPORT_ENCODING",
-    "FEED_EXPORTERS",
-    "FEED_EXPORTERS_BASE",
-    "FEED_EXPORT_FIELDS",
-    "FEED_EXPORT_INDENT",
-    "FEEDS",
-    "FEED_STORAGE_FTP_ACTIVE",
-    "FEED_STORAGE_GCS_ACL",
-    "FEED_STORAGES",
-    "FEED_STORAGES_BASE",
-    "FEED_STORE_EMPTY",
-    "FEED_TEMPDIR",
-    "FEED_URI_PARAMS",
-    "FILES_STORE_GCS_ACL",
-    "FORCE_CRAWLER_PROCESS",
-    "FTP_PASSIVE_MODE",
-    "FTP_PASSWORD",
-    "FTP_USER",
-    "GCS_PROJECT_ID",
-    "HTTPCACHE_ALWAYS_STORE",
-    "HTTPCACHE_DBM_MODULE",
-    "HTTPCACHE_DIR",
-    "HTTPCACHE_ENABLED",
-    "HTTPCACHE_EXPIRATION_SECS",
-    "HTTPCACHE_GZIP",
-    "HTTPCACHE_IGNORE_HTTP_CODES",
-    "HTTPCACHE_IGNORE_MISSING",
-    "HTTPCACHE_IGNORE_RESPONSE_CACHE_CONTROLS",
-    "HTTPCACHE_IGNORE_SCHEMES",
-    "HTTPCACHE_POLICY",
-    "HTTPCACHE_STORAGE",
-    "HTTPPROXY_AUTH_ENCODING",
-    "HTTPPROXY_ENABLED",
-    "IMAGES_STORE_GCS_ACL",
-    "ITEM_PIPELINES",
-    "ITEM_PIPELINES_BASE",
-    "ITEM_PROCESSOR",
-    "JOBDIR",
-    "LOG_DATEFORMAT",
-    "LOG_ENABLED",
-    "LOG_ENCODING",
-    "LOG_FILE",
-    "LOG_FILE_APPEND",
-    "LOG_FORMAT",
-    "LOG_FORMATTER",
-    "LOG_LEVEL",
-    "LOG_SHORT_NAMES",
-    "LOGSTATS_INTERVAL",
-    "LOG_STDOUT",
-    "LOG_VERSIONS",
-    "MAIL_FROM",
-    "MAIL_HOST",
-    "MAIL_PASS",
-    "MAIL_PORT",
-    "MAIL_USER",
-    "MEMDEBUG_ENABLED",
-    "MEMDEBUG_NOTIFY",
-    "MEMUSAGE_CHECK_INTERVAL_SECONDS",
-    "MEMUSAGE_ENABLED",
-    "MEMUSAGE_LIMIT_MB",
-    "MEMUSAGE_NOTIFY_MAIL",
-    "MEMUSAGE_WARNING_MB",
-    "METAREFRESH_ENABLED",
-    "METAREFRESH_IGNORE_TAGS",
-    "METAREFRESH_MAXDELAY",
-    "NEWSPIDER_MODULE",
-    "PERIODIC_LOG_DELTA",
-    "PERIODIC_LOG_STATS",
-    "PERIODIC_LOG_TIMING_ENABLED",
-    "RANDOMIZE_DOWNLOAD_DELAY",
-    "REACTOR_THREADPOOL_MAXSIZE",
-    "REDIRECT_ENABLED",
-    "REDIRECT_MAX_TIMES",
-    "REDIRECT_PRIORITY_ADJUST",
-    "REFERER_ENABLED",
-    "REFERRER_POLICY",
-    "REQUEST_FINGERPRINTER_CLASS",
-    "REQUEST_FINGERPRINTER_IMPLEMENTATION",
-    "RETRY_ENABLED",
-    "RETRY_EXCEPTIONS",
-    "RETRY_HTTP_CODES",
-    "RETRY_PRIORITY_ADJUST",
-    "RETRY_TIMES",
-    "ROBOTSTXT_OBEY",
-    "ROBOTSTXT_PARSER",
-    "ROBOTSTXT_USER_AGENT",
-    "SCHEDULER",
-    "SCHEDULER_DEBUG",
-    "SCHEDULER_DISK_QUEUE",
-    "SCHEDULER_MEMORY_QUEUE",
-    "SCHEDULER_PRIORITY_QUEUE",
-    "SCHEDULER_START_DISK_QUEUE",
-    "SCHEDULER_START_MEMORY_QUEUE",
-    "SCRAPER_SLOT_MAX_ACTIVE_SIZE",
-    "SPIDER_CONTRACTS",
-    "SPIDER_CONTRACTS_BASE",
-    "SPIDER_LOADER_CLASS",
-    "SPIDER_LOADER_WARN_ONLY",
-    "SPIDER_MIDDLEWARES",
-    "SPIDER_MIDDLEWARES_BASE",
-    "SPIDER_MODULES",
-    "STATS_CLASS",
-    "STATS_DUMP",
-    "STATSMAILER_RCPTS",
-    "TELNETCONSOLE_ENABLED",
-    "TELNETCONSOLE_HOST",
-    "TELNETCONSOLE_PASSWORD",
-    "TELNETCONSOLE_PORT",
-    "TELNETCONSOLE_USERNAME",
-    "TEMPLATES_DIR",
-    "TWISTED_REACTOR",
-    "URLLENGTH_LIMIT",
-    "USER_AGENT",
-    "WARN_ON_GENERATOR_RETURN_VALUE",
-}
-
-DEFAULT_SETTINGS_WITH_NONE = {
-    "FEED_EXPORT_ENCODING",
-    "FEED_EXPORT_FIELDS",
-    "FEED_TEMPDIR",
-    "FEED_URI_PARAMS",
-    "JOBDIR",
-    "LOG_FILE",
-    "MAIL_USER",
-    "MAIL_PASS",
-    "PERIODIC_LOG_DELTA",
-    "PERIODIC_LOG_STATS",
-    "ROBOTSTXT_USER_AGENT",
-    "TELNETCONSOLE_PASSWORD",
-}
-
-
-class UnnecessaryGetIssueFinder(BaseSettingsIssueFinder):
-    msg_code = "SCP25"
-    msg_info = "unneeded get"
-
-    def __init__(self, filename=None, *args, **kwargs):
-        super().__init__(filename, *args, **kwargs)
-
-    def should_report_setting(self, setting_name: str) -> bool:
-        # Only report if it's a known setting and doesn't have a specific typed getter (to avoid conflicts with SCP17)
-        if setting_name not in SETTINGS:
-            return False
-        setting_info = SETTINGS[setting_name]
-        if setting_info.type is not None:
-            # Check if this type has a specific getter method defined in SCP17
-            type_to_method = {
-                SettingType.BOOL: "getbool",
-                SettingType.INT: "getint",
-                SettingType.FLOAT: "getfloat",
-                SettingType.LIST: "getlist",
-                SettingType.DICT: "getdict",
-                SettingType.DICT_OR_LIST: "getdictorlist",
-                SettingType.BASED_DICT: "getwithbase",
-            }
-            # Only report if the type doesn't have a specific getter (i.e., uses "get")
-            return setting_info.type not in type_to_method
-        return True
-
-    def get_setting_message(self, setting_name: str) -> str:
-        return f"{self.msg_code} {self.msg_info}"
-
-    def check_assignment(
-        self, node: ast.Assign
-    ) -> Generator[tuple[int, int, str], None, None]:
-        return
-        yield  # pragma: no cover
-
-    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:
-        if not isinstance(node.func, ast.Attribute):
-            return
-
-        # Only check get() calls for SCP25, not typed getters (those are handled by SCP17)
-        if self.is_settings_method_call(node) and node.func.attr == "get":
-            yield from self.check_settings_method_args(node)
-
-    def check_subscript(
-        self, node: ast.Subscript
-    ) -> Generator[tuple[int, int, str], None, None]:
-        return
-        yield  # pragma: no cover
-
-    def check_delete(
-        self, node: ast.Delete
-    ) -> Generator[tuple[int, int, str], None, None]:
-        return
-        yield  # pragma: no cover
-
-    def check_settings_method_args(
-        self, node: ast.Call
-    ) -> Generator[tuple[int, int, str], None, None]:
-        assert isinstance(node.func, ast.Attribute)
-        method_name = node.func.attr
-
-        # Only handle get() calls for SCP25
-        if method_name != "get":
-            return
-
-        first_arg = node.args[0] if node.args else None
-        if (
-            first_arg
-            and isinstance(first_arg, ast.Constant)
-            and isinstance(first_arg.value, str)
-        ):
-            MAX_ARGS_WITH_DEFAULT = 2
-            first_arg = node.args[0] if node.args else None
-            if (
-                first_arg
-                and isinstance(first_arg, ast.Constant)
-                and isinstance(first_arg.value, str)
-            ):
-                setting_name = first_arg.value
-                # Check if it's unneeded: no default or default is None
-                if self.should_report_setting(setting_name) and (
-                    len(node.args) == 1
-                    or (
-                        len(node.args) == MAX_ARGS_WITH_DEFAULT
-                        and isinstance(node.args[1], ast.Constant)
-                        and node.args[1].value is None
-                    )
-                ):
-                    yield from self.report_setting_issue(
-                        first_arg.lineno, first_arg.col_offset, setting_name
-                    )
-
-        # Check keyword arguments
-        for keyword in node.keywords:
-            if (
-                keyword.arg == "name"
-                and isinstance(keyword.value, ast.Constant)
-                and isinstance(keyword.value.value, str)
-            ):
-                setting_name = keyword.value.value
-                if self.should_report_setting(setting_name):
-                    # Check if default is None or not provided
-                    has_none_default = False
-                    for kw in node.keywords:
-                        if (
-                            kw.arg == "default"
-                            and isinstance(kw.value, ast.Constant)
-                            and kw.value.value is None
-                        ):
-                            has_none_default = True
-                            break
-
-                    if (
-                        not any(kw.arg == "default" for kw in node.keywords)
-                        or has_none_default
-                    ):
-                        yield from self.report_setting_issue(
-                            keyword.value.lineno, keyword.value.col_offset, setting_name
+            # Check for type mismatch (SCP17)
+            if self._should_report_type_mismatch(setting_name, method_name):
+                issue_key = f"SCP17:{issue_key_base}"
+                if issue_key not in self.found_settings:
+                    self.found_settings.add(issue_key)
+                    message = "wrong setting getter"
+                    self.issues.append(
+                        Issue(
+                            17,
+                            message,
+                            line=keyword.value.lineno,
+                            column=keyword.value.col_offset,
                         )
-
-
-class IgnoredGetDefaultIssueFinder(BaseSettingsIssueFinder):
-    msg_code = "SCP26"
-    msg_info = "ignored getter default"
-
-    def __init__(self, filename=None, *args, **kwargs):
-        super().__init__(filename, *args, **kwargs)
-
-    def should_report_setting(self, setting_name: str) -> bool:
-        return setting_name in SETTINGS
-
-    def get_setting_message(self, setting_name: str, method_name: str = "get") -> str:
-        return (
-            f"{self.msg_code}: {self.msg_info}: {setting_name} is set in "
-            "scrapy.settings.default_settings with a non-None value, "
-            f"so the default value passed to {method_name}() will never be used."
-        )
-
-    def check_assignment(
-        self, node: ast.Assign
-    ) -> Generator[tuple[int, int, str], None, None]:
-        return
-        yield  # pragma: no cover
-
-    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:
-        if not isinstance(node.func, ast.Attribute):
-            return
-
-        getter_methods = {
-            "get",
-            "getbool",
-            "getint",
-            "getfloat",
-            "getlist",
-            "getdict",
-            "getdictorlist",
-            "getwithbase",
-        }
-
-        if self.is_settings_method_call(node) and node.func.attr in getter_methods:
-            yield from self.check_settings_method_args(node)
-
-    def check_subscript(
-        self, node: ast.Subscript
-    ) -> Generator[tuple[int, int, str], None, None]:
-        return
-        yield  # pragma: no cover
-
-    def check_delete(
-        self, node: ast.Delete
-    ) -> Generator[tuple[int, int, str], None, None]:
-        return
-        yield  # pragma: no cover
-
-    def check_settings_method_args(
-        self, node: ast.Call
-    ) -> Generator[tuple[int, int, str], None, None]:
-        assert isinstance(node.func, ast.Attribute)
-        method_name = node.func.attr
-        getter_methods = {
-            "get",
-            "getbool",
-            "getint",
-            "getfloat",
-            "getlist",
-            "getdict",
-            "getdictorlist",
-            "getwithbase",
-        }
-
-        if method_name not in getter_methods:
-            return
-
-        first_arg = node.args[0] if node.args else None
-        if (
-            first_arg
-            and isinstance(first_arg, ast.Constant)
-            and isinstance(first_arg.value, str)
-        ):
-            MAX_ARGS_WITH_DEFAULT = 2
-            first_arg = node.args[0] if node.args else None
-            if (
-                first_arg
-                and isinstance(first_arg, ast.Constant)
-                and isinstance(first_arg.value, str)
-            ):
-                setting_name = first_arg.value
-                if (
-                    self.should_report_setting(setting_name)
-                    and setting_name in DEFAULT_SETTINGS
-                    and setting_name not in DEFAULT_SETTINGS_WITH_NONE
-                    and len(node.args) == MAX_ARGS_WITH_DEFAULT
-                    and not (
-                        isinstance(node.args[1], ast.Constant)
-                        and node.args[1].value is None
                     )
-                ):
+
+            # Check for unnecessary get (SCP25)
+            if self._should_report_unnecessary_get(setting_name, method_name, node):
+                issue_key = f"SCP25:{issue_key_base}"
+                if issue_key not in self.found_settings:
+                    self.found_settings.add(issue_key)
+                    message = "unneeded setting get"
+                    self.issues.append(
+                        Issue(
+                            25,
+                            message,
+                            line=keyword.value.lineno,
+                            column=keyword.value.col_offset,
+                        )
+                    )
+
+            # Check for ignored get default (SCP26)
+            if self._should_report_ignored_get_default(setting_name, method_name, node):
+                issue_key = f"SCP26:{issue_key_base}"
+                if issue_key not in self.found_settings:
+                    self.found_settings.add(issue_key)
+                    message = "ignored getter default"
                     # Point to the default value (second argument) instead of setting name
                     default_arg = node.args[1]
-                    if setting_name in self.found_settings:
-                        return
-                    self.found_settings.add(setting_name)
-                    message = self.get_setting_message(setting_name, method_name)
-                    yield (default_arg.lineno, default_arg.col_offset, message)
-
-        # Check keyword arguments
-        for keyword in node.keywords:
-            if (
-                keyword.arg == "name"
-                and isinstance(keyword.value, ast.Constant)
-                and isinstance(keyword.value.value, str)
-            ):
-                setting_name = keyword.value.value
-                if (
-                    self.should_report_setting(setting_name)
-                    and setting_name in DEFAULT_SETTINGS
-                    and setting_name not in DEFAULT_SETTINGS_WITH_NONE
-                ):
-                    # Check if there's a non-None default in keywords
-                    for kw in node.keywords:
-                        if kw.arg == "default" and not (
-                            isinstance(kw.value, ast.Constant)
-                            and kw.value.value is None
-                        ):
-                            if setting_name in self.found_settings:
-                                return
-                            self.found_settings.add(setting_name)
-                            message = self.get_setting_message(
-                                setting_name, method_name
-                            )
-                            yield (kw.value.lineno, kw.value.col_offset, message)
-                            break
-
-
-class BaseSettingNameIssueFinder(BaseSettingsIssueFinder):
-    msg_code = "SCP24"
-    msg_info = "use of BASE setting"
-
-    def __init__(self, filename=None, *args, **kwargs):
-        super().__init__(filename, *args, **kwargs)
-
-    def should_report_setting(self, setting_name: str) -> bool:
-        return setting_name.endswith("_BASE") and setting_name in SETTINGS
-
-    def get_setting_message(self, setting_name: str) -> str:
-        return f"{self.msg_code}: {self.msg_info}: do not use {setting_name}, use {setting_name[:-5]} instead"
-
-
-class ImportPathStringIssueFinder(BaseSettingsIssueFinder):
-    msg_code = "SCP27"
-    msg_info = "import path string in setting"
-    _instance_count = 0
-
-    def __init__(self, filename=None, *args, **kwargs):
-        super().__init__(filename, *args, **kwargs)
-        ImportPathStringIssueFinder._instance_count += 1
-
-    def should_report_setting(self, setting_name: str) -> bool:
-        # Always return False here to prevent base class from reporting
-        # We handle the logic in our specific check methods
-        return False
-
-    def get_setting_message(self, setting_name: str) -> str:
-        return f"{self.msg_code}: {self.msg_info}: {setting_name} should import the class directly instead of using import path string"
-
-    def _should_report_cls_setting(self, setting_name: str) -> bool:
-        return (
-            setting_name in SETTINGS and SETTINGS[setting_name].type == SettingType.CLS
-        )
-
-    def check_assignment(
-        self, node: ast.Assign
-    ) -> Generator[tuple[int, int, str], None, None]:
-        # Add a guard to prevent duplicate processing
-        if hasattr(node, "_scp27_processed"):
-            return
-        node._scp27_processed = True
-
-        file_name = Path(self.filename).name if self.filename else None
-        # Check both settings.py files and any file (for subscript assignments)
-        for target in node.targets:
-            setting_name = None
-
-            # Handle direct assignment: SETTING = "value"
-            if isinstance(target, ast.Name) and self.is_likely_setting(target.id):
-                if (
-                    file_name == "settings.py"
-                ):  # Only check direct assignments in settings.py
-                    setting_name = target.id
-
-            # Handle subscript assignment: settings["SETTING"] = "value"
-            elif (
-                isinstance(target, ast.Subscript)
-                and self.is_settings_subscript(target)
-                and isinstance(target.slice, ast.Constant)
-                and isinstance(target.slice.value, str)
-            ):
-                setting_name = target.slice.value
-
-            if (
-                setting_name
-                and self._should_report_cls_setting(setting_name)
-                and self._is_import_path_string_value(node.value)
-            ):
-                yield (
-                    node.value.lineno,
-                    node.value.col_offset,
-                    self.get_setting_message(setting_name),
-                )
-
-        # Handle custom_settings assignments like the base class does
-        if isinstance(node.value, ast.Dict):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "custom_settings":
-                    yield from self._check_dict_values(node.value)
-
-    def check_call(self, node: ast.Call) -> Generator[tuple[int, int, str], None, None]:
-        if isinstance(node.func, ast.Attribute) and self.is_settings_method_call(node):
-            yield from self.check_settings_method_args(node)
-        elif isinstance(node.func, ast.Attribute) and self.is_settings_dict_method_call(
-            node
-        ):
-            yield from self.check_settings_dict_method_args(node)
-        elif self.is_settings_constructor_call(node):
-            yield from self.check_settings_constructor_args(node)
-        elif self.is_overridden_settings_call(node):
-            yield from self.check_overridden_settings_args(node)
-
-    def is_overridden_settings_call(self, node: ast.Call) -> bool:
-        if isinstance(node.func, ast.Name):
-            return node.func.id == "overridden_settings"
-        if isinstance(node.func, ast.Attribute):
-            return node.func.attr == "overridden_settings"
-        return False
-
-    def check_subscript(
-        self, node: ast.Subscript
-    ) -> Generator[tuple[int, int, str], None, None]:
-        # SCP27 doesn't need to check subscript reads, only assignments
-        # Subscript assignments are handled by the framework differently
-        return
-        yield  # unreachable, but needed to make this a generator
-
-    def check_settings_method_args(
-        self, node: ast.Call
-    ) -> Generator[tuple[int, int, str], None, None]:
-        if not node.args:
-            return
-
-        first_arg = node.args[0]
-        if not (
-            isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str)
-        ):
-            return
-
-        setting_name = first_arg.value
-        if not self._should_report_cls_setting(setting_name):
-            return
-
-        if len(node.args) >= 2:  # noqa: PLR2004
-            value = node.args[1]
-            if self._is_import_path_string_value(value):
-                yield (
-                    value.lineno,
-                    value.col_offset,
-                    self.get_setting_message(setting_name),
-                )
-
-    def check_settings_dict_method_args(
-        self, node: ast.Call
-    ) -> Generator[tuple[int, int, str], None, None]:
-        method_name = node.func.attr
-        if method_name == "update":
-            for arg in node.args:
-                if isinstance(arg, ast.Dict):
-                    yield from self._check_dict_values(arg)
-
-        for keyword in node.keywords:
-            if keyword.arg == "values" and isinstance(keyword.value, ast.Dict):
-                yield from self._check_dict_values(keyword.value)
-
-    def check_settings_constructor_args(
-        self, node: ast.Call
-    ) -> Generator[tuple[int, int, str], None, None]:
-        for arg in node.args:
-            if isinstance(arg, ast.Dict):
-                yield from self._check_dict_values(arg)
-
-        for keyword in node.keywords:
-            if keyword.arg == "values" and isinstance(keyword.value, ast.Dict):
-                yield from self._check_dict_values(keyword.value)
-
-    def check_overridden_settings_args(
-        self, node: ast.Call
-    ) -> Generator[tuple[int, int, str], None, None]:
-        for arg in node.args:
-            if isinstance(arg, ast.Dict):
-                yield from self._check_dict_values(arg)
-
-    def _check_dict_values(
-        self, node: ast.Dict
-    ) -> Generator[tuple[int, int, str], None, None]:
-        for key, value in zip(node.keys, node.values):
-            if (
-                isinstance(key, ast.Constant)
-                and isinstance(key.value, str)
-                and self._should_report_cls_setting(key.value)
-            ):
-                setting_name = key.value
-                if self._is_import_path_string_value(value):
-                    yield (
-                        value.lineno,
-                        value.col_offset,
-                        self.get_setting_message(setting_name),
+                    self.issues.append(
+                        Issue(
+                            26,
+                            message,
+                            line=default_arg.lineno,
+                            column=default_arg.col_offset,
+                        )
                     )
 
-    def _is_import_path_string_value(self, value: ast.AST) -> bool:
-        if isinstance(value, ast.Constant) and isinstance(value.value, str):
-            return looks_like_class_import_path(value.value)
-        return False
+            # Check general setting issues (but not method-specific ones)
+            self._check_setting_issues(
+                setting_name,
+                keyword.value.lineno,
+                keyword.value.col_offset,
+                None,
+                "method_call",
+            )
+
+    def _should_report_type_mismatch(self, setting_name: str, method_name: str) -> bool:
+        if setting_name not in self.typed_settings:
+            return False
+        if (
+            setting_name in self.allowed_settings
+            or setting_name in self.exclude_settings
+        ):
+            return False
+
+        setting_type = self.typed_settings[setting_name]
+
+        # If the setting has a specific typed getter
+        if setting_type in TYPE_TO_METHOD:
+            expected_method = TYPE_TO_METHOD[setting_type]
+            # Wrong if using get() instead of typed getter, or using wrong typed getter
+            return method_name != expected_method and (
+                method_name == "get"
+                or method_name
+                in {
+                    "getbool",
+                    "getint",
+                    "getfloat",
+                    "getlist",
+                    "getdict",
+                    "getdictorlist",
+                    "getwithbase",
+                }
+            )
+        # Setting should use get() or subscript, but someone used a typed getter
+        return method_name in {
+            "getbool",
+            "getint",
+            "getfloat",
+            "getlist",
+            "getdict",
+            "getdictorlist",
+            "getwithbase",
+        }
+
+    def _should_report_unnecessary_get(
+        self, setting_name: str, method_name: str, node: ast.Call
+    ) -> bool:
+        if setting_name not in SETTINGS:
+            return False
+        if method_name != "get":
+            return False
+        setting_info = SETTINGS[setting_name]
+        if setting_info.type is not None and setting_info.type in TYPE_TO_METHOD:
+            return False
+        # Don't report SCP25 if a meaningful (non-None) default is provided
+        MIN_ARGS_FOR_DEFAULT = 2
+        if len(node.args) >= MIN_ARGS_FOR_DEFAULT:
+            default_arg = node.args[1]
+            if isinstance(default_arg, ast.Constant) and default_arg.value is not None:
+                return False
+        return True
+
+    def _should_report_ignored_get_default(
+        self, setting_name: str, method_name: str, node: ast.Call
+    ) -> bool:
+        if setting_name not in SETTINGS:
+            return False
+
+        # Check if this is a getter method that supports defaults
+        getter_methods = {"get", "getbool", "getint", "getfloat", "getlist", "getdict"}
+        MIN_ARGS_FOR_DEFAULT = 2
+        if method_name not in getter_methods or len(node.args) < MIN_ARGS_FOR_DEFAULT:
+            return False
+
+        # If explicit default is None, always report since get() returns None by default anyway
+        if isinstance(node.args[1], ast.Constant) and node.args[1].value is None:
+            return True
+
+        # For other defaults, only report if setting is in DEFAULT_SETTINGS and has conflicting default
+        if setting_name not in DEFAULT_SETTINGS:
+            return False
+
+        # For settings with None default, providing non-None default is fine
+        # For settings with non-None defaults, providing any default is redundant
+        return setting_name not in DEFAULT_SETTINGS_WITH_NONE
+
+    def _check_dict_keys(
+        self,
+        dict_node: ast.Dict,
+        line: int,
+        col: int,
+        value_context: ast.AST | None = None,
+        context: str = "dict",
+    ) -> None:
+        for key, value in zip(dict_node.keys, dict_node.values):
+            if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
+                continue
+            setting_name = key.value
+            if setting_name.isupper():
+                self._check_setting_issues(
+                    setting_name, key.lineno, key.col_offset, value, context
+                )
+
+    def _check_dict_constructor_keywords(
+        self, call_node: ast.Call, context: str = "dict"
+    ) -> None:
+        for keyword in call_node.keywords:
+            if keyword.arg is None:
+                continue
+            setting_name = keyword.arg
+            if setting_name.isupper():
+                keyword_col = keyword.value.col_offset - len(setting_name) - 1
+                self._check_setting_issues(
+                    setting_name,
+                    keyword.value.lineno,
+                    keyword_col,
+                    keyword.value,
+                    context,
+                )
+
+    def _check_settings_dict_method_args(self, node: ast.Call) -> None:
+        method_name = node.func.attr
+        # Use special context for setdict() and update() methods to enable SCP18 checking
+        context = "method_call_set" if method_name in ("setdict", "update") else "dict"
+
+        if node.args:
+            first_arg = node.args[0]
+            if isinstance(first_arg, ast.Dict):
+                self._check_dict_keys(
+                    first_arg, first_arg.lineno, first_arg.col_offset, context=context
+                )
+            elif (
+                isinstance(first_arg, ast.Call)
+                and isinstance(first_arg.func, ast.Name)
+                and first_arg.func.id == "dict"
+            ):
+                self._check_dict_constructor_keywords(first_arg, context=context)
+        for keyword in node.keywords:
+            if keyword.arg != "values":
+                continue
+            if isinstance(keyword.value, ast.Dict):
+                self._check_dict_keys(
+                    keyword.value,
+                    keyword.value.lineno,
+                    keyword.value.col_offset,
+                    context=context,
+                )
+            elif (
+                isinstance(keyword.value, ast.Call)
+                and isinstance(keyword.value.func, ast.Name)
+                and keyword.value.func.id == "dict"
+            ):
+                self._check_dict_constructor_keywords(keyword.value, context=context)
+
+    def _check_settings_constructor_args(self, node: ast.Call) -> None:
+        for arg in node.args:
+            if isinstance(arg, ast.Dict):
+                self._check_dict_keys(arg, arg.lineno, arg.col_offset)
+            elif (
+                isinstance(arg, ast.Call)
+                and isinstance(arg.func, ast.Name)
+                and arg.func.id == "dict"
+            ):
+                self._check_dict_constructor_keywords(arg)
+        for keyword in node.keywords:
+            if keyword.arg != "values":
+                continue
+            if isinstance(keyword.value, ast.Dict):
+                self._check_dict_keys(
+                    keyword.value, keyword.value.lineno, keyword.value.col_offset
+                )
+            elif (
+                isinstance(keyword.value, ast.Call)
+                and isinstance(keyword.value.func, ast.Name)
+                and keyword.value.func.id == "dict"
+            ):
+                self._check_dict_constructor_keywords(keyword.value)
+
+    def _check_overridden_settings_args(self, node: ast.Call) -> None:
+        if node.args:
+            first_arg = node.args[0]
+            if isinstance(first_arg, ast.Dict):
+                self._check_dict_keys(first_arg, first_arg.lineno, first_arg.col_offset)
+            elif (
+                isinstance(first_arg, ast.Call)
+                and isinstance(first_arg.func, ast.Name)
+                and first_arg.func.id == "dict"
+            ):
+                self._check_dict_constructor_keywords(first_arg)
+        for keyword in node.keywords:
+            if keyword.arg != "settings":
+                continue
+            if isinstance(keyword.value, ast.Dict):
+                self._check_dict_keys(
+                    keyword.value, keyword.value.lineno, keyword.value.col_offset
+                )
+            elif (
+                isinstance(keyword.value, ast.Call)
+                and isinstance(keyword.value.func, ast.Name)
+                and keyword.value.func.id == "dict"
+            ):
+                self._check_dict_constructor_keywords(keyword.value)

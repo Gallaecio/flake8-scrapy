@@ -17,6 +17,18 @@ ISSUE_COLUMN = 9
 SETTING_NAME_ISSUES = (
     # SCP07 unknown setting
     ("FOO", "SCP07 unknown setting", {}),
+    ("DELAY", "SCP07 unknown setting: did you mean DOWNLOAD_DELAY?", {"value": "1"}),
+    (
+        "CONCURRENCY",
+        "SCP07 unknown setting: did you mean one of: CONCURRENT_REQUESTS, CONCURRENT_REQUESTS_PER_DOMAIN?",
+        {"value": "1"},
+    ),
+    ("ADD_ONS", "SCP07 unknown setting: did you mean ADDONS?", {"value": "{}"}),
+    (
+        "CONCURRENT_REQUESTS_PER_SLOT",
+        "SCP07 unknown setting: did you mean one of: CONCURRENT_REQUESTS_PER_IP, CONCURRENT_REQUESTS_PER_DOMAIN, CONCURRENT_REQUESTS?",
+        {"value": "1"},
+    ),
     # SCP08 deprecated setting
     *(
         (
@@ -37,7 +49,8 @@ SETTING_VALUE_ISSUES = (
     # TODO: SCP09
     # TODO: SCP10
     # TODO: SCP15
-    # TODO: SCP18
+    # SCP18
+    ("AUTOTHROTTLE_ENABLED", '"foo"', "SCP18 invalid setting value"),
     # TODO: SCP22
     # TODO: SCP24
     # TODO: SCP27
@@ -66,10 +79,10 @@ CASES = (
                 ),
             ],
             [
+                *getter_issues,
                 Issue(issue, line=line, column=column, path=path)
                 if issue
                 else NO_ISSUE,
-                *getter_issues,
             ],
         )
         for name, issue, options in SETTING_NAME_ISSUES
@@ -114,8 +127,12 @@ CASES = (
                         )
                         for code, column, issue in (
                             (f'{var}["{name}"]', 1, None),
-                            (f'{var}.get("{name}")', 5, "SCP25 unneeded get"),
-                            (f'{var}.get(name="{name}")', 10, "SCP25 unneeded get"),
+                            (f'{var}.get("{name}")', 5, "SCP25 unneeded setting get"),
+                            (
+                                f'{var}.get(name="{name}")',
+                                10,
+                                "SCP25 unneeded setting get",
+                            ),
                             (f'{var}.getbool("{name}")', 9, None),  # TODO: SCP17
                             (f'{var}.getbool(name="{name}")', 14, None),  # TODO: SCP17
                             (f'{var}.getint("{name}")', 8, None),  # TODO: SCP17
@@ -299,11 +316,6 @@ MAIN_CASES = [
             # Outside settings.py, module-level uppercase variables are not
             # considered settings.
             Input('FOO = "BAR"'),
-            # In settings.py, variables that are _-prefixed, lowercase or
-            # shorter than 3 characters are not considered settings.
-            Input('_FOO = "BAR"', path="settings.py"),
-            Input('foo = "BAR"', path="settings.py"),
-            Input('FO = "BAR"', path="settings.py"),
             # Dict class variables other than custom_settings are
             # not considered settings.
             Input('class MyClass:\n    foo = {\n        "FOO": "bar",\n    }\n'),
@@ -374,8 +386,7 @@ MAIN_CASES = [
                 "scrapy==2.6.3",
                 [
                     Issue(
-                        "SCP09: future Scrapy setting: REQUEST_FINGERPRINTER_IMPLEMENTATION "
-                        "(added in Scrapy 2.7.0)",
+                        "SCP09 setting requires upgrade",
                         column=ISSUE_COLUMN,
                     ),
                     Issue("SCP14 unsafe Scrapy", path="requirements.txt"),
@@ -387,8 +398,7 @@ MAIN_CASES = [
                 f"scrapy=={MIN_SCRAPY_VERSION}",
                 [
                     Issue(
-                        "SCP09: future Scrapy setting: REQUEST_FINGERPRINTER_IMPLEMENTATION "
-                        "(added in Scrapy 2.7.0)",
+                        "SCP09 setting requires upgrade",
                         column=ISSUE_COLUMN,
                     ),
                     Issue("SCP14 unsafe Scrapy", path="requirements.txt"),
@@ -399,8 +409,7 @@ MAIN_CASES = [
                 True,
                 f"scrapy=={LATEST_KNOWN_SCRAPY_VERSION}",
                 Issue(
-                    "SCP10: removed Scrapy setting: LOG_UNSERIALIZABLE_REQUESTS (removed "
-                    "in Scrapy 2.1.0)",
+                    "SCP10 removed setting",
                     column=ISSUE_COLUMN,
                 ),
             ),
@@ -410,8 +419,7 @@ MAIN_CASES = [
                 "scrapy==2.1.0",
                 [
                     Issue(
-                        "SCP10: removed Scrapy setting: LOG_UNSERIALIZABLE_REQUESTS (removed "
-                        "in Scrapy 2.1.0)",
+                        "SCP10 removed setting",
                         column=ISSUE_COLUMN,
                     ),
                     Issue("SCP14 unsafe Scrapy", path="requirements.txt"),
@@ -449,7 +457,7 @@ MAIN_CASES = [
                 True,
                 f"scrapy=={LATEST_KNOWN_SCRAPY_VERSION}",
                 Issue(
-                    "SCP15: setting for package not in requirements.txt: SCRAPY_POET_CACHE (package: scrapy-poet)",
+                    "SCP15 missing setting requirement",
                     column=ISSUE_COLUMN,
                 ),
             ),
@@ -458,7 +466,7 @@ MAIN_CASES = [
                 "chromium",
                 f"scrapy=={LATEST_KNOWN_SCRAPY_VERSION}",
                 Issue(
-                    "SCP15: setting for package not in requirements.txt: PLAYWRIGHT_BROWSER_TYPE (package: scrapy-playwright)",
+                    "SCP15 missing setting requirement",
                     column=ISSUE_COLUMN,
                 ),
             ),
@@ -467,39 +475,11 @@ MAIN_CASES = [
                 "localhost",
                 f"scrapy=={LATEST_KNOWN_SCRAPY_VERSION}",
                 Issue(
-                    "SCP15: setting for package not in requirements.txt: REDIS_HOST (package: scrapy-redis)",
+                    "SCP15 missing setting requirement",
                     column=ISSUE_COLUMN,
                 ),
             ),
         ]
-    ),
-    # For unknown settings, suggestions may be provided.
-    (
-        # 1 hardcoded
-        Input("DELAY = 5", path="settings.py"),
-        Issue("SCP07 unknown setting. Did you mean DOWNLOAD_DELAY?"),
-    ),
-    (
-        # 1 automatic
-        Input("ADD_ONS = {}", path="settings.py"),
-        Issue("SCP07 unknown setting. Did you mean ADDONS?"),
-    ),
-    (
-        # 2+ hardcoded
-        Input("CONCURRENCY = 1", path="settings.py"),
-        Issue(
-            "SCP07 unknown setting. Did you mean one "
-            "of: CONCURRENT_REQUESTS, CONCURRENT_REQUESTS_PER_DOMAIN?"
-        ),
-    ),
-    (
-        # 2+ automatic
-        Input("CONCURRENT_REQUESTS_PER_SLOT = 1", path="settings.py"),
-        Issue(
-            "SCP07 unknown setting. "
-            "Did you mean one of: CONCURRENT_REQUESTS_PER_IP, "
-            "CONCURRENT_REQUESTS_PER_DOMAIN, CONCURRENT_REQUESTS?"
-        ),
     ),
     # SCP17: Supported getter syntaxes
     *(
@@ -540,32 +520,12 @@ MAIN_CASES = [
             "JOBDIR",
         )
     ),
-    # SCP18: Supported setter syntaxes
-    *(
-        (
-            Input(syntax, path=filename),
-            Issue(
-                "SCP18: invalid setting value: AUTOTHROTTLE_ENABLED only "
-                "supports the following values: True, False, 0, 1, "
-                "'True', 'False', 'true', 'false', '0', '1'.",
-                column=column,
-            ),
-        )
-        for syntax, column, filename in (
-            ('settings["AUTOTHROTTLE_ENABLED"] = "foo"', 35, None),
-            ('AUTOTHROTTLE_ENABLED = "foo"', 23, "settings.py"),
-            ('settings.set("AUTOTHROTTLE_ENABLED", "foo")', 37, None),
-            ('settings.setdefault("AUTOTHROTTLE_ENABLED", "foo")', 44, None),
-            ('settings.setdict({"AUTOTHROTTLE_ENABLED": "foo"})', 42, None),
-            ('settings.update({"AUTOTHROTTLE_ENABLED": "foo"})', 41, None),
-        )
-    ),
     # SCP18: Supported types (bool excluded, already tested above)
     *(
         (
             Input(f'settings["{setting}"] = {value!r}'),
             Issue(
-                f"SCP18: invalid setting value: {setting} {message}",
+                "SCP18 invalid setting value",
                 column=column,
             ),
         )
@@ -729,77 +689,77 @@ MAIN_CASES = [
     (
         Input('settings["FEEDS"] = {"output.json": "not_a_dict"}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS feed config for 'output.json' must be a dict",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": 123}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS feed config for 'output.json' must be a dict",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": []}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS feed config for 'output.json' must be a dict",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"format": 123}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'format' in 'output.json' must be a string",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"batch_item_count": -1}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'batch_item_count' in 'output.json' must be a non-negative integer",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"batch_item_count": "not_int"}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'batch_item_count' in 'output.json' must be a non-negative integer",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"encoding": 123}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'encoding' in 'output.json' must be a string or None",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"fields": "not_list_or_dict"}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'fields' in 'output.json' must be None, a list of strings, or a dict mapping strings to strings",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"fields": [123]}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'fields' in 'output.json' must be None, a list of strings, or a dict mapping strings to strings",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"fields": {"key": 123}}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'fields' in 'output.json' must be None, a list of strings, or a dict mapping strings to strings",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"item_classes": "not_list"}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'item_classes' in 'output.json' must be a list of class objects or class import path strings",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
@@ -808,28 +768,28 @@ MAIN_CASES = [
             'settings["FEEDS"] = {"output.json": {"item_classes": ["invalid_path"]}}'
         ),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'item_classes' in 'output.json' contains invalid import path 'invalid_path'",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"item_filter": "invalid_path"}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'item_filter' in 'output.json' contains invalid import path 'invalid_path'",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"indent": -1}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'indent' in 'output.json' must be a non-negative integer",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"indent": "not_int"}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'indent' in 'output.json' must be a non-negative integer",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
@@ -838,28 +798,28 @@ MAIN_CASES = [
             'settings["FEEDS"] = {"output.json": {"item_export_kwargs": "not_dict"}}'
         ),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'item_export_kwargs' in 'output.json' must be a dict",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"overwrite": "not_bool"}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'overwrite' in 'output.json' must be a boolean",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"store_empty": "not_bool"}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'store_empty' in 'output.json' must be a boolean",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
     (
         Input('settings["FEEDS"] = {"output.json": {"uri_params": "invalid"}}'),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'uri_params' in 'output.json' contains invalid callable import path 'invalid'",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
@@ -868,7 +828,7 @@ MAIN_CASES = [
             'settings["FEEDS"] = {"output.json": {"postprocessing": ["invalid_path"]}}'
         ),
         Issue(
-            "SCP18: invalid setting value: FEEDS 'postprocessing' in 'output.json' contains invalid import path 'invalid_path'",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
@@ -878,7 +838,7 @@ MAIN_CASES = [
             'settings["FEEDS"] = {\n    "item_classes": [ProductItem],\n    "item_filter": MyFilter,\n    "uri_params": get_uri_params,\n}'
         ),
         Issue(
-            "SCP18: invalid setting value: FEEDS missing feed URL: 'item_classes' appears to be a feed configuration key, but FEEDS must be a dict where keys are feed URLs (like 'output.json') and values are feed configurations",
+            "SCP18 invalid setting value",
             column=20,
         ),
     ),
@@ -886,35 +846,35 @@ MAIN_CASES = [
     (
         Input('settings["DOWNLOAD_SLOTS"] = {"toscrape.com": {"foo": "bar"}}'),
         Issue(
-            "SCP18: invalid setting value: DOWNLOAD_SLOTS unknown slot config key 'foo' in 'toscrape.com', must be one of: concurrency, delay, randomize_delay",
+            "SCP18 invalid setting value",
             column=29,
         ),
     ),
     (
         Input('settings["DOWNLOAD_SLOTS"] = {"toscrape.com": {"concurrency": -1}}'),
         Issue(
-            "SCP18: invalid setting value: DOWNLOAD_SLOTS 'concurrency' in 'toscrape.com' must be a positive integer (1+)",
+            "SCP18 invalid setting value",
             column=29,
         ),
     ),
     (
         Input('settings["DOWNLOAD_SLOTS"] = {"toscrape.com": {"concurrency": 0}}'),
         Issue(
-            "SCP18: invalid setting value: DOWNLOAD_SLOTS 'concurrency' in 'toscrape.com' must be a positive integer (1+)",
+            "SCP18 invalid setting value",
             column=29,
         ),
     ),
     (
         Input('settings["DOWNLOAD_SLOTS"] = {"toscrape.com": {"delay": -1}}'),
         Issue(
-            "SCP18: invalid setting value: DOWNLOAD_SLOTS 'delay' in 'toscrape.com' must be a positive float (0.0+)",
+            "SCP18 invalid setting value",
             column=29,
         ),
     ),
     (
         Input('settings["DOWNLOAD_SLOTS"] = {"toscrape.com": {"randomize_delay": 1}}'),
         Issue(
-            "SCP18: invalid setting value: DOWNLOAD_SLOTS 'randomize_delay' in 'toscrape.com' must be a boolean",
+            "SCP18 invalid setting value",
             column=29,
         ),
     ),
@@ -926,7 +886,7 @@ MAIN_CASES = [
         ),
         [
             Issue(
-                "SCP18: invalid setting value: FEEDS 'batch_item_count' in 'output.json' is not available in Scrapy 2.2.0, requires Scrapy 2.3.0 or later",
+                "SCP18 invalid setting value",
                 column=20,
             ),
             Issue("SCP14 unsafe Scrapy", path="requirements.txt"),
@@ -939,7 +899,7 @@ MAIN_CASES = [
         ),
         [
             Issue(
-                "SCP18: invalid setting value: FEEDS 'item_classes' in 'output.json' is not available in Scrapy 2.5.0, requires Scrapy 2.6.0 or later",
+                "SCP18 invalid setting value",
                 column=20,
             ),
             Issue("SCP14 unsafe Scrapy", path="requirements.txt"),
@@ -952,7 +912,7 @@ MAIN_CASES = [
         ),
         [
             Issue(
-                "SCP18: invalid setting value: FEEDS 'item_filter' in 'output.json' is not available in Scrapy 2.5.0, requires Scrapy 2.6.0 or later",
+                "SCP18 invalid setting value",
                 column=20,
             ),
             Issue("SCP14 unsafe Scrapy", path="requirements.txt"),
@@ -965,7 +925,7 @@ MAIN_CASES = [
         ),
         [
             Issue(
-                "SCP18: invalid setting value: FEEDS 'item_export_kwargs' in 'output.json' is not available in Scrapy 2.3.0, requires Scrapy 2.4.0 or later",
+                "SCP18 invalid setting value",
                 column=20,
             ),
             Issue("SCP14 unsafe Scrapy", path="requirements.txt"),
@@ -978,7 +938,7 @@ MAIN_CASES = [
         ),
         [
             Issue(
-                "SCP18: invalid setting value: FEEDS 'overwrite' in 'output.json' is not available in Scrapy 2.3.0, requires Scrapy 2.4.0 or later",
+                "SCP18 invalid setting value",
                 column=20,
             ),
             Issue("SCP14 unsafe Scrapy", path="requirements.txt"),
@@ -991,7 +951,7 @@ MAIN_CASES = [
         ),
         [
             Issue(
-                "SCP18: invalid setting value: FEEDS 'postprocessing' in 'output.json' is not available in Scrapy 2.5.0, requires Scrapy 2.6.0 or later",
+                "SCP18 invalid setting value",
                 column=20,
             ),
             Issue("SCP14 unsafe Scrapy", path="requirements.txt"),
@@ -1164,10 +1124,7 @@ MAIN_CASES = [
         (
             Input(f'settings["USER_AGENT"] = {value!r}'),
             Issue(
-                "SCP22: USER_AGENT does not seem to provide contact "
-                "information. Put an URL, email address or phone number "
-                "in it so that web masters of target websites may contact "
-                "you.",
+                "SCP22 no contact info",
                 column=25,
             ),
         )
@@ -1196,25 +1153,32 @@ MAIN_CASES = [
     ),
     # SCP24
     (
-        Input("DOWNLOAD_HANDLERS_BASE = {}", path="settings.py"),
+        Input("settings['DOWNLOAD_HANDLERS_BASE'] = {}"),
         Issue(
-            "SCP24: use of BASE setting: do not use DOWNLOAD_HANDLERS_BASE, use DOWNLOAD_HANDLERS instead"
+            "SCP24 use of BASE setting",
+            column=9,
         ),
     ),
     # SCP25
     *(
         (
             Input(syntax),
-            Issue("SCP25 unneeded get", column=13),
+            [
+                Issue("SCP25 unneeded setting get", column=13),
+                *extra_issues,
+            ],
         )
         for setting in (
             "AWS_ACCESS_KEY_ID",  # Not in scrapy.settings.default_settings
             "BOT_NAME",  # Non-None in scrapy.settings.default_settings
             "FEED_EXPORT_ENCODING",  # None in scrapy.settings.default_settings
         )
-        for syntax in (
-            f"settings.get({setting!r})",
-            f"settings.get({setting!r}, None)",
+        for syntax, extra_issues in (
+            (f"settings.get({setting!r})", []),
+            (
+                f"settings.get({setting!r}, None)",
+                [Issue("SCP26 ignored getter default", column=17 + len(setting))],
+            ),
         )
     ),
     # SCP26
@@ -1231,10 +1195,7 @@ MAIN_CASES = [
             (
                 "settings.get('BOT_NAME', 'foo')",
                 Issue(
-                    "SCP26: ignored getter default: BOT_NAME is set in "
-                    "scrapy.settings.default_settings with a non-None "
-                    "value, so the default value passed to get() "
-                    "will never be used.",
+                    "SCP26 ignored getter default",
                     column=25,
                 ),
             ),
@@ -1247,11 +1208,7 @@ MAIN_CASES = [
             (
                 "settings.getbool('AUTOTHROTTLE_ENABLED', 'foo')",
                 Issue(
-                    "SCP26: ignored getter default: "
-                    "AUTOTHROTTLE_ENABLED is set in "
-                    "scrapy.settings.default_settings with a non-None "
-                    "value, so the default value passed to getbool() "
-                    "will never be used.",
+                    "SCP26 ignored getter default",
                     column=41,
                 ),
             ),
@@ -1262,10 +1219,10 @@ MAIN_CASES = [
     # SCP27: unnecessary import path strings
     *(
         (
-            Input(f"{setting} = {value}", path="settings.py"),
+            Input(f"settings['{setting}'] = {value}"),
             Issue(
-                f"SCP27: import path string in setting: {setting} should import the class directly instead of using import path string",
-                column=len(setting) + 3,
+                "SCP27 unneeded import path string",
+                column=len(setting) + 15,
             ),
         )
         for setting, value in [

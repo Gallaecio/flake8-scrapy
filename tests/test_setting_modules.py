@@ -74,6 +74,25 @@ CASES = [
         ],
         default_issues("b/__init__.py"),
     ),
+    # In setting modules, variables that are _-prefixed, not all uppsercase or
+    # shorter than 3 characters are not considered settings.
+    *(
+        (
+            [
+                File("[settings]\na=a", path="scrapy.cfg"),
+                File(code, path=path),
+            ],
+            default_issues(path),
+        )
+        for path in ["a.py"]
+        for code in (
+            '_FOO = "BAR"',
+            'foo = "BAR"',
+            'Foo = "BAR"',
+            'FoO = "BAR"',
+            'FO = "BAR"',
+        )
+    ),
     # Settings
     *(
         (
@@ -213,13 +232,20 @@ CASES = [
                             if issue
                             else []
                         ),
-                        *default_issues(path),
+                        *(
+                            issue
+                            for issue in default_issues(path)
+                            if (
+                                name != "AUTOTHROTTLE_ENABLED"
+                                or not issue.message.startswith("SCP21 ")
+                            )
+                        ),
                     ),
                 )
                 for name, value, issue in SETTING_VALUE_ISSUES
                 for code, line, column_offset in (
-                    (f"{name} = {value}", 1, 2),
-                    (f"if a:\n    {name} = {value}", 2, 6),
+                    (f"{name} = {value}", 1, 3),
+                    (f"if a:\n    {name} = {value}", 2, 7),
                 )
             ),
         )
