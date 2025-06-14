@@ -81,7 +81,7 @@ class ScrapyStyleChecker:
     @classmethod
     def add_options(cls, parser):
         parser.add_option(  # pragma: no cover
-            "--allow-scrapy-settings",
+            "--known-scrapy-settings",
             default="",
             help="Comma-separated list of Scrapy settings to always allow (default: empty)",
             parse_from_config=True,
