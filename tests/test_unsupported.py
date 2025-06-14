@@ -78,7 +78,7 @@ CASES = (
             ),
             # No callback or errback params
             *((f"{cls}(url)", NO_ISSUE) for cls in REPRESENTATIVE_REQUEST_CLASSES),
-            # Combinations of callback and errback params
+            # Combinations of callback and errback params using pairwise testing
             *(
                 (
                     f"{cls}(url, {callback_prefix}{callback}, {errback_prefix}{errback})",
@@ -90,7 +90,8 @@ CASES = (
                     ("callback=", "errback="),
                     ("", "'GET', None, None, None, None, 'utf-8', 0, False, "),
                 )
-                for callback, callback_issues in (
+                for callback, callback_issues, errback, errback_issues in (
+                    # Lambda callback with non-lambda errback
                     (
                         "lambda x: x",
                         [
@@ -100,25 +101,53 @@ CASES = (
                                 path=path,
                             )
                         ],
+                        "foo",
+                        [],
                     ),
-                    *((cb, []) for cb in NON_LAMBDA_CALLBACKS),
-                )
-                for errback, errback_issues in (
+                    # Non-lambda callback with lambda errback
                     (
+                        "foo",
+                        [],
                         "lambda x: x",
                         [
                             Issue(
                                 "SCP05 lambda callback",
                                 column=len(cls)
                                 + len(callback_prefix)
-                                + len(callback)
+                                + len("foo")
                                 + len(errback_prefix)
                                 + 8,
                                 path=path,
                             )
                         ],
                     ),
-                    *((cb, []) for cb in NON_LAMBDA_CALLBACKS),
+                    # Both lambda
+                    (
+                        "lambda x: x",
+                        [
+                            Issue(
+                                "SCP05 lambda callback",
+                                column=len(cls) + len(callback_prefix) + 6,
+                                path=path,
+                            )
+                        ],
+                        "lambda x: x",
+                        [
+                            Issue(
+                                "SCP05 lambda callback",
+                                column=len(cls)
+                                + len(callback_prefix)
+                                + len("lambda x: x")
+                                + len(errback_prefix)
+                                + 8,
+                                path=path,
+                            )
+                        ],
+                    ),
+                    # Representative non-lambda cases
+                    ("foo", [], "None", []),
+                    ("'foo'", [], "self.foo", []),
+                    ("None", [], "scrapy.http.request.NO_CALLBACK", []),
                 )
             ),
             # Classes with an import path including attribute objects with a
