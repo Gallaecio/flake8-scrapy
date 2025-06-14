@@ -47,10 +47,8 @@ def run_checker(
     code,
     filename=None,
     allowed_settings=None,
-    enable_project_checks=False,
     requirements=None,
 ):
-    # TODO: Remove the need for enable_project_checks
     tree = ast.parse(code) if filename is None or filename.endswith(".py") else None
     if allowed_settings is not None:
         options = Namespace()
@@ -74,7 +72,6 @@ def run_checker(
         tree,
         filename,
         lines=code.splitlines(keepends=True),
-        enable_project_checks=enable_project_checks,
     )
     result = list(checker.run())
     if temp_dir is not None:

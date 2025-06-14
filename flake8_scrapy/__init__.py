@@ -41,7 +41,6 @@ class ScrapyStyleIssueFinder(ast.NodeVisitor):
         self,
         filename=None,
         allowed_settings=None,
-        enable_project_checks=True,
     ):
         super().__init__()
         self.issues = []
@@ -120,12 +119,10 @@ class Plugin:
         tree: ast.AST | None,
         filename: str,
         lines: list[str],
-        enable_project_checks=True,
     ):
         self.tree = tree
         self.filename = filename
         self.lines = lines
-        self.enable_project_checks = enable_project_checks
         self.config = Config(
             file_path=filename,
             user_known_settings=self.user_known_settings,
@@ -184,7 +181,6 @@ class Plugin:
         finder = ScrapyStyleIssueFinder(
             self.filename,
             allowed_settings=self.user_known_settings,
-            enable_project_checks=self.enable_project_checks,
         )
         assert self.tree is not None
         finder.visit(self.tree)

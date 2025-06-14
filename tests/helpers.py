@@ -77,9 +77,7 @@ def check_project(input: File | list[File], expected: Issue | list[Issue] | None
                     or Path(file.path).name == "requirements.txt"
                 ):
                     continue
-                file_issues = run_checker(
-                    file.text, file.path, enable_project_checks=True
-                )
+                file_issues = run_checker(file.text, file.path)
                 issues.extend(
                     [Issue.from_tuple(issue, path=file.path) for issue in file_issues]
                 )
