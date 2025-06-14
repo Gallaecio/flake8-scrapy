@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import ast
-from ast import AST
+from ast import AST, NodeVisitor
 from typing import TYPE_CHECKING
 
 from .context import Context
@@ -18,7 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-class ScrapyStyleIssueFinder(ast.NodeVisitor):
+class ScrapyStyleIssueFinder(NodeVisitor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.issues = []
