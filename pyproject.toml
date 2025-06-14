@@ -136,6 +136,8 @@ extend-select = [
 ignore = [
     # No API docs needed
     "D",
+    # asserts for mypy
+    "S101",
 ]
 
 [tool.ruff.lint.per-file-ignores]

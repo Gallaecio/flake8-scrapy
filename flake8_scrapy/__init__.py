@@ -1,5 +1,9 @@
-import ast
+from __future__ import annotations
 
+from ast import AST, NodeVisitor
+from typing import TYPE_CHECKING
+
+from .context import Context
 from .finders.domains import (
     UnreachableDomainIssueFinder,
     UrlInAllowedDomainsIssueFinder,
@@ -8,8 +12,11 @@ from .finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
 
 __version__ = "0.0.2"
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
-class ScrapyStyleIssueFinder(ast.NodeVisitor):
+
+class ScrapyStyleIssueFinder(NodeVisitor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.issues = []
@@ -44,13 +51,20 @@ class ScrapyStyleChecker:
     name = "flake8-scrapy"
     version = __version__
 
-    def __init__(self, tree, filename):
+    def __init__(self, tree: AST | None, filename: str):
         self.tree = tree
-        self.filename = filename
+        context = Context.from_flake8_params(tree, filename)  # noqa: F841
 
     def run(self):
-        finder = ScrapyStyleIssueFinder()
-        finder.visit(self.tree)
+        for issue in self.run_checks():
+            yield (*issue, self.__class__)
 
-        for line, col, msg in finder.issues:
-            yield (line, col, msg, ScrapyStyleChecker)
+    def run_checks(self):
+        if self.tree:
+            yield from self.check_code()
+
+    def check_code(self) -> Generator[tuple[str, int, int], None, None]:
+        finder = ScrapyStyleIssueFinder()
+        assert self.tree is not None
+        finder.visit(self.tree)
+        yield from finder.issues

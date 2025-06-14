@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import ast
+import os
 import re
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
@@ -19,9 +21,7 @@ pytest.register_assert_rewrite("tests.helpers")
 
 
 def cases(
-    test_cases: tuple[
-        tuple[File | Sequence[File], Issue | Sequence[Issue] | None], ...
-    ],
+    test_cases: Sequence[tuple[File | Sequence[File], Issue | Sequence[Issue] | None]],
 ) -> Callable:
     def decorator(func):
         return pytest.mark.parametrize(
@@ -37,10 +37,10 @@ def load_sample_file(filename):
     return (Path(__file__).parent / "samples" / filename).read_text()
 
 
-def run_checker(code: str) -> list[tuple[int, int, str]]:
+def run_checker(code: str, file_path: str = "a.py") -> Sequence[tuple[int, int, str]]:
     tree = ast.parse(code)
-    checker = ScrapyStyleChecker(tree, None)
-    return list(checker.run())
+    checker = ScrapyStyleChecker(tree, file_path)
+    return tuple(checker.run())
 
 
 class RegExpMatcher:
@@ -77,3 +77,29 @@ class Issue:
             column=issue[1],
             path=path,
         )
+
+    def replace(
+        self,
+        *,
+        message: str | RegExpMatcher | None = None,
+        line: int | None = None,
+        column: int | None = None,
+        path: str | None = None,
+    ) -> Issue:
+        return Issue(
+            message=message if message is not None else self.message,
+            line=line if line is not None else self.line,
+            column=column if column is not None else self.column,
+            path=path if path is not None else self.path,
+        )
+
+
+# TODO: Use contextlib.chdir when Python 3.11 is the minimum version
+@contextmanager
+def chdir(path: str | Path):
+    old_cwd = Path.cwd()
+    try:
+        os.chdir(str(path))
+        yield
+    finally:
+        os.chdir(str(old_cwd))
