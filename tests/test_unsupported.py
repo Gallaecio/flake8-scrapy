@@ -8,7 +8,7 @@ from .helpers import check_project
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-REQUEST_CLASSES = (
+ALL_REQUEST_CLASSES = (
     "Request",
     "scrapy.Request",
     "scrapy.http.Request",
@@ -40,7 +40,11 @@ REQUEST_CLASSES = (
     "rpc.XmlRpcRequest",
     "ScrapyRequest",
 )
-NON_REQUEST_CLASSES = (
+REPRESENTATIVE_REQUEST_CLASSES = (
+    "Request",
+    "scrapy.http.request.json_request.JsonRequest",
+)
+ALL_NON_REQUEST_CLASSES = (
     "foo.Request",
     # Long import paths should not trigger issues.
     "a.b.c.d.e.f.g.Request",
@@ -59,23 +63,28 @@ CASES = (
         (File(code, path=path), issues)
         for path in ("a.py",)
         for code, issues in (
-            # No callback or errback params
+            # All possible request classes are taken into account. Other
+            # classes are ignored.
             *(
-                (f"{cls}(url)", NO_ISSUE)
-                for cls in (*REQUEST_CLASSES, *NON_REQUEST_CLASSES)
+                (
+                    f"{cls}(url, lambda x: x)",
+                    Issue("SCP05 lambda callback", column=len(cls) + 6, path=path),
+                )
+                for cls in ALL_REQUEST_CLASSES
             ),
+            *(
+                (f"{cls}(url, lambda x: x)", NO_ISSUE)
+                for cls in ALL_NON_REQUEST_CLASSES
+            ),
+            # No callback or errback params
+            *((f"{cls}(url)", NO_ISSUE) for cls in REPRESENTATIVE_REQUEST_CLASSES),
             # Combinations of callback and errback params
             *(
                 (
                     f"{cls}(url, {callback_prefix}{callback}, {errback_prefix}{errback}{suffix})",
-                    [*callback_issues, *errback_issues]
-                    if cls_is_valid_target
-                    else NO_ISSUE,
+                    [*callback_issues, *errback_issues],
                 )
-                for cls, cls_is_valid_target in (
-                    *((cls, True) for cls in REQUEST_CLASSES),
-                    *((cls, False) for cls in NON_REQUEST_CLASSES),
-                )
+                for cls in REPRESENTATIVE_REQUEST_CLASSES
                 for callback_prefix, errback_prefix, suffix in (
                     ("", "errback=", ""),
                     ("", "'GET', errback=", ""),
