@@ -1,13 +1,18 @@
+from __future__ import annotations
+
 import ast
 from ast import Attribute, Call, Name, expr
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from . import IssueFinder
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
 
 def import_paths_from_complete(
-    complete_paths: set[tuple[tuple[str, ...], ...]],
-) -> set[tuple[tuple[str, ...], ...]]:
+    complete_paths: set[tuple[str, ...]],
+) -> set[tuple[str, ...]]:
     """Return a set of tuple of both complete and partial import paths based on
     the provided complete import paths.
 
@@ -40,14 +45,19 @@ VALID_REQUEST_IMPORT_PATHS = {
 }
 
 
-def import_path_from_attribute(attr: Attribute) -> tuple[str, ...]:
+def import_path_from_attribute(attr: expr) -> tuple[str, ...]:
     """Return the import path as a tuple of strings from an Attribute node."""
+    if not isinstance(attr, (Attribute, Name)):
+        return ()
     parts = []
-    while isinstance(attr, Attribute):
-        parts.append(attr.attr)
-        attr = attr.value
-    if isinstance(attr, Name):
-        parts.append(attr.id)
+    current_attr: Attribute | Name = attr
+    while isinstance(current_attr, Attribute):
+        parts.append(current_attr.attr)
+        if not isinstance(current_attr.value, (Attribute, Name)):
+            return ()
+        current_attr = current_attr.value
+    if isinstance(current_attr, Name):
+        parts.append(current_attr.id)
     return tuple(reversed(parts))
 
 

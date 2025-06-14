@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from . import NO_ISSUE, File, Issue, cases
 from .helpers import check_project
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 REQUEST_CLASSES = (
     "Request",
@@ -63,7 +68,7 @@ CASES = (
             *(
                 (
                     f"{cls}(url, {callback_prefix}{callback}, {errback_prefix}{errback}{suffix})",
-                    (*callback_issues, *errback_issues)
+                    [*callback_issues, *errback_issues]
                     if cls_is_valid_target
                     else NO_ISSUE,
                 )
@@ -116,11 +121,16 @@ CASES = (
                     *((cb, []) for cb in NON_LAMBDA_CALLBACKS),
                 )
             ),
+            # Classes with an import path including attribute objects with a
+            # value that is neither a Name nor an Attribute, e.g. a Subscript,
+            # are ignored.
+            ("a[0].Request(url, callback=lambda x: x)", NO_ISSUE),
+            ("a[0].b.Request(url, callback=lambda x: x)", NO_ISSUE),
         )
     ),
 )
 
 
 @cases(CASES)
-def test(input: File | list[File], expected: Issue | list[Issue] | None):
+def test(input: File | Sequence[File], expected: Issue | Sequence[Issue] | None):
     check_project(input, expected)

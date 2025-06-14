@@ -7,8 +7,8 @@ SCP05: lambda callback
 What it does
 ============
 
-Finds uses of :ref:`lambdas <lambda>` as :attr:`Request.callback
-<scrapy.Request.callback>`.
+Finds :ref:`lambdas <lambda>` used as :attr:`~scrapy.Request.callback` or
+:attr:`~scrapy.Request.errback`.
 
 
 Why is this bad?

@@ -3,10 +3,17 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from . import File, Issue, run_checker
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
-def check_project(input: File | list[File], expected: Issue | list[Issue] | None):
+
+def check_project(
+    input: File | Sequence[File], expected: Issue | Sequence[Issue] | None
+):
     if isinstance(input, File):
         input = [input]
     if isinstance(expected, Issue):

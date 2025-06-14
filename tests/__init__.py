@@ -4,11 +4,14 @@ import ast
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 import pytest
 
 from flake8_scrapy import ScrapyStyleChecker
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 NO_ISSUE = None
 
@@ -16,7 +19,9 @@ pytest.register_assert_rewrite("tests.helpers")
 
 
 def cases(
-    test_cases: tuple[tuple[File | list[File], Issue | list[Issue] | None], ...],
+    test_cases: tuple[
+        tuple[File | Sequence[File], Issue | Sequence[Issue] | None], ...
+    ],
 ) -> Callable:
     def decorator(func):
         return pytest.mark.parametrize(
