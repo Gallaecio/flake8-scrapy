@@ -19,21 +19,19 @@ CASES = [
             # Baseline
             ("BOT_NAME = 'a'", NO_ISSUE),
             # SCP07 redefined setting
-            (
-                'BOT_NAME = "a"\nBOT_NAME = "a"',
-                Issue(
-                    "SCP07 redefined setting: seen first at line 1",
-                    line=2,
-                    path=path,
-                ),
-            ),
-            (
-                'BOT_NAME = "a"\nBOT_NAME = "b"',
-                Issue(
-                    "SCP07 redefined setting: seen first at line 1",
-                    line=2,
-                    path=path,
-                ),
+            *(
+                (
+                    code,
+                    Issue(
+                        "SCP07 redefined setting: seen first at line 1",
+                        line=2,
+                        path=path,
+                    ),
+                )
+                for code in (
+                    'BOT_NAME = "a"\nBOT_NAME = "a"',
+                    'BOT_NAME = "a"\nBOT_NAME = "b"',
+                )
             ),
             (
                 'if a:\n    BOT_NAME = "a"\nelse:\n    BOT_NAME = "b"',
