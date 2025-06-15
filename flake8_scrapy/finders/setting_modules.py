@@ -4,13 +4,15 @@ from collections.abc import Generator
 from contextlib import suppress
 from importlib.util import find_spec
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from flake8_scrapy.context import Context
 from flake8_scrapy.issues import Issue
 from flake8_scrapy.settings import getbool
 from flake8_scrapy.utils import extend_sys_path
 
-LineNumber = int
+if TYPE_CHECKING:
+    from flake8_scrapy.typing import LineNumber
 
 
 class SettingModuleIssueFinder(NodeVisitor):
