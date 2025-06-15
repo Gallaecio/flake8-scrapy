@@ -69,7 +69,10 @@ filename = "flake8_scrapy/__init__.py"
 [tool.coverage.report]
 exclude_also = [
     "if TYPE_CHECKING:",
-    "@(abc\\.)?abstractmethod",
+    "@abstractmethod",
+]
+omit = [
+    "flake8_scrapy/typing.py",
 ]
 
 [tool.ruff.lint]
