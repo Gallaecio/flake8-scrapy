@@ -67,6 +67,40 @@ CASES = [
                 'if a:\n    BOT_NAME = "a"\nelse:\n    BOT_NAME = "b"',
                 NO_ISSUE,
             ),
+            # SCP12 imported setting
+            *(
+                (
+                    code,
+                    Issue("SCP12 imported setting", column=column, path=path),
+                )
+                for code, column in (
+                    ("from foo import FOO", 16),
+                    ("from foo import bar as BAR", 23),
+                    ("import FOO", 7),
+                    ("import foo as BAR", 14),
+                )
+            ),
+            (
+                "from foo import FOO, BAR",
+                [
+                    Issue("SCP12 imported setting", column=16, path=path),
+                    Issue("SCP12 imported setting", column=21, path=path),
+                ],
+            ),
+            (
+                "import foo, BAR",
+                Issue("SCP12 imported setting", column=12, path=path),
+            ),
+            *(
+                (code, NO_ISSUE)
+                for code in (
+                    "from foo import bar",
+                    "from foo import Bar",
+                    "import foo",
+                    "from foo import FOO as bar",
+                    "import FOO as bar",
+                )
+            ),
         )
     ),
     # Setting module detection and checking
