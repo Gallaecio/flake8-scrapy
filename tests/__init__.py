@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import os
-import re
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,19 +42,6 @@ def run_checker(code: str, file_path: str = "a.py") -> Sequence[tuple[int, int, 
     return tuple(checker.run())
 
 
-class RegExpMatcher:
-    def __init__(self, pattern: str = ""):
-        self.pattern = re.compile(pattern)
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, str):
-            return self.pattern.search(other) is not None
-        raise NotImplementedError
-
-    def __repr__(self):
-        return f"RegexMatcher({self.pattern.pattern!r})"
-
-
 @dataclass
 class File:
     text: str
@@ -64,7 +50,7 @@ class File:
 
 @dataclass
 class Issue:
-    message: str | RegExpMatcher
+    message: str
     line: int = 1
     column: int = 0
     path: str | None = None
@@ -81,7 +67,7 @@ class Issue:
     def replace(
         self,
         *,
-        message: str | RegExpMatcher | None = None,
+        message: str | None = None,
         line: int | None = None,
         column: int | None = None,
         path: str | None = None,

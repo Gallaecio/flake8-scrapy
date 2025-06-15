@@ -13,6 +13,12 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 
+def sort_issues(issues: Sequence[Issue]) -> Sequence[Issue]:
+    return sorted(
+        issues, key=lambda issue: (issue.message[:5], issue.line, issue.column)
+    )
+
+
 def check_project(
     input: File | Sequence[File], expected: Issue | Sequence[Issue] | None
 ):
@@ -38,4 +44,4 @@ def check_project(
                 issues.extend(
                     [Issue.from_tuple(issue, path=file.path) for issue in issue_tuples]
                 )
-            assert tuple(expected) == tuple(issues)
+            assert sort_issues(expected) == sort_issues(issues)

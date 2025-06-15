@@ -13,14 +13,14 @@ from .finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
 __version__ = "0.0.2"
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Sequence
 
 
 class ScrapyStyleIssueFinder(NodeVisitor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.issues = []
-        self.finders = {
+        self.finders: dict[str, Sequence] = {
             "Assign": [
                 UnreachableDomainIssueFinder(),
                 UrlInAllowedDomainsIssueFinder(),
