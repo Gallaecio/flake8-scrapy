@@ -38,6 +38,7 @@ class OldSelectorIssueFinder(IssueFinder):
         return (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
             and node.func.value.id == "response"
             and node.func.attr == "body_as_unicode"
         )
@@ -48,6 +49,7 @@ class OldSelectorIssueFinder(IssueFinder):
         """
         return (
             isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
             and node.value.id == "response"
             and node.attr in ("text", "body")
         )
