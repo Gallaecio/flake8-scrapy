@@ -59,6 +59,9 @@ SETTINGS = {
     "CONCURRENT_REQUESTS_PER_IP": Setting(type=SettingType.INT),
     "COOKIES_DEBUG": Setting(type=SettingType.BOOL),
     "COOKIES_ENABLED": Setting(type=SettingType.BOOL),
+    "CRAWLSPIDER_FOLLOW_LINKS": Setting(
+        type=SettingType.BOOL, default_value=VersionedValue(True)
+    ),
     "DEFAULT_DROPITEM_LOG_LEVEL": Setting(
         added_in=Version("2.13.0"), type=SettingType.LOG_LEVEL
     ),
@@ -251,11 +254,14 @@ SETTINGS = {
     "AJAXCRAWL_ENABLED": Setting(
         added_in=Version("0.22.0"),
         deprecated_in=Version("2.13.0"),
-        sunset_guidance=(
-            "The setting is False by default, and setting it to True will stop"
-            " working in a future version of Scrapy."
-        ),
         type=SettingType.BOOL,
+        default_value=VersionedValue(False),
+    ),
+    "AJAXCRAWL_MAXSIZE": Setting(
+        added_in=Version("0.22.0"),
+        deprecated_in=Version("2.13.0"),
+        type=SettingType.INT,
+        default_value=VersionedValue(32768),
     ),
     "REQUEST_FINGERPRINTER_IMPLEMENTATION": Setting(
         added_in=Version("2.7.0"),
