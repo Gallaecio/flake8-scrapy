@@ -75,7 +75,7 @@ class ScrapyStyleChecker:
     ):
         self.tree = tree
         context = Context.from_flake8_params(
-            tree, filename, self.requirements_file_path, lines
+            tree, filename, lines, self.requirements_file_path
         )
         self.requirements_finder = RequirementsIssueFinder(context)
 

@@ -80,11 +80,9 @@ class Context:
         cls,
         tree: AST | None,
         file_path: str,
-        requirements_file_path: str = "",
         lines: Sequence[str] | None = None,
+        requirements_file_path: str = "",
     ):
         file = Flake8File.from_params(tree, file_path, lines)
-        return cls(
-            file,
-            Project.from_file(file, requirements_file_path),
-        )
+        project = Project.from_file(file, requirements_file_path)
+        return cls(file, project)
