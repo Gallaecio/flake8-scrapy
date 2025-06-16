@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import yaml
+
 if TYPE_CHECKING:
     from ast import AST
     from collections.abc import Sequence
@@ -64,6 +66,28 @@ class Project:
             return Path(requirements_file_path).resolve()
         if not root:
             return None
+
+        # Check scrapinghub.yml for requirements file
+        scrapinghub_file = root / "scrapinghub.yml"
+        if scrapinghub_file.exists():
+            try:
+                with scrapinghub_file.open() as f:
+                    data = yaml.safe_load(f)
+                if (
+                    isinstance(data, dict)
+                    and "requirements" in data
+                    and isinstance(data["requirements"], dict)
+                    and "file" in data["requirements"]
+                    and isinstance(data["requirements"]["file"], str)
+                    and data["requirements"]["file"].strip()
+                ):
+                    scrapinghub_requirements_file = root / data["requirements"]["file"]
+                    if scrapinghub_requirements_file.exists():
+                        return scrapinghub_requirements_file.resolve()
+            except yaml.YAMLError:
+                pass
+
+        # Fall back to requirements.txt
         requirements_file = root / "requirements.txt"
         if requirements_file.exists():
             return requirements_file.resolve()

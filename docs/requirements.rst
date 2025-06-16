@@ -12,6 +12,10 @@ A requirements file is looked up as follows to enable additional rules:
 
     .. _flake8-requirements: https://pypi.org/project/flake8-requirements/
 
+#.  The requirements file specified in ``scrapinghub.yml`` if such file exists
+    and contains a root ``requirements`` key with a ``file`` value pointing to
+    an existing file (path interpreted relative to the project root).
+
 #.  The ``requirements.txt`` file in the project root directory, i.e. where
     ``scrapy.cfg`` lives.
 
