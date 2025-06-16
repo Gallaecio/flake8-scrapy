@@ -9,6 +9,7 @@ from .finders.domains import (
     UrlInAllowedDomainsIssueFinder,
 )
 from .finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
+from .finders.requirements import RequirementsIssueFinder
 
 __version__ = "0.0.2"
 
@@ -69,11 +70,14 @@ class ScrapyStyleChecker:
             options, "requirements_file", ""
         )
 
-    def __init__(self, tree: AST | None, filename: str):
+    def __init__(
+        self, tree: AST | None, filename: str, lines: Sequence[str] | None = None
+    ):
         self.tree = tree
-        context = Context.from_flake8_params(  # noqa: F841
-            tree, filename, self.requirements_file_path
+        context = Context.from_flake8_params(
+            tree, filename, self.requirements_file_path, lines
         )
+        self.requirements_finder = RequirementsIssueFinder(context)
 
     def run(self):
         for issue in self.run_checks():
@@ -82,6 +86,8 @@ class ScrapyStyleChecker:
     def run_checks(self):
         if self.tree:
             yield from self.check_code()
+        elif self.requirements_finder.in_requirements_file():
+            yield from self.requirements_finder.check()
 
     def check_code(self) -> Generator[tuple[str, int, int], None, None]:
         finder = ScrapyStyleIssueFinder()

@@ -14,10 +14,13 @@ if TYPE_CHECKING:
 class Flake8File:
     tree: AST | None
     path: Path
+    lines: Sequence[str] | None = None
 
     @classmethod
-    def from_params(cls, tree: AST | None, file_path: str):
-        return cls(tree, Path(file_path).resolve())
+    def from_params(
+        cls, tree: AST | None, file_path: str, lines: Sequence[str] | None = None
+    ):
+        return cls(tree, Path(file_path).resolve(), lines)
 
 
 @dataclass
@@ -74,9 +77,13 @@ class Context:
 
     @classmethod
     def from_flake8_params(
-        cls, tree: AST | None, file_path: str, requirements_file_path: str = ""
+        cls,
+        tree: AST | None,
+        file_path: str,
+        requirements_file_path: str = "",
+        lines: Sequence[str] | None = None,
     ):
-        file = Flake8File.from_params(tree, file_path)
+        file = Flake8File.from_params(tree, file_path, lines)
         return cls(
             file,
             Project.from_file(file, requirements_file_path),
