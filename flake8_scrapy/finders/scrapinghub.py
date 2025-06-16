@@ -51,11 +51,33 @@ class ScrapinghubIssueFinder:
             elif key == "requirements":
                 if not is_root:
                     yield Issue(22, "non-root requirements")
+                yield from self._check_requirements_structure(value)
             if isinstance(value, dict):
                 yield from self.check_keys(value, is_root=False)
 
     def _is_frozen_stack(self, stack: str) -> bool:
         return isinstance(stack, str) and bool(re.search(r"-\d{8}$", stack))
+
+    def _check_requirements_structure(
+        self, requirements_value
+    ) -> Generator[Issue, None, None]:
+        if not isinstance(requirements_value, dict):
+            return
+
+        if "file" not in requirements_value:
+            yield Issue(23, "no requirements.file")
+            return
+
+        file_value = requirements_value["file"]
+
+        if not isinstance(file_value, str) or not file_value.strip():
+            yield Issue(24, "invalid requirements.file")
+            return
+
+        if self.context.project.root:
+            requirements_path = self.context.project.root / file_value
+            if not requirements_path.exists():
+                yield Issue(25, "unexisting requirements.file")
 
     def _has_image_key(self, data: dict) -> bool:
         for key, value in data.items():

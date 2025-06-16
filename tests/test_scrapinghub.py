@@ -13,7 +13,11 @@ CASES = [
     # Config content
     *(
         (
-            (File(config, "scrapinghub.yml"), File("", "scrapy.cfg")),
+            (
+                File(config, "scrapinghub.yml"),
+                File("", "scrapy.cfg"),
+                File("", "requirements.txt"),
+            ),
             issues,
         )
         for config, issues in (
@@ -112,6 +116,55 @@ CASES = [
                     ),
                 )
             ),
+            # SCP23 no requirements.file
+            *(
+                (config, issue("SCP23 no requirements.file"))
+                for config in (
+                    "\n".join(
+                        [
+                            f"stack: {LATEST_KNOWN_STACK}",
+                            "requirements:",
+                            "  eggs:",
+                            "  - a.egg",
+                        ]
+                    ),
+                )
+            ),
+            # SCP24 invalid requirements.file
+            *(
+                (
+                    "\n".join(
+                        [
+                            f"stack: {LATEST_KNOWN_STACK}",
+                            "requirements:",
+                            f"  file: {value}",
+                        ]
+                    ),
+                    issue("SCP24 invalid requirements.file"),
+                )
+                for value in (
+                    "",
+                    '""',
+                    "123",
+                )
+            ),
+            # SCP25 unexisting requirements.file
+            *(
+                (
+                    "\n".join(
+                        [
+                            f"stack: {LATEST_KNOWN_STACK}",
+                            "requirements:",
+                            f"  file: {path}",
+                        ]
+                    ),
+                    issue("SCP25 unexisting requirements.file"),
+                )
+                for path in (
+                    "missing-requirements.txt",
+                    "nonexistent/requirements.txt",
+                )
+            ),
             # Multiple issues
             (
                 "\n".join(
@@ -121,7 +174,8 @@ CASES = [
                         "    id: 12345",
                         "    stack: 2.12",
                         "    requirements:",
-                        "      file: requirements.txt",
+                        "      eggs:",
+                        "      - a.egg:",
                     ]
                 ),
                 (
@@ -130,7 +184,30 @@ CASES = [
                     issue("SCP20 stack not frozen"),
                     issue("SCP21 no root requirements"),
                     issue("SCP22 non-root requirements"),
+                    issue("SCP23 no requirements.file"),
                 ),
+            ),
+        )
+    ),
+    # Test case without requirements.txt file for SCP25
+    *(
+        (
+            (
+                File(config, "scrapinghub.yml"),
+                File("", "scrapy.cfg"),
+            ),
+            issues,
+        )
+        for config, issues in (
+            (
+                "\n".join(
+                    [
+                        f"stack: {LATEST_KNOWN_STACK}",
+                        "requirements:",
+                        "  file: requirements.txt",
+                    ]
+                ),
+                issue("SCP25 unexisting requirements.file"),
             ),
         )
     ),
