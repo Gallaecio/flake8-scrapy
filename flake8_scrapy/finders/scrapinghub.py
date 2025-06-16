@@ -38,29 +38,24 @@ class ScrapinghubIssueFinder:
         yield from self.check_stacks(data)
 
     def check_stacks(
-        self, data: dict, path: list[str] | None = None
+        self, data: dict, is_root: bool = True
     ) -> Generator[Issue, None, None]:
-        if path is None:
-            path = []
         for key, value in data.items():
-            current_path = [*path, key]
             if key == "stack":
-                if len(current_path) > 1:
+                if not is_root:
                     yield Issue(19, "non-root stack")
                 if not self._is_frozen_stack(value):
                     yield Issue(20, "stack not frozen")
             if isinstance(value, dict):
-                yield from self.check_stacks(value, current_path)
+                yield from self.check_stacks(value, is_root=False)
 
     def _is_frozen_stack(self, stack: str) -> bool:
         return isinstance(stack, str) and bool(re.search(r"-\d{8}$", stack))
 
-    def _has_image_key(self, data: dict, path: list[str] | None = None) -> bool:
-        if path is None:
-            path = []
+    def _has_image_key(self, data: dict) -> bool:
         for key, value in data.items():
             if key == "image":
                 return True
-            if isinstance(value, dict) and self._has_image_key(value, [*path, key]):
+            if isinstance(value, dict) and self._has_image_key(value):
                 return True
         return False
