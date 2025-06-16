@@ -8,6 +8,15 @@ flake8-scrapy documentation
 
 .. toctree::
     :maxdepth: 1
+    :caption: Configuration
+    :hidden:
+
+    requirements
+    pre-commit
+    options
+
+.. toctree::
+    :maxdepth: 1
     :caption: Rules
     :hidden:
     :glob:

@@ -9,49 +9,20 @@ scrapy-flake8
 
 .. intro-start
 
-A Flake8_ plugin to catch common issues on Scrapy projects.
+A Flake8_ plugin to catch common issues in Scrapy projects.
 
 .. _Flake8: https://flake8.pycqa.org/en/latest/
 
-Install
-=======
-
-::
+Install::
 
     pip install flake8-scrapy
 
-Use
-===
-
-Once installed, flake8-scrapy checks are run automatically when running
-Flake8_:
-
-::
+And run Flake8_::
 
     flake8
 
-When using `pre-commit <https://pre-commit.com/>`_, configure Flake8 and list
-flake8-scrapy in ``additional_dependencies``. For example:
-
-.. code-block:: yaml
-
-    - repo: https://github.com/pycqa/flake8
-      rev: "7.2.0"
-      hooks:
-      - id: flake8
-        additional_dependencies:
-        - flake8-scrapy
-
-See `Configurign Flake8`_ for information on how to disable specific checks
-for a project, a file or a line.
-
-.. _Configurign Flake8: https://flake8.pycqa.org/en/latest/user/configuration.html
-
 .. intro-end
 
-Rules
-=====
-
-See the documentation_ for a list of rules.
+See the documentation_ for more.
 
 .. _documentation: https://flake8-scrapy.readthedocs.io/en/latest/

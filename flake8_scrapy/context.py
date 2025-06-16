@@ -14,22 +14,29 @@ if TYPE_CHECKING:
 class Flake8File:
     tree: AST | None
     path: Path
+    lines: Sequence[str] | None = None
 
     @classmethod
-    def from_params(cls, tree: AST | None, file_path: str):
-        return cls(tree, Path(file_path).resolve())
+    def from_params(
+        cls, tree: AST | None, file_path: str, lines: Sequence[str] | None = None
+    ):
+        return cls(tree, Path(file_path).resolve(), lines)
 
 
 @dataclass
 class Project:
     root: Path | None
     setting_module_import_paths: Sequence[str]
+    requirements_file_path: Path | None = None
 
     @classmethod
-    def from_file(cls, file: Flake8File):
+    def from_file(cls, file: Flake8File, requirements_file_path: str):
         root = cls.root_from_file(file)
-        setting_module_import_paths = cls.setting_module_import_paths_from_root(root)
-        return cls(root, setting_module_import_paths)
+        return cls(
+            root,
+            cls.setting_module_import_paths_from_root(root),
+            cls.find_requirements_file_path(requirements_file_path, root),
+        )
 
     @staticmethod
     def root_from_file(file: Flake8File) -> Path | None:
@@ -49,6 +56,19 @@ class Project:
             return ()
         return tuple(config["settings"].values())
 
+    @staticmethod
+    def find_requirements_file_path(
+        requirements_file_path: str, root: Path | None
+    ) -> Path | None:
+        if requirements_file_path:
+            return Path(requirements_file_path).resolve()
+        if not root:
+            return None
+        requirements_file = root / "requirements.txt"
+        if requirements_file.exists():
+            return requirements_file.resolve()
+        return None
+
 
 @dataclass
 class Context:
@@ -56,9 +76,13 @@ class Context:
     project: Project
 
     @classmethod
-    def from_flake8_params(cls, tree: AST | None, file_path: str):
-        file = Flake8File.from_params(tree, file_path)
-        return cls(
-            file,
-            Project.from_file(file),
-        )
+    def from_flake8_params(
+        cls,
+        tree: AST | None,
+        file_path: str,
+        lines: Sequence[str] | None = None,
+        requirements_file_path: str = "",
+    ):
+        file = Flake8File.from_params(tree, file_path, lines)
+        project = Project.from_file(file, requirements_file_path)
+        return cls(file, project)
