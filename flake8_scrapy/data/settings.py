@@ -11,6 +11,8 @@ from flake8_scrapy.settings import (
 
 from .packages import PACKAGES
 
+assert PACKAGES["scrapy"].lowest_supported_version is not None
+
 PREDEFINED_SUGGESTIONS = {
     "CONCURRENCY": ["CONCURRENT_REQUESTS", "CONCURRENT_REQUESTS_PER_DOMAIN"],
     "DELAY": ["DOWNLOAD_DELAY"],
@@ -661,7 +663,12 @@ SETTINGS = {
     "TWISTED_REACTOR": Setting(
         type=SettingType.CLS,
         default_value=VersionedValue(
-            "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
+            history={
+                Version(
+                    "2.13.0"
+                ): "twisted.internet.asyncioreactor.AsyncioSelectorReactor",
+                PACKAGES["scrapy"].lowest_supported_version: None,
+            },
         ),
     ),
     "URLLENGTH_LIMIT": Setting(
