@@ -51,9 +51,13 @@ class ScrapyStyleChecker:
     name = "flake8-scrapy"
     version = __version__
 
-    def __init__(self, tree: AST | None, filename: str):
+    def __init__(
+        self, tree: AST | None, filename: str, lines: Sequence[str] | None = None
+    ):
         self.tree = tree
-        context = Context.from_flake8_params(tree, filename)  # noqa: F841
+        context = Context.from_flake8_params(  # noqa: F841
+            tree, filename, lines
+        )
 
     def run(self):
         for issue in self.run_checks():
