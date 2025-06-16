@@ -14,7 +14,7 @@ their default value.
 Why is this bad?
 ================
 
-Setting a setting to its default value is generally unnecessary, and can me
+Setting a setting to its default value is generally unnecessary, and can be
 misleading.
 
 Do it only if:
