@@ -12,6 +12,6 @@ PACKAGES = {
         replacements=("scrapy-zyte-smartproxy",),
     ),
     "scrapy-splash": Package(
-        replacements=("scrapy-zyte-api", "scrapy-playwright"),
+        replacements=("scrapy-playwright", "scrapy-zyte-api"),
     ),
 }
