@@ -29,6 +29,15 @@ CASES = [
                     ),
                     "invalid: yaml: content:",
                     "- not a dict",
+                    "image: custom:latest",
+                    "\n".join(
+                        [
+                            "image: custom:latest",
+                            "projects:",
+                            "  default:",
+                            "    stack: scrapy:2.12",
+                        ]
+                    ),
                 )
             ),
             # SCP18 no root stack

@@ -31,6 +31,8 @@ class ScrapinghubIssueFinder:
             return
         if not isinstance(data, dict):
             return
+        if self._has_image_key(data):
+            return
         if "stack" not in data:
             yield Issue(18, "no root stack")
         yield from self.check_stacks(data)
@@ -52,3 +54,13 @@ class ScrapinghubIssueFinder:
 
     def _is_frozen_stack(self, stack: str) -> bool:
         return isinstance(stack, str) and bool(re.search(r"-\d{8}$", stack))
+
+    def _has_image_key(self, data: dict, path: list[str] | None = None) -> bool:
+        if path is None:
+            path = []
+        for key, value in data.items():
+            if key == "image":
+                return True
+            if isinstance(value, dict) and self._has_image_key(value, [*path, key]):
+                return True
+        return False
