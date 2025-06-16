@@ -8,7 +8,7 @@ version = "0.0.2"
 description = "A Flake8 plugin to catch common issues on Scrapy projects"
 dependencies = [
     "flake8>=0.1",
-    "scrapy>=2.0.1",
+    "packaging>=20.0",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -77,6 +77,7 @@ omit = [
 
 [tool.mypy]
 check_untyped_defs = true
+exclude = "samples"
 
 [tool.ruff.lint]
 extend-select = [
@@ -147,9 +148,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S"]
-# Line and column numbers are expressed with hardcoded ints.
-"tests/test_domains.py" = ["PLR2004"]
+# FLY002: "\n".join(lines) instead of f-strings
+# PLR2004: Line and column numbers are expressed with hardcoded ints.
+# S: Security issues, irrelevant for tests
+"tests/**" = ["FLY002", "PLR2004", "S"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
