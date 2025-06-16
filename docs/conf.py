@@ -15,3 +15,7 @@ default_dark_mode = False
 intersphinx_mapping = {
     "flake8": ("https://flake8.pycqa.org/en/latest/", None),
 }
+scrapy_intersphinx_enable = [
+    "shub",
+    "zyte",
+]

@@ -9,6 +9,7 @@ description = "A Flake8 plugin to catch common issues on Scrapy projects"
 dependencies = [
     "flake8>=0.1",
     "packaging>=20.0",
+    "PyYAML>=5.1",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

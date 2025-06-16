@@ -11,8 +11,9 @@ flake8-scrapy documentation
     :caption: Configuration
     :hidden:
 
-    requirements
     pre-commit
+    requirements
+    zyte
     options
 
 .. toctree::
