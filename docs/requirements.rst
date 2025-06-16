@@ -8,7 +8,7 @@ A requirements file is looked up as follows to enable additional rules:
 
 #.  The :ref:`scrapy-requirements-file` option.
 
-#.  The ``requirements-file`` option of flake8-requirements_.
+#.  The ``requirements_file`` option of flake8-requirements_.
 
     .. _flake8-requirements: https://pypi.org/project/flake8-requirements/
 
