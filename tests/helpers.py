@@ -38,8 +38,6 @@ def check_project(
             issues = []
             for file in input:
                 assert file.path is not None
-                if not file.path.endswith(".py"):
-                    continue
                 issue_tuples = run_checker(file.text, file.path)
                 issues.extend(
                     [Issue.from_tuple(issue, path=file.path) for issue in issue_tuples]

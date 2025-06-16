@@ -69,10 +69,12 @@ class ScrapyStyleChecker:
             options, "requirements_file", ""
         )
 
-    def __init__(self, tree: AST | None, filename: str):
+    def __init__(
+        self, tree: AST | None, filename: str, lines: Sequence[str] | None = None
+    ):
         self.tree = tree
         context = Context.from_flake8_params(  # noqa: F841
-            tree, filename, self.requirements_file_path
+            tree, filename, lines, self.requirements_file_path
         )
 
     def run(self):
