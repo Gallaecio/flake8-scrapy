@@ -20,11 +20,13 @@ pytest.register_assert_rewrite("tests.helpers")
 
 
 def cases(
-    test_cases: Sequence[tuple[File | Sequence[File], Issue | Sequence[Issue] | None]],
+    test_cases: Sequence[
+        tuple[File | Sequence[File], Issue | Sequence[Issue] | None, dict | None]
+    ],
 ) -> Callable:
     def decorator(func):
         return pytest.mark.parametrize(
-            ("input", "expected"),
+            ("input", "expected", "flake8_options"),
             test_cases,
             ids=range(len(test_cases)),
         )(func)
@@ -36,15 +38,49 @@ def load_sample_file(filename):
     return (Path(__file__).parent / "samples" / filename).read_text()
 
 
-def run_checker(code: str, file_path: str = "a.py") -> Sequence[tuple[int, int, str]]:
+class MockParser:
+    def __init__(self):
+        self.options = {}
+
+    def add_option(self, *args, **kwargs):
+        option_name = args[0].lstrip("-").replace("-", "_")
+        default_value = kwargs.get("default", "")
+        self.options[option_name] = default_value
+
+
+class MockOptions:
+    def __init__(self, options_dict: dict):
+        parser = MockParser()
+        ScrapyStyleChecker.add_options(parser)
+        for option_name, default_value in parser.options.items():
+            setattr(self, option_name, default_value)
+        for key, value in options_dict.items():
+            setattr(self, key, value)
+
+
+def run_checker(
+    code: str, file_path: str = "a.py", flake8_options: dict | None = None
+) -> Sequence[tuple[int, int, str]]:
     if file_path.endswith(".py"):
         tree = ast.parse(code)
         lines = None
     else:
         tree = None
         lines = code.splitlines()
-    checker = ScrapyStyleChecker(tree, file_path, lines)
-    return tuple(checker.run())
+
+    if flake8_options is None:
+        flake8_options = {}
+    original_class_dict = ScrapyStyleChecker.__dict__.copy()
+    mock_options = MockOptions(flake8_options)
+    try:
+        ScrapyStyleChecker.parse_options(mock_options)
+        checker = ScrapyStyleChecker(tree, file_path, lines)
+        return tuple(checker.run())
+    finally:
+        current_attrs = set(ScrapyStyleChecker.__dict__.keys())
+        original_attrs = set(original_class_dict.keys())
+        for new_attr in current_attrs - original_attrs:
+            delattr(ScrapyStyleChecker, new_attr)
 
 
 @dataclass

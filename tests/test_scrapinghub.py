@@ -19,6 +19,7 @@ CASES = [
                 File("", "requirements.txt"),
             ),
             issues,
+            {},
         )
         for config, issues in (
             *(
@@ -197,6 +198,7 @@ CASES = [
                 File("", "scrapy.cfg"),
             ),
             issues,
+            {},
         )
         for config, issues in (
             (
@@ -216,6 +218,7 @@ CASES = [
         (
             (File("project: 12345", path), File("", "scrapy.cfg")),
             issues,
+            {},
         )
         for path, issues in (
             (
@@ -231,9 +234,47 @@ CASES = [
             ),
         )
     ),
+    # SCP26 requirements.file mismatch
+    (
+        (
+            File(
+                "\n".join(
+                    [
+                        f"stack: {LATEST_KNOWN_STACK}",
+                        "requirements:",
+                        "  file: requirements.txt",
+                    ]
+                ),
+                "scrapinghub.yml",
+            ),
+            File("", "scrapy.cfg"),
+            File("", "requirements-dev.txt"),
+            File("", "requirements.txt"),
+        ),
+        issue("SCP26 requirements.file mismatch"),
+        {"scrapy_requirements_file": "requirements-dev.txt"},
+    ),
+    (
+        (
+            File(
+                "\n".join(
+                    [
+                        f"stack: {LATEST_KNOWN_STACK}",
+                        "requirements:",
+                        "  file: requirements-dev.txt",
+                    ]
+                ),
+                "scrapinghub.yml",
+            ),
+            File("", "scrapy.cfg"),
+            File("", "requirements-dev.txt"),
+        ),
+        None,
+        {"scrapy_requirements_file": "requirements-dev.txt"},
+    ),
 ]
 
 
 @cases(CASES)
-def test(input, expected):
-    check_project(input, expected)
+def test(input, expected, flake8_options):
+    check_project(input, expected, flake8_options)

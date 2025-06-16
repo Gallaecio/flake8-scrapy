@@ -20,7 +20,9 @@ def sort_issues(issues: Sequence[Issue]) -> Sequence[Issue]:
 
 
 def check_project(
-    input: File | Sequence[File], expected: Issue | Sequence[Issue] | None
+    input: File | Sequence[File],
+    expected: Issue | Sequence[Issue] | None,
+    flake8_options: dict | None = None,
 ):
     if isinstance(input, File):
         input = [input]
@@ -38,7 +40,7 @@ def check_project(
             issues = []
             for file in input:
                 assert file.path is not None
-                issue_tuples = run_checker(file.text, file.path)
+                issue_tuples = run_checker(file.text, file.path, flake8_options)
                 issues.extend(
                     [Issue.from_tuple(issue, path=file.path) for issue in issue_tuples]
                 )
