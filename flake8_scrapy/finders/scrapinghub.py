@@ -35,9 +35,11 @@ class ScrapinghubIssueFinder:
             return
         if "stack" not in data:
             yield Issue(18, "no root stack")
-        yield from self.check_stacks(data)
+        if "requirements" not in data:
+            yield Issue(21, "no root requirements")
+        yield from self.check_keys(data)
 
-    def check_stacks(
+    def check_keys(
         self, data: dict, is_root: bool = True
     ) -> Generator[Issue, None, None]:
         for key, value in data.items():
@@ -46,8 +48,11 @@ class ScrapinghubIssueFinder:
                     yield Issue(19, "non-root stack")
                 if not self._is_frozen_stack(value):
                     yield Issue(20, "stack not frozen")
+            elif key == "requirements":
+                if not is_root:
+                    yield Issue(22, "non-root requirements")
             if isinstance(value, dict):
-                yield from self.check_stacks(value, is_root=False)
+                yield from self.check_keys(value, is_root=False)
 
     def _is_frozen_stack(self, stack: str) -> bool:
         return isinstance(stack, str) and bool(re.search(r"-\d{8}$", stack))

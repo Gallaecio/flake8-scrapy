@@ -15,8 +15,9 @@ Why is this bad?
 ================
 
 The ``stack`` key should always be defined at the root level of the
-``scrapinghub.yml`` file to ensure that your code base uses the same core
-software (Docker image, Python version) in all Scrapy Cloud projects.
+``scrapinghub.yml`` file to ensure that your code base uses the same
+:ref:`software stack <stacks>` (Docker image, Python version) in all Scrapy
+Cloud projects.
 
 
 Example

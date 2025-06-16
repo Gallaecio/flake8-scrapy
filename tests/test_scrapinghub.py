@@ -36,6 +36,18 @@ CASES = [
                             "projects:",
                             "  default:",
                             "    stack: scrapy:2.12",
+                            "    requirements:",
+                            "      file: requirements.txt",
+                        ]
+                    ),
+                    "\n".join(
+                        [
+                            "projects:",
+                            "  default:",
+                            "    image: custom:latest",
+                            "    stack: scrapy:2.12",
+                            "    requirements:",
+                            "      file: requirements.txt",
                         ]
                     ),
                 )
@@ -54,6 +66,8 @@ CASES = [
                     "\n".join(
                         [
                             f"stack: {LATEST_KNOWN_STACK}",
+                            "requirements:",
+                            "  file: requirements.txt",
                             "projects:",
                             "  default:",
                             f"    stack: {LATEST_KNOWN_STACK}",
@@ -63,12 +77,39 @@ CASES = [
             ),
             # SCP20 stack not frozen
             *(
-                (config, issue("SCP20 stack not frozen"))
+                (
+                    (f"{config}\nrequirements:\n  file: requirements.txt"),
+                    issue("SCP20 stack not frozen"),
+                )
                 for config in (
                     "stack: scrapy:2.12",
                     "stack: scrapy:latest",
                     "stack: scrapy:2.12-rc1",
                     "\n".join(["project: 12345", "stack:"]),
+                )
+            ),
+            # SCP21 no root requirements
+            *(
+                (config, issue("SCP21 no root requirements"))
+                for config in (
+                    "\n".join([f"stack: {LATEST_KNOWN_STACK}", "project: 12345"]),
+                )
+            ),
+            # SCP22 non-root requirements
+            *(
+                (config, issue("SCP22 non-root requirements"))
+                for config in (
+                    "\n".join(
+                        [
+                            f"stack: {LATEST_KNOWN_STACK}",
+                            "requirements:",
+                            "  file: requirements.txt",
+                            "projects:",
+                            "  default:",
+                            "    requirements:",
+                            "      file: requirements.txt",
+                        ]
+                    ),
                 )
             ),
             # Multiple issues
@@ -79,12 +120,16 @@ CASES = [
                         "  default:",
                         "    id: 12345",
                         "    stack: 2.12",
+                        "    requirements:",
+                        "      file: requirements.txt",
                     ]
                 ),
                 (
                     issue("SCP18 no root stack"),
                     issue("SCP19 non-root stack"),
                     issue("SCP20 stack not frozen"),
+                    issue("SCP21 no root requirements"),
+                    issue("SCP22 non-root requirements"),
                 ),
             ),
         )
@@ -96,7 +141,10 @@ CASES = [
             issues,
         )
         for path, issues in (
-            ("scrapinghub.yml", issue("SCP18 no root stack")),
+            (
+                "scrapinghub.yml",
+                (issue("SCP18 no root stack"), issue("SCP21 no root requirements")),
+            ),
             *(
                 (path, NO_ISSUE)
                 for path in (

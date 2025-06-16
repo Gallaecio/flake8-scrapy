@@ -14,8 +14,8 @@ Finds out if the ``stack`` key is missing from the root of the
 Why is this bad?
 ================
 
-The ``stack`` key in the ``scrapinghub.yml`` file specifies the software stack
-to use: Docker_ image, Python version, and Python packages.
+The ``stack`` key in the ``scrapinghub.yml`` file specifies the :ref:`software
+stack <stacks>` to use: Docker_ image, Python version, and Python packages.
 
 .. _Docker: https://www.docker.com/
 
