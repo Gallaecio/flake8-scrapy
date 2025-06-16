@@ -29,7 +29,6 @@ CASES = [
                     ),
                     "invalid: yaml: content:",
                     "- not a dict",
-                    "\n".join(["project: 12345", "stack:"]),
                 )
             ),
             # SCP18 no root stack
@@ -53,6 +52,16 @@ CASES = [
                     ),
                 )
             ),
+            # SCP20 stack not frozen
+            *(
+                (config, issue("SCP20 stack not frozen"))
+                for config in (
+                    "stack: scrapy:2.12",
+                    "stack: scrapy:latest",
+                    "stack: scrapy:2.12-rc1",
+                    "\n".join(["project: 12345", "stack:"]),
+                )
+            ),
             # Multiple issues
             (
                 "\n".join(
@@ -60,10 +69,14 @@ CASES = [
                         "projects:",
                         "  default:",
                         "    id: 12345",
-                        f"    stack: {LATEST_KNOWN_STACK}",
+                        "    stack: 2.12",
                     ]
                 ),
-                (issue("SCP18 no root stack"), issue("SCP19 non-root stack")),
+                (
+                    issue("SCP18 no root stack"),
+                    issue("SCP19 non-root stack"),
+                    issue("SCP20 stack not frozen"),
+                ),
             ),
         )
     ),
