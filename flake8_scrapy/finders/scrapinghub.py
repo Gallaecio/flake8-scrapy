@@ -32,3 +32,16 @@ class ScrapinghubIssueFinder:
             return
         if "stack" not in data:
             yield Issue(18, "no root stack")
+        yield from self.check_nested_stacks(data)
+
+    def check_nested_stacks(
+        self, data: dict, path: list[str] | None = None
+    ) -> Generator[Issue, None, None]:
+        if path is None:
+            path = []
+        for key, value in data.items():
+            current_path = [*path, key]
+            if key == "stack" and len(current_path) > 1:
+                yield Issue(19, "non-root stack")
+            if isinstance(value, dict):
+                yield from self.check_nested_stacks(value, current_path)

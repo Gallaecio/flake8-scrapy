@@ -17,22 +17,53 @@ CASES = [
             issues,
         )
         for config, issues in (
+            *(
+                (config, NO_ISSUE)
+                for config in (
+                    "\n".join(
+                        [
+                            "requirements:",
+                            "  file: requirements.txt",
+                            f"stack: {LATEST_KNOWN_STACK}",
+                        ]
+                    ),
+                    "invalid: yaml: content:",
+                    "- not a dict",
+                    "\n".join(["project: 12345", "stack:"]),
+                )
+            ),
             # SCP18 no root stack
             *(
                 (config, issue("SCP18 no root stack"))
                 for config in (
-                    "requirements:\n  file: requirements.txt",
-                    f"projects:\n  default:\n    id: 12345\n    stack: {LATEST_KNOWN_STACK}",
+                    "\n".join(["requirements:", "  file: requirements.txt"]),
                 )
             ),
+            # SCP19 non-root stack
             *(
-                (config, NO_ISSUE)
+                (config, issue("SCP19 non-root stack"))
                 for config in (
-                    f"requirements:\n  file: requirements.txt\nstack: {LATEST_KNOWN_STACK}",
-                    "invalid: yaml: content:",
-                    "- not a dict",
-                    "project: 12345\nstack:",
+                    "\n".join(
+                        [
+                            f"stack: {LATEST_KNOWN_STACK}",
+                            "projects:",
+                            "  default:",
+                            f"    stack: {LATEST_KNOWN_STACK}",
+                        ]
+                    ),
                 )
+            ),
+            # Multiple issues
+            (
+                "\n".join(
+                    [
+                        "projects:",
+                        "  default:",
+                        "    id: 12345",
+                        f"    stack: {LATEST_KNOWN_STACK}",
+                    ]
+                ),
+                (issue("SCP18 no root stack"), issue("SCP19 non-root stack")),
             ),
         )
     ),
