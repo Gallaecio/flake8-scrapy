@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ast import AST, NodeVisitor
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from .context import Context
 from .finders.domains import (
@@ -51,10 +51,32 @@ class ScrapyStyleChecker:
     options = None
     name = "flake8-scrapy"
     version = __version__
+    requirements_file_path: ClassVar[str] = ""
 
-    def __init__(self, tree: AST | None, filename: str):
+    @classmethod
+    def add_options(cls, parser):
+        parser.add_option(
+            "--scrapy-requirements-file",
+            default="",
+            help="Path of the project requirements file",
+            parse_from_config=True,
+        )
+
+    @classmethod
+    def parse_options(cls, options):
+        if not options:
+            return
+        cls.requirements_file_path = options.scrapy_requirements_file or getattr(
+            options, "requirements_file", ""
+        )
+
+    def __init__(
+        self, tree: AST | None, filename: str, lines: Sequence[str] | None = None
+    ):
         self.tree = tree
-        context = Context.from_flake8_params(tree, filename)
+        context = Context.from_flake8_params(
+            tree, filename, lines, self.requirements_file_path
+        )
         self.setting_module_finder = SettingModuleIssueFinder(context)
 
     def run(self):
