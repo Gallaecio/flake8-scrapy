@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ast import AST, NodeVisitor
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from .context import Context
 from .finders.domains import (
@@ -50,10 +50,30 @@ class ScrapyStyleChecker:
     options = None
     name = "flake8-scrapy"
     version = __version__
+    requirements_file_path: ClassVar[str] = ""
+
+    @classmethod
+    def add_options(cls, parser):
+        parser.add_option(
+            "--scrapy-requirements-file",
+            default="",
+            help="Path of the project requirements file",
+            parse_from_config=True,
+        )
+
+    @classmethod
+    def parse_options(cls, options):
+        if not options:
+            return
+        cls.requirements_file_path = options.scrapy_requirements_file or getattr(
+            options, "requirements_file", ""
+        )
 
     def __init__(self, tree: AST | None, filename: str):
         self.tree = tree
-        context = Context.from_flake8_params(tree, filename)  # noqa: F841
+        context = Context.from_flake8_params(  # noqa: F841
+            tree, filename, self.requirements_file_path
+        )
 
     def run(self):
         for issue in self.run_checks():
