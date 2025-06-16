@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -57,6 +57,20 @@ class VersionedValue:
         return self.value_history[latest_applicable]
 
 
+class UnknownSettingValue:
+    def __repr__(self):
+        return "<UNKNOWN_SETTING_VALUE>"
+
+    def __bool__(self):
+        return False
+
+    def __eq__(self, other):
+        return isinstance(other, UnknownSettingValue)
+
+
+UNKNOWN_SETTING_VALUE = UnknownSettingValue()
+
+
 @dataclass
 class Setting:
     added_in: Version | None = None
@@ -66,7 +80,9 @@ class Setting:
     package: str = "scrapy"
     values: tuple[Any, ...] | None = None
     sunset_guidance: str | None = None
-    default_value: VersionedValue | None = None
+    default_value: VersionedValue | UnknownSettingValue = field(
+        default_factory=lambda: UNKNOWN_SETTING_VALUE
+    )
 
     def __post_init__(self):
         if self.type == SettingType.ENUM_STR and not self.values:
