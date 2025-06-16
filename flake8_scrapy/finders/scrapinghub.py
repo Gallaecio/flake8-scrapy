@@ -78,6 +78,11 @@ class ScrapinghubIssueFinder:
             requirements_path = self.context.project.root / file_value
             if not requirements_path.exists():
                 yield Issue(25, "unexisting requirements.file")
+            elif (
+                self.context.project.requirements_file_path
+                and requirements_path != self.context.project.requirements_file_path
+            ):
+                yield Issue(26, "requirements.file mismatch")
 
     def _has_image_key(self, data: dict) -> bool:
         for key, value in data.items():

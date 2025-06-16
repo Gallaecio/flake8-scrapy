@@ -19,6 +19,12 @@ A requirements file is looked up as follows to enable additional rules:
 #.  The ``requirements.txt`` file in the project root directory, i.e. where
     ``scrapy.cfg`` lives.
 
+.. note::
+
+   If you use the :ref:`scrapy-requirements-file` option and also have a
+   ``scrapinghub.yml`` file, make sure both point to the same requirements
+   file to avoid :ref:`scp26` warnings about mismatched configurations.
+
 To enable rules about the requirements file itself, `configure Flake8
 accordingly`_:
 
