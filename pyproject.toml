@@ -148,6 +148,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# Nested ifs makes extending code with additional ifs and elifs easier.
+"flake8_scrapy/finders/settings.py" = ["SIM102"]
 # FLY002: "\n".join(lines) instead of f-strings
 # PLR2004: Line and column numbers are expressed with hardcoded ints.
 # S: Security issues, irrelevant for tests
