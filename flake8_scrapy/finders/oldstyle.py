@@ -1,15 +1,13 @@
 import ast
+from collections.abc import Generator
 
-from . import IssueFinder
+from flake8_scrapy.issues import Issue
 
 
-class UrlJoinIssueFinder(IssueFinder):
-    msg_code = "SCP03"
-    msg_info = (
-        'urljoin(response.url, "/foo") can be replaced by response.urljoin("/foo")'
-    )
+class UrlJoinIssueFinder:
+    visit_types: tuple[str, ...] = ("Call",)
 
-    def find_issues(self, node):
+    def find_issues(self, node) -> Generator[Issue, None, None]:
         if not self.issue_applies(node):
             return
 
@@ -21,7 +19,12 @@ class UrlJoinIssueFinder(IssueFinder):
 
         if first_param.value.id == "response" and first_param.attr == "url":
             # found it: first param to urljoin is response.url
-            yield (node.lineno, node.col_offset, self.message)
+            yield Issue(
+                code=3,
+                summary='urljoin(response.url, "/foo") can be replaced by response.urljoin("/foo")',
+                line=node.lineno,
+                column=node.col_offset,
+            )
 
     def issue_applies(self, node):
         return (
@@ -29,9 +32,8 @@ class UrlJoinIssueFinder(IssueFinder):
         )
 
 
-class OldSelectorIssueFinder(IssueFinder):
-    msg_code = "SCP04"
-    msg_info = "use response.selector or response.xpath or response.css instead"
+class OldSelectorIssueFinder:
+    visit_types: tuple[str, ...] = ("Assign",)
 
     def is_response_dot_body_as_unicode(self, node):
         """Returns True if node represents response.body_as_unicode()"""
@@ -74,19 +76,29 @@ class OldSelectorIssueFinder(IssueFinder):
             and node.value.func.id == "Selector"
         )
 
-    def find_issues(self, node):
+    def find_issues(self, node) -> Generator[Issue, None, None]:
         if not self.issue_applies(node):
-            return None
+            return
 
         # look for: Selector(response)
         if node.value.args:
             param = node.value.args[0]
             if self.is_response(param):
-                return [(node.lineno, node.col_offset, self.message)]
+                yield Issue(
+                    code=4,
+                    summary="use response.selector or response.xpath or response.css instead",
+                    line=node.lineno,
+                    column=node.col_offset,
+                )
+                return
 
         # look for: Selector(response=response) or Selector(text=response.text)
         for kw in node.value.keywords:
             if self.has_response_for_keyword_parameter(kw):
-                return [(node.lineno, node.col_offset, self.message)]
-
-        return None
+                yield Issue(
+                    code=4,
+                    summary="use response.selector or response.xpath or response.css instead",
+                    line=node.lineno,
+                    column=node.col_offset,
+                )
+                return

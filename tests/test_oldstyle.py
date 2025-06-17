@@ -1,52 +1,67 @@
-import pytest
-
-from flake8_scrapy.finders.oldstyle import UrlJoinIssueFinder
-
-from . import run_checker
+from . import NO_ISSUE, File, Issue, cases
+from .helpers import check_project
 
 
-@pytest.mark.parametrize(
-    "code",
+@cases(
     [
-        ('urljoin(response.url, "/foo")'),
-        ('url = urljoin(response.url, "/foo")'),
-    ],
+        # SCP03 urljoin issues
+        *(
+            (
+                File(code, path),
+                Issue(
+                    'SCP03 urljoin(response.url, "/foo") can be replaced by response.urljoin("/foo")',
+                    path=path,
+                    column=column,
+                ),
+            )
+            for path in ("a.py",)
+            for code, column in (
+                ('urljoin(response.url, "/foo")', 0),
+                ('url = urljoin(response.url, "/foo")', 6),
+            )
+        ),
+        *(
+            (File(code, path), NO_ISSUE)
+            for path in ("a.py",)
+            for code in (
+                'response.urljoin("/foo")',
+                "url = urljoin()",
+                "test.py",
+                'urljoin(x, "/foo")',
+                "test.py",
+                'urljoin(x.y.z, "/foo")',
+            )
+        ),
+        # SCP04 selector issues
+        *(
+            (
+                File(code, path),
+                Issue(
+                    "SCP04 use response.selector or response.xpath or response.css instead",
+                    path=path,
+                ),
+            )
+            for path in ("a.py",)
+            for code in (
+                "sel = Selector(response)",
+                'sel = Selector(response, type="html")',
+                'sel = Selector(response=response, type="html")',
+                "sel = Selector(response=response)",
+                "sel = Selector(text=response.text)",
+                "sel = Selector(text=response.body)",
+                "sel = Selector(text=response.body_as_unicode())",
+                'sel = Selector(text=response.text, type="html")',
+            )
+        ),
+        *(
+            (File(code, path), NO_ISSUE)
+            for path in ("a.py",)
+            for code in (
+                "sel = Selector(get_text())",
+                "sel = Selector(self.get_text())",
+            )
+        ),
+    ]
 )
-def test_finds_old_style_urljoin(code):
-    issues = run_checker(code)
-    assert len(issues) == 1
-    assert UrlJoinIssueFinder.msg_code in issues[0][2]
-
-
-@pytest.mark.parametrize(
-    "code",
-    [
-        ('response.urljoin("/foo")'),
-        ("url = urljoin()"),
-        ('urljoin(x, "/foo")'),
-        ('urljoin(x.y.z, "/foo")'),
-    ],
-)
-def test_dont_find_old_style_urljoin(code):
-    issues = run_checker(code)
-    assert len(issues) == 0
-
-
-@pytest.mark.parametrize(
-    ("code", "expected"),
-    [
-        ("sel = Selector(response)", 1),
-        ('sel = Selector(response, type="html")', 1),
-        ('sel = Selector(response=response, type="html")', 1),
-        ("sel = Selector(response=response)", 1),
-        ("sel = Selector(text=response.text)", 1),
-        ("sel = Selector(text=response.body)", 1),
-        ("sel = Selector(text=response.body_as_unicode())", 1),
-        ('sel = Selector(text=response.text, type="html")', 1),
-        ("sel = Selector(get_text())", 0),
-        ("sel = Selector(self.get_text())", 0),
-    ],
-)
-def test_find_old_style_selector(code, expected):
-    issues = run_checker(code)
-    assert len(issues) == expected
+def test_oldstyle(input, expected):
+    check_project(input, expected)

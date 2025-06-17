@@ -2,7 +2,7 @@ import ast
 from collections.abc import Generator
 from urllib.parse import urlparse
 
-from . import IssueFinder
+from flake8_scrapy.issues import Issue
 
 
 def get_list_metadata(node):
@@ -21,9 +21,8 @@ def is_list_assignment(node, var_name):
     )
 
 
-class UnreachableDomainIssueFinder(IssueFinder):
-    msg_code = "SCP01"
-    msg_info = "allowed_domains doesn't allow this URL from start_urls"
+class UnreachableDomainIssueFinder:
+    visit_types: tuple[str, ...] = ("Assign",)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -34,7 +33,7 @@ class UnreachableDomainIssueFinder(IssueFinder):
         netloc = urlparse(url).netloc
         return any(domain in netloc for _, _, domain in self.allowed_domains)
 
-    def find_issues(self, node) -> Generator[tuple[int, int, str], None, None]:
+    def find_issues(self, node) -> Generator[Issue, None, None]:
         if is_list_assignment(node, var_name="allowed_domains"):
             self.allowed_domains = get_list_metadata(node)
 
@@ -46,12 +45,16 @@ class UnreachableDomainIssueFinder(IssueFinder):
 
         for line, col, url in self.start_urls:
             if not self.url_in_allowed_domains(url):
-                yield (line, col, self.message)
+                yield Issue(
+                    code=1,
+                    summary="allowed_domains doesn't allow this URL from start_urls",
+                    line=line,
+                    column=col,
+                )
 
 
-class UrlInAllowedDomainsIssueFinder(IssueFinder):
-    msg_code = "SCP02"
-    msg_info = "allowed_domains should not contain URLs"
+class UrlInAllowedDomainsIssueFinder:
+    visit_types: tuple[str, ...] = ("Assign",)
 
     def is_url(self, domain):
         # when it's just a domain (as 'toscrape.com'), the parsed URL contains
@@ -66,10 +69,15 @@ class UrlInAllowedDomainsIssueFinder(IssueFinder):
         parts = urlparse(domain)
         return any(getattr(parts, comp, None) for comp in forbidden_components)
 
-    def find_issues(self, node):
+    def find_issues(self, node) -> Generator[Issue, None, None]:
         if is_list_assignment(node, var_name="allowed_domains"):
             allowed_domains = get_list_metadata(node)
 
             for line, col, url in allowed_domains:
                 if self.is_url(url):
-                    yield (line, col, self.message)
+                    yield Issue(
+                        code=2,
+                        summary="allowed_domains should not contain URLs",
+                        line=line,
+                        column=col,
+                    )

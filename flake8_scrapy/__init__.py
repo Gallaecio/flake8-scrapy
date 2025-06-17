@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ast import AST, NodeVisitor
+from collections import defaultdict
 from typing import TYPE_CHECKING, ClassVar
 
 from .context import Context
@@ -9,34 +10,46 @@ from .finders.domains import (
     UrlInAllowedDomainsIssueFinder,
 )
 from .finders.oldstyle import OldSelectorIssueFinder, UrlJoinIssueFinder
+from .finders.settings import SettingsIssueFinder
 
 __version__ = "0.0.2"
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Sequence
 
+    from flake8_scrapy.finders import IssueFinder
+
+    from .issues import Issue
+
 
 class ScrapyStyleIssueFinder(NodeVisitor):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.issues = []
-        self.finders: dict[str, Sequence] = {
-            "Assign": [
-                UnreachableDomainIssueFinder(),
-                UrlInAllowedDomainsIssueFinder(),
-                OldSelectorIssueFinder(),
-            ],
-            "Call": [
-                UrlJoinIssueFinder(),
-            ],
-        }
+    def __init__(self, context: Context):
+        super().__init__()
+        self.context = context
+        self.issues: list[Issue] = []
+        self.load_finders(context)
 
-    def find_issues_visitor(self, visitor, node):
-        """Find issues for the provided visitor"""
-        for finder in self.finders[visitor]:
-            issues = finder.find_issues(node)
-            if issues:
-                self.issues.extend(list(issues))
+    def load_finders(self, context: Context):
+        self.finders: defaultdict[str, list[IssueFinder]] = defaultdict(list)
+        for finder in (
+            UnreachableDomainIssueFinder(),
+            UrlInAllowedDomainsIssueFinder(),
+            OldSelectorIssueFinder(),
+            UrlJoinIssueFinder(),
+            SettingsIssueFinder(context),
+        ):
+            for visit_type in finder.visit_types:
+                self.finders[visit_type].append(finder)
+
+    def check(self) -> Generator[Issue, None, None]:
+        assert self.context.file.tree is not None
+        self.visit(self.context.file.tree)
+        yield from self.issues
+
+    def find_issues_visitor(self, visitor_type: str, node):
+        for finder in self.finders[visitor_type]:
+            for issue in finder.find_issues(node):
+                self.issues.append(issue)
         self.generic_visit(node)
 
     def visit_Assign(self, node):
@@ -44,6 +57,9 @@ class ScrapyStyleIssueFinder(NodeVisitor):
 
     def visit_Call(self, node):
         self.find_issues_visitor("Call", node)
+
+    def visit_Subscript(self, node):
+        self.find_issues_visitor("Subscript", node)
 
 
 class ScrapyStyleChecker:
@@ -73,9 +89,10 @@ class ScrapyStyleChecker:
         self, tree: AST | None, filename: str, lines: Sequence[str] | None = None
     ):
         self.tree = tree
-        context = Context.from_flake8_params(  # noqa: F841
+        context = Context.from_flake8_params(
             tree, filename, lines, self.requirements_file_path
         )
+        self.code_finder = ScrapyStyleIssueFinder(context)
 
     def run(self):
         for issue in self.run_checks():
@@ -83,10 +100,4 @@ class ScrapyStyleChecker:
 
     def run_checks(self):
         if self.tree:
-            yield from self.check_code()
-
-    def check_code(self) -> Generator[tuple[str, int, int], None, None]:
-        finder = ScrapyStyleIssueFinder()
-        assert self.tree is not None
-        finder.visit(self.tree)
-        yield from finder.issues
+            yield from self.code_finder.check()

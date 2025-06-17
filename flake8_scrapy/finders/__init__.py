@@ -1,15 +1,14 @@
-from abc import abstractmethod
-from collections.abc import Generator
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    from flake8_scrapy.issues import Issue
 
 
-class IssueFinder:
-    msg_code = ""
-    msg_info = ""
+class IssueFinder(Protocol):
+    visit_types: tuple[str, ...]
 
-    @property
-    def message(self):
-        return f"{self.msg_code} {self.msg_info}"
-
-    @abstractmethod
-    def find_issues(self, node) -> Generator[tuple[int, int, str], None, None]:
-        pass
+    def find_issues(self, node) -> Generator[Issue, None, None]: ...
