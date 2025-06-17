@@ -1,24 +1,13 @@
 from __future__ import annotations
 
+import json
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from packaging.version import Version
-
-
-# https://github.com/scrapy/scrapy/blob/2.13.2/scrapy/settings/__init__.py#L152-L180
-def getbool(value: Any) -> bool:
-    try:
-        return bool(int(value))
-    except ValueError:
-        pass
-    if value in ("True", "true"):
-        return True
-    if value in ("False", "false"):
-        return False
-    raise ValueError
 
 
 class SettingType(Enum):
@@ -71,3 +60,54 @@ class Setting:
     def __post_init__(self):
         if self.type == SettingType.ENUM_STR and not self.values:
             raise ValueError("ENUM_STR type settings must have allowed_values")
+
+    @staticmethod
+    def get(value: Any) -> Any:
+        return value
+
+    @staticmethod
+    def getbool(value: Any) -> bool:
+        try:
+            return bool(int(value))
+        except (ValueError, TypeError):
+            pass
+        if value in ("True", "true"):
+            return True
+        if value in ("False", "false"):
+            return False
+        raise ValueError(f"Cannot convert {value!r} to bool")
+
+    @staticmethod
+    def getint(value: Any) -> int:
+        return int(value)
+
+    @staticmethod
+    def getfloat(value: Any) -> float:
+        return float(value)
+
+    @staticmethod
+    def getlist(value: Any) -> list:
+        if not value:
+            return []
+        if isinstance(value, str):
+            return value.split(",")
+        return list(value)
+
+    @staticmethod
+    def getdict(value: Any) -> dict:
+        if isinstance(value, str):
+            return json.loads(value)
+        return dict(value)
+
+    @staticmethod
+    def getdictorlist(value: Any) -> dict | list:
+        if value is None:
+            return {}
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                return value.split(",")
+        if isinstance(value, tuple):
+            return list(value)
+        return deepcopy(value)

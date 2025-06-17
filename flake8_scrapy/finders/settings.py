@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING
 
+from flake8_scrapy.ast import (
+    UNPARSEABLE,
+    get_method_location,
+    get_parameter_location,
+    load_argument_from_call,
+)
 from flake8_scrapy.issues import Issue
+from flake8_scrapy.settings import Setting
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -11,9 +18,15 @@ if TYPE_CHECKING:
     from flake8_scrapy.context import Context
 
 
-class Location(TypedDict):
-    line: int
-    column: int
+GETTER_DEFAULTS = {
+    "get": None,
+    "getbool": False,
+    "getint": 0,
+    "getfloat": 0.0,
+    "getlist": None,
+    "getdict": None,
+    "getdictorlist": None,
+}
 
 
 class SettingsIssueFinder:
@@ -41,7 +54,13 @@ class SettingsIssueFinder:
                     yield Issue(
                         code=28,
                         summary="unneeded setting get",
-                        **self.get_method_location(node),
+                        **get_method_location(node),
+                    )
+                elif self.is_noop_default_getter_call(node):
+                    yield Issue(
+                        code=29,
+                        summary="no-op setting getter default",
+                        **get_parameter_location(node, "default", 1),
                     )
 
     def find_subscript_issues(
@@ -49,14 +68,6 @@ class SettingsIssueFinder:
     ) -> Generator[Issue, None, None]:
         return
         yield
-
-    def get_method_location(self, node: ast.Call) -> Location:
-        assert isinstance(node.func, ast.Attribute)
-        assert node.func.value.end_col_offset is not None
-        return {
-            "line": node.func.lineno,
-            "column": node.func.value.end_col_offset + 1,
-        }
 
     def is_defaultless_getter_call(self, node: ast.Call) -> bool:
         assert isinstance(node.func, ast.Attribute)
@@ -68,6 +79,23 @@ class SettingsIssueFinder:
                 and node.keywords[0].arg == "name"
             )
         )
+
+    def is_noop_default_getter_call(self, node: ast.Call) -> bool:
+        assert isinstance(node.func, ast.Attribute)
+        method_name = node.func.attr
+        if method_name not in GETTER_DEFAULTS:
+            return False
+        argument = load_argument_from_call(node, "default", 1)
+        if argument is UNPARSEABLE:
+            return False
+        default = GETTER_DEFAULTS[method_name]
+        if argument == default:
+            return True
+        try:
+            argument = getattr(Setting, method_name)(argument)
+        except ValueError:
+            return False
+        return argument == default
 
     def is_settings_object(self, node: ast.AST) -> bool:
         if isinstance(node, ast.Name):
