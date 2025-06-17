@@ -4,7 +4,7 @@ from flake8_scrapy.packages import Package
 
 PACKAGES = {
     "scrapy": Package(
-        highest_known_version=Version("2.13.1"),
+        highest_known_version=Version("2.13.2"),
         lowest_safe_version=Version("2.11.2"),
         lowest_supported_version=Version("2.0.1"),
     ),

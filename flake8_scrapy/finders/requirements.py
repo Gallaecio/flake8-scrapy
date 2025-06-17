@@ -31,6 +31,30 @@ class RequirementsIssueFinder:
             "zope-interface",
         }
     )
+    SCRAPY_CLOUD_STACK_DEPENDENCIES = frozenset(
+        {
+            "aiohttp",
+            "awscli",
+            "boto",
+            "boto3",
+            "jinja2",
+            "monkeylearn",
+            "pillow",
+            "pyyaml",
+            "requests",
+            "scrapinghub",
+            "scrapinghub-entrypoint-scrapy",
+            "scrapy-deltafetch",
+            "scrapy-dotpersistence",
+            "scrapy-magicfields",
+            "scrapy-pagestorage",
+            "scrapy-querycleaner",
+            "scrapy-splitvariants",
+            "scrapy-zyte-smartproxy",
+            "spidermon",
+            "urllib3",
+        }
+    )
 
     def __init__(self, context: Context):
         self.context = context
@@ -41,7 +65,7 @@ class RequirementsIssueFinder:
         return self.context.file.path == self.context.project.requirements_file_path
 
     def check(self) -> Generator[Issue, None, None]:
-        packages = set()
+        packages: set[str] = set()
         assert self.context.file.lines is not None
         for line_number, line in enumerate(self.context.file.lines, start=1):
             line = line.strip()  # noqa: PLW2901
@@ -63,6 +87,7 @@ class RequirementsIssueFinder:
         missing_deps = self.REQUIRED_DEPENDENCIES - packages
         if missing_deps or not packages:
             yield Issue(13, "incomplete requirements freeze")
+        yield from self.check_scrapy_cloud_stack_requirements(packages)
 
     @staticmethod
     def requirement_version(requirement: Requirement) -> Version | None:
@@ -109,3 +134,17 @@ class RequirementsIssueFinder:
                 f"{name} {package.lowest_safe_version} implements security fixes",
                 line=line,
             )
+
+    def check_scrapy_cloud_stack_requirements(
+        self, packages: set[str]
+    ) -> Generator[Issue, None, None]:
+        if (
+            not self.context.project.root
+            or not (self.context.project.root / "scrapinghub.yml").exists()
+        ):
+            return
+        missing = self.SCRAPY_CLOUD_STACK_DEPENDENCIES - packages
+        if not missing:
+            return
+        detail = f"missing packages: {', '.join(sorted(missing))}"
+        yield Issue(27, "missing stack requirements", detail)

@@ -107,6 +107,114 @@ CASES = (
             ),
         )
     ),
+    # SCP27 missing stack requirements
+    *(
+        (
+            (
+                File("", path="scrapy.cfg"),
+                File("", path="scrapinghub.yml"),
+                File(requirements, path=path),
+            ),
+            issues,
+        )
+        for path in ("requirements.txt",)
+        for requirements, issues in (
+            # All stack dependencies present
+            (
+                "\n".join(
+                    [
+                        "aiohttp==3.8.4",
+                        "awscli==1.29.0",
+                        "boto==2.49.0",
+                        "boto3==1.28.0",
+                        "jinja2==3.1.2",
+                        "lxml==4.9.3",
+                        "monkeylearn==3.5.0",
+                        "pillow==10.0.0",
+                        "pyyaml==6.0.1",
+                        "requests==2.31.0",
+                        "scrapinghub==2.4.0",
+                        "scrapinghub-entrypoint-scrapy==0.12.0",
+                        f"scrapy=={SCRAPY_HIGHEST_KNOWN}",
+                        "scrapy-deltafetch==2.0.1",
+                        "scrapy-dotpersistence==0.3.0",
+                        "scrapy-magicfields==1.1.0",
+                        "scrapy-pagestorage==0.2.3",
+                        "scrapy-querycleaner==0.1.0",
+                        "scrapy-splitvariants==0.1.0",
+                        "scrapy-zyte-smartproxy==2.1.0",
+                        "spidermon==1.20.0",
+                        "twisted==23.8.0",
+                        "urllib3==2.0.4",
+                        "cryptography==41.0.4",
+                        "cssselect==1.2.0",
+                        "parsel==1.8.1",
+                        "protego==0.3.0",
+                        "pyOpenSSL==23.2.0",
+                        "queuelib==1.7.0",
+                        "service-identity==23.1.0",
+                        "w3lib==2.1.2",
+                        "zope.interface==6.0",
+                    ]
+                ),
+                NO_ISSUE,
+            ),
+            # Missing some stack dependencies
+            (
+                "\n".join(
+                    [
+                        f"scrapy=={SCRAPY_HIGHEST_KNOWN}",
+                        "requests==2.31.0",
+                        "lxml==4.9.3",
+                        "cryptography==41.0.4",
+                        "cssselect==1.2.0",
+                        "parsel==1.8.1",
+                        "protego==0.3.0",
+                        "pyOpenSSL==23.2.0",
+                        "queuelib==1.7.0",
+                        "service-identity==23.1.0",
+                        "twisted==23.8.0",
+                        "w3lib==2.1.2",
+                        "zope.interface==6.0",
+                    ]
+                ),
+                (
+                    Issue(
+                        "SCP27 missing stack requirements: missing packages: aiohttp, awscli, boto, boto3, jinja2, monkeylearn, pillow, pyyaml, scrapinghub, scrapinghub-entrypoint-scrapy, scrapy-deltafetch, scrapy-dotpersistence, scrapy-magicfields, scrapy-pagestorage, scrapy-querycleaner, scrapy-splitvariants, scrapy-zyte-smartproxy, spidermon, urllib3",
+                        path=path,
+                    ),
+                ),
+            ),
+            # Empty requirements file with scrapinghub.yml
+            (
+                "",
+                (
+                    Issue("SCP13 incomplete requirements freeze", path=path),
+                    Issue(
+                        "SCP27 missing stack requirements: missing packages: aiohttp, awscli, boto, boto3, jinja2, monkeylearn, pillow, pyyaml, requests, scrapinghub, scrapinghub-entrypoint-scrapy, scrapy-deltafetch, scrapy-dotpersistence, scrapy-magicfields, scrapy-pagestorage, scrapy-querycleaner, scrapy-splitvariants, scrapy-zyte-smartproxy, spidermon, urllib3",
+                        path=path,
+                    ),
+                ),
+            ),
+        )
+    ),
+    # SCP27 should not trigger without scrapinghub.yml
+    *(
+        ((File("", path="scrapy.cfg"), File(requirements, path=path)), issues)
+        for path in ("requirements.txt",)
+        for requirements, issues in (
+            # Missing stack dependencies but no scrapinghub.yml
+            (
+                "\n".join(
+                    [
+                        f"scrapy=={SCRAPY_HIGHEST_KNOWN}",
+                        "requests==2.31.0",
+                    ]
+                ),
+                (Issue("SCP13 incomplete requirements freeze", path=path),),
+            ),
+        )
+    ),
     # Tests for specific requirements
     *(
         (
@@ -224,7 +332,10 @@ def test(input, expected):
 
 
 def test_required_dependencies_are_canonical():
-    for dep in RequirementsIssueFinder.REQUIRED_DEPENDENCIES:
+    deps = set(RequirementsIssueFinder.REQUIRED_DEPENDENCIES) | set(
+        RequirementsIssueFinder.SCRAPY_CLOUD_STACK_DEPENDENCIES
+    )
+    for dep in set(deps):
         assert dep == canonicalize_name(dep)
 
 
