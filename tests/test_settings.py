@@ -84,6 +84,74 @@ CASES = (
             'settings.getint("RETRY_TIMES")',
         )
     ),
+    # SCP30: wrong setting getter
+    *(
+        (
+            File(code, path),
+            Issue("SCP30 wrong setting getter", column=column, path=path),
+        )
+        for path in ("a.py",)
+        for code, column in (
+            # Using subscript for typed settings
+            ('settings["RETRY_TIMES"]', 0),
+            ('settings["DOWNLOAD_DELAY"]', 0),
+            ('settings["AUTOTHROTTLE_DEBUG"]', 0),
+            # Using wrong getter for setting type
+            ('settings.getbool("RETRY_TIMES")', 9),
+            ('settings.getint("DOWNLOAD_DELAY")', 9),
+            ('settings.getfloat("AUTOTHROTTLE_DEBUG")', 9),
+            ('settings.getlist("RETRY_TIMES")', 9),
+            ('settings.getdict("DOWNLOAD_DELAY")', 9),
+            ('settings.getdictorlist("AUTOTHROTTLE_DEBUG")', 9),
+        )
+    ),
+    *(
+        (
+            File(code, path),
+            (
+                Issue("SCP28 unneeded setting get", column=column, path=path),
+                Issue("SCP30 wrong setting getter", column=column, path=path),
+            ),
+        )
+        for path in ("a.py",)
+        for code, column in (
+            # Using get() for typed settings
+            ('settings.get("RETRY_TIMES")', 9),
+            ('settings.get("DOWNLOAD_DELAY")', 9),
+            ('settings.get("AUTOTHROTTLE_DEBUG")', 9),
+        )
+    ),
+    *(
+        (File(code, path), NO_ISSUE)
+        for path in ("a.py",)
+        for code in (
+            # Correct getter for setting type
+            'settings.getint("RETRY_TIMES")',
+            'settings.getfloat("DOWNLOAD_DELAY")',
+            'settings.getbool("AUTOTHROTTLE_DEBUG")',
+            'settings.getlist("RETRY_HTTP_CODES")',
+            'settings.getdict("ADDONS")',
+            'settings.getdictorlist("FEED_EXPORT_FIELDS")',
+            'settings.getwithbase("EXTENSIONS")',
+            # Using subscript for untyped settings
+            'settings["UNKNOWN_SETTING"]',
+            # Using subscript for settings that allow it (non-typed)
+            'settings["BOT_NAME"]',
+        )
+    ),
+    *(
+        (
+            File(code, path),
+            (Issue("SCP28 unneeded setting get", column=column, path=path),),
+        )
+        for path in ("a.py",)
+        for code, column in (
+            # Using get() for untyped settings
+            ('settings.get("UNKNOWN_SETTING")', 9),
+            # Using get() for settings that allow it (non-typed)
+            ('settings.get("BOT_NAME")', 9),
+        )
+    ),
 )
 
 

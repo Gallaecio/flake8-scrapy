@@ -9,8 +9,9 @@ from flake8_scrapy.ast import (
     get_parameter_location,
     load_argument_from_call,
 )
+from flake8_scrapy.data.settings import SETTINGS
 from flake8_scrapy.issues import Issue
-from flake8_scrapy.settings import Setting
+from flake8_scrapy.settings import Setting, SettingType
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
     from flake8_scrapy.context import Context
 
 
+# NOTE: getwithbase does not have a default parameter.
 GETTER_DEFAULTS = {
     "get": None,
     "getbool": False,
@@ -26,6 +28,16 @@ GETTER_DEFAULTS = {
     "getlist": None,
     "getdict": None,
     "getdictorlist": None,
+}
+GETTERS = set(GETTER_DEFAULTS) | {"getwithbase"}
+SETTING_TYPE_TO_GETTER = {
+    SettingType.BOOL: "getbool",
+    SettingType.INT: "getint",
+    SettingType.FLOAT: "getfloat",
+    SettingType.LIST: "getlist",
+    SettingType.DICT: "getdict",
+    SettingType.DICT_OR_LIST: "getdictorlist",
+    SettingType.BASED_DICT: "getwithbase",
 }
 
 
@@ -50,6 +62,12 @@ class SettingsIssueFinder:
     def find_call_issues(self, node: ast.Call) -> Generator[Issue, None, None]:
         if isinstance(node.func, ast.Attribute):
             if self.is_settings_object(node.func.value):
+                if self.is_wrong_setting_getter_call(node):
+                    yield Issue(
+                        code=30,
+                        summary="wrong setting getter",
+                        **get_method_location(node),
+                    )
                 if self.is_defaultless_getter_call(node):
                     yield Issue(
                         code=28,
@@ -66,8 +84,14 @@ class SettingsIssueFinder:
     def find_subscript_issues(
         self, node: ast.Subscript
     ) -> Generator[Issue, None, None]:
-        return
-        yield
+        if self.is_settings_object(node.value):
+            if self.is_wrong_setting_subscript(node):
+                yield Issue(
+                    code=30,
+                    summary="wrong setting getter",
+                    line=node.lineno,
+                    column=node.col_offset,
+                )
 
     def is_defaultless_getter_call(self, node: ast.Call) -> bool:
         assert isinstance(node.func, ast.Attribute)
@@ -96,6 +120,35 @@ class SettingsIssueFinder:
         except ValueError:
             return False
         return argument == default
+
+    def is_wrong_setting_getter_call(self, node: ast.Call) -> bool:
+        assert isinstance(node.func, ast.Attribute)
+        method_name = node.func.attr
+        if method_name not in GETTERS:
+            return False
+        setting_name = load_argument_from_call(node, "name", 0)
+        if setting_name is UNPARSEABLE or not isinstance(setting_name, str):
+            return False
+        return self.is_valid_setting_getter(setting_name, method_name)
+
+    def is_wrong_setting_subscript(self, node: ast.Subscript) -> bool:
+        if not isinstance(node.slice, ast.Constant):
+            return False
+        setting_name = node.slice.value
+        if not isinstance(setting_name, str):
+            return False
+        return self.is_valid_setting_getter(setting_name, "get")
+
+    def is_valid_setting_getter(self, setting: str, getter: str) -> bool:
+        if setting not in SETTINGS:
+            return False
+        setting_info = SETTINGS[setting]
+        if setting_info.type is None:
+            return False
+        expected_getter = SETTING_TYPE_TO_GETTER.get(setting_info.type)
+        if expected_getter is None:
+            return getter != "get"
+        return getter != expected_getter
 
     def is_settings_object(self, node: ast.AST) -> bool:
         if isinstance(node, ast.Name):
