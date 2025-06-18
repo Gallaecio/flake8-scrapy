@@ -1,7 +1,7 @@
-.. _scp28:
+.. _scp31:
 
 ===========================
-SCP28: Unneeded setting get
+SCP31: Unneeded setting get
 ===========================
 
 What it does

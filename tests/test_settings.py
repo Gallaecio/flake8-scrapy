@@ -15,7 +15,7 @@ CASES = (
     *(
         (
             File(code, path),
-            Issue("SCP28 unneeded setting get", column=column, path=path),
+            Issue("SCP31 unneeded setting get", column=column, path=path),
         )
         for path in ("a.py",)
         for code, column in (
@@ -109,7 +109,7 @@ CASES = (
         (
             File(code, path),
             (
-                Issue("SCP28 unneeded setting get", column=column, path=path),
+                Issue("SCP31 unneeded setting get", column=column, path=path),
                 Issue("SCP30 wrong setting getter", column=column, path=path),
             ),
         )
@@ -142,7 +142,7 @@ CASES = (
     *(
         (
             File(code, path),
-            (Issue("SCP28 unneeded setting get", column=column, path=path),),
+            (Issue("SCP31 unneeded setting get", column=column, path=path),),
         )
         for path in ("a.py",)
         for code, column in (

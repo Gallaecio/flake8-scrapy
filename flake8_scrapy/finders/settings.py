@@ -70,7 +70,7 @@ class SettingsIssueFinder:
                     )
                 if self.is_defaultless_getter_call(node):
                     yield Issue(
-                        code=28,
+                        code=31,
                         summary="unneeded setting get",
                         **get_method_location(node),
                     )
